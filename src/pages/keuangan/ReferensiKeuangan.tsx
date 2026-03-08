@@ -229,10 +229,10 @@ function TabJenisPengeluaran() {
             <div><Label>Nama</Label><Input value={nama} onChange={(e) => setNama(e.target.value)} /></div>
             <div>
               <Label>Lembaga (kosongkan jika berlaku untuk semua)</Label>
-              <Select value={formDepartemenId} onValueChange={setFormDepartemenId}>
+              <Select value={formDepartemenId || "__all__"} onValueChange={(v) => setFormDepartemenId(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Semua Lembaga</SelectItem>
+                  <SelectItem value="__all__">Semua Lembaga</SelectItem>
                   {lembagaList?.map((l: any) => (
                     <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
                   ))}
