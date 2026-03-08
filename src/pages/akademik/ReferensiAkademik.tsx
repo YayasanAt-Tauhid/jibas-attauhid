@@ -114,7 +114,7 @@ function TabMapel({ canEdit }: { canEdit: boolean }) {
   return (
     <div className="space-y-4 pt-4">
       <div className="flex items-center justify-between">
-        <Select value={filterDept} onValueChange={setFilterDept}>
+        <Select value={filterDept || "__all__"} onValueChange={(v) => setFilterDept(v === "__all__" ? "" : v)}>
           <SelectTrigger className="w-48"><SelectValue placeholder="Semua Lembaga" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Semua Lembaga</SelectItem>
