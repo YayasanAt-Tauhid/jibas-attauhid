@@ -221,10 +221,10 @@ export default function TunggakanPembayaran() {
             </div>
             <div>
               <Label>Kelas</Label>
-              <Select value={kelasId} onValueChange={setKelasId}>
+              <Select value={kelasId || "__all__"} onValueChange={(v) => setKelasId(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Semua</SelectItem>
+                  <SelectItem value="__all__">Semua</SelectItem>
                   {filteredKelas?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
                 </SelectContent>
               </Select>

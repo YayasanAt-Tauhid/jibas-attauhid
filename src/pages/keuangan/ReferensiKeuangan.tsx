@@ -451,10 +451,10 @@ function TabAkunRekening() {
             </div>
             <div>
               <Label>Lembaga (kosongkan jika shared antar lembaga)</Label>
-              <Select value={formDepartemenId} onValueChange={setFormDepartemenId}>
+              <Select value={formDepartemenId || "__all__"} onValueChange={(v) => setFormDepartemenId(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Shared (semua lembaga)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Shared (Semua Lembaga)</SelectItem>
+                  <SelectItem value="__all__">Shared (Semua Lembaga)</SelectItem>
                   {lembagaList?.map((l: any) => (
                     <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
                   ))}

@@ -224,10 +224,10 @@ export default function JurnalUmum() {
               <div><Label>Referensi</Label><Input value={referensi} onChange={e => setReferensi(e.target.value)} placeholder="No. dokumen sumber" /></div>
               <div>
                 <Label>Lembaga</Label>
-                <Select value={formDepartemenId} onValueChange={setFormDepartemenId}>
+                <Select value={formDepartemenId || "__all__"} onValueChange={(v) => setFormDepartemenId(v === "__all__" ? "" : v)}>
                   <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Semua Lembaga</SelectItem>
+                    <SelectItem value="__all__">Semua Lembaga</SelectItem>
                     {lembagaList?.map((l: any) => (
                       <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
                     ))}
