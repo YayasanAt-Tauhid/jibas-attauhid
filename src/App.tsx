@@ -163,6 +163,7 @@ const App = () => (
                 <Route path="/kepegawaian/jadwal" element={<JadwalPegawai />} />
                 <Route path="/kepegawaian/duk" element={<DUK />} />
                 <Route path="/kepegawaian/statistik" element={<StatistikPegawai />} />
+                <Route path="/kepegawaian/struktur" element={<StrukturOrganisasi />} />
                 {/* CBE */}
                 <Route path="/cbe" element={<CBE />} />
                 <Route path="/cbe/:tab" element={<CBE />} />
