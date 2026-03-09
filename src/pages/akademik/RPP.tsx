@@ -62,7 +62,7 @@ export default function RPP() {
     { key: "mapel_nama", label: "Mata Pelajaran", sortable: true },
     { key: "kelas_nama", label: "Kelas" },
     { key: "guru_nama", label: "Guru" },
-    { key: "pertemuan_ke", label: "Pertemuan", render: (v) => `Ke-${v}` },
+    { key: "pertemuan_ke", label: "Pertemuan", render: (v) => `Ke-${String(v)}` },
     { key: "alokasi_waktu", label: "Waktu" },
     { key: "status", label: "Status", render: (v) => <Badge variant={v === "disetujui" ? "default" : v === "final" ? "secondary" : "outline"}>{STATUS_MAP[v as string] || v}</Badge> },
     { key: "id", label: "Aksi", render: (_, row) => <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setViewRpp(row); }}><Eye className="h-4 w-4" /></Button> },

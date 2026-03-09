@@ -73,7 +73,7 @@ export default function StatistikSiswa() {
           <div className="grid gap-4 sm:grid-cols-4">
             <StatsCard title="Total Siswa" value={stats.total} icon={Users} color="primary" />
             <StatsCard title="Siswa Aktif" value={stats.aktif} icon={UserCheck} color="success" />
-            <StatsCard title="Alumni/Lulus" value={stats.lulus} icon={GraduationCap} color="secondary" />
+            <StatsCard title="Alumni/Lulus" value={stats.lulus} icon={GraduationCap} color="info" />
             <StatsCard title="Non-Aktif" value={stats.nonAktif} icon={UserX} color="destructive" />
           </div>
 

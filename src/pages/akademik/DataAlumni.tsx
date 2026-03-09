@@ -50,7 +50,7 @@ export default function DataAlumni() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatsCard title="Total Alumni" value={totalAlumni} icon={GraduationCap} color="primary" />
-        <StatsCard title="Laki-laki" value={alumniL} icon={Users} color="secondary" />
+        <StatsCard title="Laki-laki" value={alumniL} icon={Users} color="info" />
         <StatsCard title="Perempuan" value={alumniP} icon={Users} color="success" />
       </div>
 
