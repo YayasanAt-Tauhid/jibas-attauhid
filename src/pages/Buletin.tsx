@@ -111,7 +111,8 @@ export default function Buletin() {
 
   const openEdit = (item: any) => {
     setEditItem(item);
-    setForm({ judul: item.judul, konten: item.konten, kategori: item.kategori || "Umum", target_tipe: item.target_tipe || "semua", departemen_id: item.departemen_id || "", tanggal_tayang: item.tanggal_tayang || format(new Date(), "yyyy-MM-dd"), tanggal_kadaluarsa: item.tanggal_kadaluarsa || "", penting: item.penting || false });
+    setSelectedFile(null);
+    setForm({ judul: item.judul, konten: item.konten, kategori: item.kategori || "Umum", target_tipe: item.target_tipe || "semua", departemen_id: item.departemen_id || "", tanggal_tayang: item.tanggal_tayang || format(new Date(), "yyyy-MM-dd"), tanggal_kadaluarsa: item.tanggal_kadaluarsa || "", penting: item.penting || false, lampiran_url: item.lampiran_url || "", lampiran_nama: item.lampiran_nama || "" });
     setDialogOpen(true);
   };
 
