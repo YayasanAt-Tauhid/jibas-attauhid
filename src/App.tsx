@@ -148,6 +148,7 @@ const App = () => (
                 <Route path="/pengaturan/sekolah" element={<ProfilYayasan />} />
                 <Route path="/pengaturan/pengguna" element={<ManajemenPengguna />} />
                 <Route path="/pengaturan/ortu" element={<ManajemenOrtu />} />
+                <Route path="/pengaturan/notifikasi" element={<NotifikasiGateway />} />
                 <Route path="/pengaturan/:tab" element={<Pengaturan />} />
               </Route>
             </Route>

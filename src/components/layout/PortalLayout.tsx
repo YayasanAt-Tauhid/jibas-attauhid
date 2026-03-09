@@ -19,6 +19,8 @@ const navItems = [
   { label: "Beranda", href: "/portal", icon: Home },
   { label: "Tagihan", href: "/portal/tagihan", icon: FileText },
   { label: "Riwayat", href: "/portal/pembayaran", icon: History },
+  { label: "Presensi", href: "/portal/presensi", icon: CalendarDays },
+  { label: "Nilai", href: "/portal/nilai", icon: GraduationCap },
   { label: "Profil", href: "/portal/profil", icon: User },
 ];
 
