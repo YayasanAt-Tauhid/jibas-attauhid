@@ -199,6 +199,75 @@ export default function NotifikasiGateway() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="whatsapp" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Phone className="h-5 w-5" />
+                Kirim Pesan WhatsApp
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-2">
+                <p className="font-medium">Cara Setup WA-Gateway (Baileys):</p>
+                <ol className="list-decimal ml-4 space-y-1 text-muted-foreground">
+                  <li>Deploy WA-Gateway di VPS (mis: <code>https://github.com/WhatsApp-Gateway/WA-Gateway</code>)</li>
+                  <li>Scan QR code dengan nomor WhatsApp Anda</li>
+                  <li>Simpan URL gateway sebagai secret <code>WA_GATEWAY_URL</code> di Supabase</li>
+                  <li>Jika ada token, simpan sebagai <code>WA_GATEWAY_TOKEN</code></li>
+                  <li>Pastikan endpoint <code>/send-message</code> berfungsi</li>
+                </ol>
+              </div>
+
+              <div>
+                <Label>Nomor WhatsApp</Label>
+                <Input
+                  placeholder="Contoh: 628123456789 (tanpa +)"
+                  value={whatsappPhone}
+                  onChange={(e) => setWhatsappPhone(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Format: 628xxx (kode negara + nomor tanpa +)
+                </p>
+              </div>
+
+              <div>
+                <Label>Pesan</Label>
+                <Textarea
+                  placeholder="Tulis pesan yang akan dikirim..."
+                  value={whatsappMessage}
+                  onChange={(e) => setWhatsappMessage(e.target.value)}
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pesan teks biasa (emoji ✅ didukung)
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={sendWhatsApp}
+                  disabled={sending}
+                  className="bg-[#25D366] hover:bg-[#1da851]"
+                >
+                  {sending ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  Kirim Pesan
+                </Button>
+              </div>
+
+              {testResult && (
+                <div className={`rounded-lg p-3 text-sm ${testResult.startsWith("✅") ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                  {testResult}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
