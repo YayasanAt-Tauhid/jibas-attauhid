@@ -57,6 +57,13 @@ import PortalTagihan from "./pages/portal/PortalTagihan";
 import PortalCheckout from "./pages/portal/PortalCheckout";
 import PortalRiwayat from "./pages/portal/PortalRiwayat";
 import PortalProfil from "./pages/portal/PortalProfil";
+import PortalPresensi from "./pages/portal/PortalPresensi";
+import PortalNilai from "./pages/portal/PortalNilai";
+// Public pages
+import InfoGuru from "./pages/InfoGuru";
+import Anjungan from "./pages/Anjungan";
+// Pengaturan
+import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +77,9 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            {/* Public pages */}
+            <Route path="/infoguru" element={<InfoGuru />} />
+            <Route path="/anjungan" element={<Anjungan />} />
             {/* Portal Orang Tua */}
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route element={<ProtectedPortalRoute />}>
@@ -78,6 +88,8 @@ const App = () => (
                 <Route path="/portal/tagihan" element={<PortalTagihan />} />
                 <Route path="/portal/checkout" element={<PortalCheckout />} />
                 <Route path="/portal/pembayaran" element={<PortalRiwayat />} />
+                <Route path="/portal/presensi" element={<PortalPresensi />} />
+                <Route path="/portal/nilai" element={<PortalNilai />} />
                 <Route path="/portal/profil" element={<PortalProfil />} />
               </Route>
             </Route>
@@ -136,6 +148,7 @@ const App = () => (
                 <Route path="/pengaturan/sekolah" element={<ProfilYayasan />} />
                 <Route path="/pengaturan/pengguna" element={<ManajemenPengguna />} />
                 <Route path="/pengaturan/ortu" element={<ManajemenOrtu />} />
+                <Route path="/pengaturan/notifikasi" element={<NotifikasiGateway />} />
                 <Route path="/pengaturan/:tab" element={<Pengaturan />} />
               </Route>
             </Route>

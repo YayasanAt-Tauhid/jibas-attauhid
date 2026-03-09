@@ -96,6 +96,7 @@ const menuItems: MenuItem[] = [
       { title: "Identitas Sekolah", url: "/pengaturan/sekolah" },
       { title: "Manajemen Pengguna", url: "/pengaturan/pengguna" },
       { title: "Manajemen Ortu", url: "/pengaturan/ortu" },
+      { title: "Notifikasi Gateway", url: "/pengaturan/notifikasi" },
     ],
   },
 ];
