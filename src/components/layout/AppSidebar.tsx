@@ -110,6 +110,7 @@ const menuItems: MenuItem[] = [
       { title: "Manajemen Pengguna", url: "/pengaturan/pengguna" },
       { title: "Manajemen Ortu", url: "/pengaturan/ortu" },
       { title: "Notifikasi Gateway", url: "/pengaturan/notifikasi" },
+      { title: "Backup & Export", url: "/pengaturan/backup" },
     ],
   },
 ];

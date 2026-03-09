@@ -178,6 +178,7 @@ const App = () => (
                 <Route path="/pengaturan/pengguna" element={<ManajemenPengguna />} />
                 <Route path="/pengaturan/ortu" element={<ManajemenOrtu />} />
                 <Route path="/pengaturan/notifikasi" element={<NotifikasiGateway />} />
+                <Route path="/pengaturan/backup" element={<BackupExport />} />
                 <Route path="/pengaturan/:tab" element={<Pengaturan />} />
               </Route>
             </Route>
