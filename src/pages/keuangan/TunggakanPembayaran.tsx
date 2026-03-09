@@ -41,7 +41,7 @@ export default function TunggakanPembayaran() {
 
   // Detect if selected jenis is one-time
   const selectedJenis = jenisList?.find((j: any) => j.id === jenisId);
-  const isSekaliBayar = selectedJenis?.tipe === "sekali";
+  const isSekaliBayar = (selectedJenis as any)?.tipe === "sekali";
 
   const { data: tunggakanData, isLoading } = useQuery({
     queryKey: ["tunggakan", departemenId, kelasId, jenisId, bulanDari, bulanSampai],
@@ -65,7 +65,7 @@ export default function TunggakanPembayaran() {
       const siswaIds = filtered.map((s: any) => s.siswa_id);
       const jenis = jenisList?.find((j: any) => j.id === jenisId);
       const nominal = Number(jenis?.nominal || 0);
-      const tipe = jenis?.tipe || "bulanan";
+      const tipe = (jenis as any)?.tipe || "bulanan";
 
       if (tipe === "sekali") {
         // One-time payment: check if each student has paid
