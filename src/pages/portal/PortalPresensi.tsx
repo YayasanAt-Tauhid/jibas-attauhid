@@ -63,8 +63,7 @@ export default function PortalPresensi() {
   }, [presensi]);
 
   const selectedAnak = anakList.find((a: any) => a.siswa_id === effectiveSiswa);
-  const siswaInfo = selectedAnak?.siswa;
-  const activeKelas = siswaInfo?.kelas_siswa?.find((ks: any) => ks.aktif);
+  const siswaInfo = selectedAnak?.siswa as any;
 
   return (
     <div className="space-y-6 animate-fade-in">
