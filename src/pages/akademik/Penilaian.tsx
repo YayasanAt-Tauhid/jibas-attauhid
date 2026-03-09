@@ -116,7 +116,23 @@ function InputNilai() {
 
       {showTable && siswaData && (
         <>
-          <div className="flex justify-end"><Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>{saveMut.isPending ? "Menyimpan..." : "Simpan Semua Nilai"}</Button></div>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportNilaiExcel(siswaData, nilaiMap, jenisUjian)}>
+                <Download className="h-4 w-4 mr-1" />Export Excel
+              </Button>
+              <label>
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  importNilaiExcel(file, siswaData, setNilaiMap);
+                  e.target.value = "";
+                }} />
+                <Button variant="outline" size="sm" asChild><span><Upload className="h-4 w-4 mr-1" />Import Excel</span></Button>
+              </label>
+            </div>
+            <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>{saveMut.isPending ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>
+          </div>
           {isLoading ? <Skeleton className="h-96" /> : (
             <Card><CardContent className="pt-6">
               <Table>
