@@ -707,6 +707,11 @@ pengumuman (id, judul, konten, kategori, lampiran_url,
 /keuangan/referensi             → Referensi Keuangan [bukan kasir]
 /keuangan/jurnal                → Jurnal Umum [bukan kasir]
 /keuangan/buku-besar            → Buku Besar [bukan kasir]
+/keuangan/laporan-siswa         → Laporan Bayar per Siswa [bukan kasir]
+/keuangan/laporan-kelas         → Laporan Bayar per Kelas [bukan kasir]
+/keuangan/rekap-harian          → Rekap Keuangan Harian [bukan kasir]
+/keuangan/pembayaran-psb        → Pembayaran Calon Siswa [bukan kasir]
+/keuangan/tutup-buku            → Tutup Buku [bukan kasir]
 
 /kepegawaian                    → Hub Kepegawaian
 /kepegawaian/pegawai            → Data Pegawai
