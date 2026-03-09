@@ -1641,6 +1641,8 @@ export type Database = {
           judul: string
           kategori: string | null
           konten: string
+          lampiran_nama: string | null
+          lampiran_url: string | null
           penting: boolean | null
           penulis_id: string | null
           tanggal_kadaluarsa: string | null
@@ -1656,6 +1658,8 @@ export type Database = {
           judul: string
           kategori?: string | null
           konten: string
+          lampiran_nama?: string | null
+          lampiran_url?: string | null
           penting?: boolean | null
           penulis_id?: string | null
           tanggal_kadaluarsa?: string | null
@@ -1671,6 +1675,8 @@ export type Database = {
           judul?: string
           kategori?: string | null
           konten?: string
+          lampiran_nama?: string | null
+          lampiran_url?: string | null
           penting?: boolean | null
           penulis_id?: string | null
           tanggal_kadaluarsa?: string | null
