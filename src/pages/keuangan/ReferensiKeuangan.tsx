@@ -523,19 +523,27 @@ function TabTahunBuku() {
     { key: "tanggal_selesai", label: "Selesai", render: (v) => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },
     {
       key: "aktif", label: "Status",
-      render: (v) => v
-        ? <Badge className="bg-success text-success-foreground">Aktif</Badge>
-        : <Badge variant="outline" className="text-muted-foreground">Nonaktif</Badge>,
+      render: (v, r: any) => (
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Switch
+            checked={!!v}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                aktifkanMut.mutate({ id: r.id, nama: r.nama });
+              }
+            }}
+            disabled={!!v}
+          />
+          <span className={v ? "text-success font-medium" : "text-muted-foreground"}>
+            {v ? "Aktif" : "Nonaktif"}
+          </span>
+        </div>
+      ),
     },
     {
       key: "aksi", label: "Aksi",
       render: (_, r: any) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          {!r.aktif && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-success" title="Aktifkan" onClick={() => aktifkanMut.mutate({ id: r.id, nama: r.nama })}>
-              <Power className="h-4 w-4" />
-            </Button>
-          )}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="h-4 w-4" /></Button>
         </div>
