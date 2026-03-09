@@ -164,8 +164,8 @@ export default function OnlinePayment() {
       {stats ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard title="Total Transaksi" value={String(stats.total)} icon={Globe} />
-          <StatsCard title="Berhasil Dibayar" value={formatRupiah(stats.totalPaid)} description={`${stats.paidCount} transaksi`} icon={CheckCircle2} color="success" />
-          <StatsCard title="Menunggu Bayar" value={formatRupiah(stats.totalPending)} description={`${stats.pendingCount} transaksi`} icon={Clock} color="warning" />
+          <StatsCard title="Berhasil Dibayar" value={formatRupiah(stats.totalPaid)} icon={CheckCircle2} color="success" />
+          <StatsCard title="Menunggu Bayar" value={formatRupiah(stats.totalPending)} icon={Clock} color="warning" />
           <StatsCard title="Gagal / Expired" value={String(stats.failedCount)} icon={XCircle} color="destructive" />
         </div>
       ) : (
