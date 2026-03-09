@@ -51,6 +51,7 @@ import TutupBuku from "./pages/keuangan/TutupBuku";
 import LaporanPengeluaran from "./pages/keuangan/LaporanPengeluaran";
 import LaporanPenerimaanLain from "./pages/keuangan/LaporanPenerimaanLain";
 import AuditTrail from "./pages/keuangan/AuditTrail";
+import OnlinePayment from "./pages/keuangan/OnlinePayment";
 import ProfilYayasan from "./pages/pengaturan/ProfilYayasan";
 import ManajemenPengguna from "./pages/pengaturan/ManajemenPengguna";
 import ManajemenOrtu from "./pages/pengaturan/ManajemenOrtu";
