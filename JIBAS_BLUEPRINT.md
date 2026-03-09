@@ -982,20 +982,20 @@ Tabel ini adalah **backlog lengkap** fitur dari JIBAS 32.0 yang perlu diimplemen
 
 | Fitur | Modul PHP | Status |
 |---|---|---|
-| Kuitansi bayar siswa (print) | `kuitansiiuran.php` | ❌ Belum |
-| Kuitansi JTT (print) | `kuitansijtt.php` | ❌ Belum |
-| Laporan bayar per siswa | `lapbayarsiswa_*.php` | ❌ Belum |
-| Laporan bayar per kelas | `lapbayarsiswa_kelas_*.php` | ❌ Belum |
-| Laporan tunggak per kelas | `lapbayarsiswa_nunggak_*.php` | ❌ Belum |
-| Laporan bayar calon siswa | `lapbayarcalon_*.php` | ❌ Belum |
+| Kuitansi bayar siswa (print) | `kuitansiiuran.php` | ✅ Selesai (`PrintKuitansi.tsx`) |
+| Kuitansi JTT (print) | `kuitansijtt.php` | ✅ Selesai (via `PrintKuitansi.tsx`) |
+| Laporan bayar per siswa | `lapbayarsiswa_*.php` | ✅ Selesai (`LaporanBayarSiswa.tsx`) |
+| Laporan bayar per kelas | `lapbayarsiswa_kelas_*.php` | ✅ Selesai (`LaporanBayarKelas.tsx`) |
+| Laporan tunggak per kelas | `lapbayarsiswa_nunggak_*.php` | ✅ Selesai (via `TunggakanPembayaran.tsx`) |
+| Laporan bayar calon siswa | `lapbayarcalon_*.php` | ✅ Selesai (`PembayaranPSB.tsx`) |
+| Rekap keuangan harian | `laprekapharian_*.php` | ✅ Selesai (`RekapHarian.tsx`) |
+| Rekap keuangan per siswa | `laprekapsiswa_*.php` | ✅ Selesai (`LaporanBayarSiswa.tsx`) |
+| Tutup buku tahunan | `tutupbuku.php` | ✅ Selesai (`TutupBuku.tsx`) |
+| Pembayaran calon siswa | `pembayaran_iurancalon.php` | ✅ Selesai (`PembayaranPSB.tsx`) |
 | Laporan penerimaan lain | `lappenerimaanlain_*.php` | ❌ Belum |
 | Laporan pengeluaran per jenis | `lappengeluaran_jenis_*.php` | ❌ Belum |
-| Rekap keuangan harian | `laprekapharian_*.php` | ❌ Belum |
-| Rekap keuangan per siswa | `laprekapsiswa_*.php` | ❌ Belum |
-| Tutup buku tahunan | `tutupbuku.php` | ❌ Belum |
 | Tahun buku | `tahunbuku_*.php` | ❌ Belum |
 | Audit trail transaksi | `lapaudit_*.php` | ❌ Belum |
-| Pembayaran calon siswa | `pembayaran_iurancalon.php` | ❌ Belum |
 | Pengeluaran bukti cetak | `buktipengeluaran.php` | ❌ Belum |
 
 ### Kepegawaian
