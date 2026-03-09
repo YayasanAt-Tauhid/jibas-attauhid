@@ -104,7 +104,8 @@ export default function Buletin() {
 
   const openAdd = () => {
     setEditItem(null);
-    setForm({ judul: "", konten: "", kategori: "Umum", target_tipe: "semua", departemen_id: "", tanggal_tayang: format(new Date(), "yyyy-MM-dd"), tanggal_kadaluarsa: "", penting: false });
+    setSelectedFile(null);
+    setForm({ judul: "", konten: "", kategori: "Umum", target_tipe: "semua", departemen_id: "", tanggal_tayang: format(new Date(), "yyyy-MM-dd"), tanggal_kadaluarsa: "", penting: false, lampiran_url: "", lampiran_nama: "" });
     setDialogOpen(true);
   };
 
