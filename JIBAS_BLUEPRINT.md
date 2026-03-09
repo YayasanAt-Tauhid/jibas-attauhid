@@ -992,11 +992,11 @@ Tabel ini adalah **backlog lengkap** fitur dari JIBAS 32.0 yang perlu diimplemen
 | Rekap keuangan per siswa | `laprekapsiswa_*.php` | ✅ Selesai (`LaporanBayarSiswa.tsx`) |
 | Tutup buku tahunan | `tutupbuku.php` | ✅ Selesai (`TutupBuku.tsx`) |
 | Pembayaran calon siswa | `pembayaran_iurancalon.php` | ✅ Selesai (`PembayaranPSB.tsx`) |
-| Laporan penerimaan lain | `lappenerimaanlain_*.php` | ❌ Belum |
-| Laporan pengeluaran per jenis | `lappengeluaran_jenis_*.php` | ❌ Belum |
-| Tahun buku | `tahunbuku_*.php` | ❌ Belum |
-| Audit trail transaksi | `lapaudit_*.php` | ❌ Belum |
-| Pengeluaran bukti cetak | `buktipengeluaran.php` | ❌ Belum |
+| Laporan penerimaan lain | `lappenerimaanlain_*.php` | ✅ Selesai (`LaporanPenerimaanLain.tsx`) |
+| Laporan pengeluaran per jenis | `lappengeluaran_jenis_*.php` | ✅ Selesai (`LaporanPengeluaran.tsx`) |
+| Tahun buku | `tahunbuku_*.php` | ✅ Selesai (via `TutupBuku.tsx` + `ReferensiKeuangan.tsx`) |
+| Audit trail transaksi | `lapaudit_*.php` | ✅ Selesai (`AuditTrail.tsx`) |
+| Pengeluaran bukti cetak | `buktipengeluaran.php` | ✅ Selesai (via `InputPengeluaran.tsx`) |
 
 ### Kepegawaian
 
