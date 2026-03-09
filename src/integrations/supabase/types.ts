@@ -662,6 +662,47 @@ export type Database = {
           },
         ]
       }
+      keluarga_pegawai: {
+        Row: {
+          hubungan: string
+          id: string
+          jenis_kelamin: string | null
+          keterangan: string | null
+          nama: string
+          pegawai_id: string | null
+          pekerjaan: string | null
+          tanggal_lahir: string | null
+        }
+        Insert: {
+          hubungan: string
+          id?: string
+          jenis_kelamin?: string | null
+          keterangan?: string | null
+          nama: string
+          pegawai_id?: string | null
+          pekerjaan?: string | null
+          tanggal_lahir?: string | null
+        }
+        Update: {
+          hubungan?: string
+          id?: string
+          jenis_kelamin?: string | null
+          keterangan?: string | null
+          nama?: string
+          pegawai_id?: string | null
+          pekerjaan?: string | null
+          tanggal_lahir?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keluarga_pegawai_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kkm: {
         Row: {
           id: string
@@ -1081,6 +1122,7 @@ export type Database = {
           departemen_id: string | null
           email: string | null
           foto_url: string | null
+          golongan_terakhir: string | null
           id: string
           jabatan: string | null
           jenis_kelamin: string | null
@@ -1088,6 +1130,8 @@ export type Database = {
           nip: string | null
           status: string | null
           tanggal_lahir: string | null
+          tanggal_masuk: string | null
+          tanggal_pensiun: string | null
           telepon: string | null
           tempat_lahir: string | null
         }
@@ -1098,6 +1142,7 @@ export type Database = {
           departemen_id?: string | null
           email?: string | null
           foto_url?: string | null
+          golongan_terakhir?: string | null
           id?: string
           jabatan?: string | null
           jenis_kelamin?: string | null
@@ -1105,6 +1150,8 @@ export type Database = {
           nip?: string | null
           status?: string | null
           tanggal_lahir?: string | null
+          tanggal_masuk?: string | null
+          tanggal_pensiun?: string | null
           telepon?: string | null
           tempat_lahir?: string | null
         }
@@ -1115,6 +1162,7 @@ export type Database = {
           departemen_id?: string | null
           email?: string | null
           foto_url?: string | null
+          golongan_terakhir?: string | null
           id?: string
           jabatan?: string | null
           jenis_kelamin?: string | null
@@ -1122,6 +1170,8 @@ export type Database = {
           nip?: string | null
           status?: string | null
           tanggal_lahir?: string | null
+          tanggal_masuk?: string | null
+          tanggal_pensiun?: string | null
           telepon?: string | null
           tempat_lahir?: string | null
         }
@@ -1868,6 +1918,97 @@ export type Database = {
           },
         ]
       }
+      riwayat_gaji: {
+        Row: {
+          berlaku_mulai: string | null
+          berlaku_sampai: string | null
+          gaji_pokok: number
+          id: string
+          keterangan: string | null
+          pegawai_id: string | null
+          potongan: number | null
+          sk_nomor: string | null
+          total: number | null
+          tunjangan: number | null
+        }
+        Insert: {
+          berlaku_mulai?: string | null
+          berlaku_sampai?: string | null
+          gaji_pokok?: number
+          id?: string
+          keterangan?: string | null
+          pegawai_id?: string | null
+          potongan?: number | null
+          sk_nomor?: string | null
+          total?: number | null
+          tunjangan?: number | null
+        }
+        Update: {
+          berlaku_mulai?: string | null
+          berlaku_sampai?: string | null
+          gaji_pokok?: number
+          id?: string
+          keterangan?: string | null
+          pegawai_id?: string | null
+          potongan?: number | null
+          sk_nomor?: string | null
+          total?: number | null
+          tunjangan?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "riwayat_gaji_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      riwayat_golongan: {
+        Row: {
+          golongan: string
+          id: string
+          keterangan: string | null
+          pangkat: string | null
+          pegawai_id: string | null
+          sampai: string | null
+          sk_nomor: string | null
+          sk_tanggal: string | null
+          tmt: string | null
+        }
+        Insert: {
+          golongan: string
+          id?: string
+          keterangan?: string | null
+          pangkat?: string | null
+          pegawai_id?: string | null
+          sampai?: string | null
+          sk_nomor?: string | null
+          sk_tanggal?: string | null
+          tmt?: string | null
+        }
+        Update: {
+          golongan?: string
+          id?: string
+          keterangan?: string | null
+          pangkat?: string | null
+          pegawai_id?: string | null
+          sampai?: string | null
+          sk_nomor?: string | null
+          sk_tanggal?: string | null
+          tmt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "riwayat_golongan_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       riwayat_jabatan: {
         Row: {
           id: string
@@ -2028,6 +2169,50 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["tahun_ajaran_id"]
+          },
+        ]
+      }
+      sertifikasi_guru: {
+        Row: {
+          aktif: boolean | null
+          id: string
+          jenis: string
+          keterangan: string | null
+          nomor_sertifikat: string | null
+          pegawai_id: string | null
+          penerbit: string | null
+          tanggal_berlaku: string | null
+          tanggal_terbit: string | null
+        }
+        Insert: {
+          aktif?: boolean | null
+          id?: string
+          jenis: string
+          keterangan?: string | null
+          nomor_sertifikat?: string | null
+          pegawai_id?: string | null
+          penerbit?: string | null
+          tanggal_berlaku?: string | null
+          tanggal_terbit?: string | null
+        }
+        Update: {
+          aktif?: boolean | null
+          id?: string
+          jenis?: string
+          keterangan?: string | null
+          nomor_sertifikat?: string | null
+          pegawai_id?: string | null
+          penerbit?: string | null
+          tanggal_berlaku?: string | null
+          tanggal_terbit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sertifikasi_guru_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
           },
         ]
       }
