@@ -104,6 +104,10 @@ const App = () => (
                   <Route path="/keuangan/tabungan" element={<TabunganSiswa />} />
                   <Route path="/keuangan/laporan" element={<LaporanKeuangan />} />
                   <Route path="/keuangan/laporan-siswa" element={<LaporanBayarSiswa />} />
+                  <Route path="/keuangan/laporan-kelas" element={<LaporanBayarKelas />} />
+                  <Route path="/keuangan/rekap-harian" element={<RekapHarian />} />
+                  <Route path="/keuangan/pembayaran-psb" element={<PembayaranPSB />} />
+                  <Route path="/keuangan/tutup-buku" element={<TutupBuku />} />
                   <Route path="/keuangan/referensi" element={<ReferensiKeuangan />} />
                   <Route path="/keuangan/jurnal" element={<JurnalUmum />} />
                   <Route path="/keuangan/buku-besar" element={<BukuBesar />} />

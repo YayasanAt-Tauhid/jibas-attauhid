@@ -252,7 +252,7 @@ export default function TutupBuku() {
         title="Konfirmasi Tutup Buku"
         description={`Anda yakin ingin menutup buku untuk tahun ${selectedTA?.nama}? Saldo akhir akan menjadi saldo awal periode berikutnya. Proses ini tidak dapat dibatalkan.`}
         onConfirm={() => tutupBukuMutation.mutate()}
-        confirmText="Ya, Tutup Buku"
+        confirmLabel="Ya, Tutup Buku"
         variant="destructive"
       />
     </div>

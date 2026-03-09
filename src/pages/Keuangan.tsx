@@ -20,7 +20,11 @@ const links = [
   { label: "Buku Besar", url: "/keuangan/buku-besar" },
   { label: "Laporan Keuangan", url: "/keuangan/laporan" },
   { label: "Laporan Per Siswa", url: "/keuangan/laporan-siswa" },
+  { label: "Laporan Per Kelas", url: "/keuangan/laporan-kelas" },
+  { label: "Rekap Harian", url: "/keuangan/rekap-harian" },
+  { label: "Pembayaran PSB", url: "/keuangan/pembayaran-psb" },
   { label: "Referensi", url: "/keuangan/referensi" },
+  { label: "Tutup Buku", url: "/keuangan/tutup-buku" },
 ];
 
 export default function Keuangan() {
