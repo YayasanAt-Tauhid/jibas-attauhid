@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Calculator, TrendingUp, TrendingDown, Users } from "lucide-react";
+import { Calculator, TrendingUp, TrendingDown, Users, Upload, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const JENIS_UJIAN = ["Ulangan Harian", "UTS", "UAS", "Tugas", "Praktik"];
 const nilaiHuruf = (n: number) => n >= 90 ? "A" : n >= 80 ? "B" : n >= 70 ? "C" : n >= 60 ? "D" : "E";
