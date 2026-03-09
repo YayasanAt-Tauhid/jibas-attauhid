@@ -66,6 +66,53 @@ export default function NotifikasiGateway() {
     }
   };
 
+  const sendWhatsApp = async () => {
+    if (!whatsappPhone || !whatsappMessage) {
+      toast.warning("Nomor HP dan pesan wajib diisi");
+      return;
+    }
+
+    setSending(true);
+    setTestResult(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi habis, login ulang");
+        return;
+      }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            phone: whatsappPhone,
+            message: whatsappMessage,
+          }),
+        }
+      );
+
+      const result = await res.json();
+      if (result.success) {
+        toast.success(`Pesan terkirim! (${result.sent} berhasil)`);
+        setTestResult(`✅ Berhasil: ${result.sent} pesan terkirim`);
+      } else {
+        toast.error(result.error || "Gagal mengirim pesan");
+        setTestResult(`❌ Gagal: ${result.error}`);
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+      setTestResult(`❌ Error: ${err.message}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <div>
