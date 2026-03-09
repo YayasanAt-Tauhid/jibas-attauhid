@@ -57,7 +57,7 @@ export default function LaporanPengeluaran() {
   }, {});
 
   const summaryData = Object.entries(grouped)
-    .map(([id, g]) => ({ id, ...g }))
+    .map(([id, g]: [string, any]) => ({ id, nama: g.nama, total: g.total, count: g.count }))
     .sort((a, b) => b.total - a.total);
 
   const grandTotal = summaryData.reduce((s, r) => s + r.total, 0);

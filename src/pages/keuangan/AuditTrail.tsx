@@ -175,8 +175,8 @@ export default function AuditTrail() {
         <CardHeader><CardTitle>Log Transaksi</CardTitle></CardHeader>
         <CardContent>
           <DataTable
-            columns={columns}
-            data={data || []}
+            columns={columns as any}
+            data={(data || []) as any}
             loading={isLoading}
             exportable
             exportFilename="audit_trail_keuangan"
