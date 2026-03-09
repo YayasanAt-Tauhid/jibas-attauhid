@@ -18,7 +18,7 @@ import {
 } from "@/hooks/useKeuangan";
 import { useAllAkunRekening, useCreateAkunRekening, useUpdateAkunRekening, useDeleteAkunRekening, useAkunByJenis, usePengaturanAkun, useUpdatePengaturanAkun } from "@/hooks/useJurnal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Power, AlertTriangle, Save } from "lucide-react";
+import { Plus, Pencil, Trash2, AlertTriangle, Save, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
