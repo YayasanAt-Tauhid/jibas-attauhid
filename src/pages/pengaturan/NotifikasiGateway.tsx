@@ -14,6 +14,8 @@ export default function NotifikasiGateway() {
   const { user } = useAuth();
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramMessage, setTelegramMessage] = useState("");
+  const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [whatsappMessage, setWhatsappMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
