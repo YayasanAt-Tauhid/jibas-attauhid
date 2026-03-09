@@ -57,6 +57,13 @@ import PortalTagihan from "./pages/portal/PortalTagihan";
 import PortalCheckout from "./pages/portal/PortalCheckout";
 import PortalRiwayat from "./pages/portal/PortalRiwayat";
 import PortalProfil from "./pages/portal/PortalProfil";
+import PortalPresensi from "./pages/portal/PortalPresensi";
+import PortalNilai from "./pages/portal/PortalNilai";
+// Public pages
+import InfoGuru from "./pages/InfoGuru";
+import Anjungan from "./pages/Anjungan";
+// Pengaturan
+import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 
 const queryClient = new QueryClient();
 
