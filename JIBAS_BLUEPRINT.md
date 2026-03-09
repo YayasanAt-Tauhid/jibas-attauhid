@@ -509,15 +509,15 @@ calon_siswa (id, nama, jenis_kelamin, tempat_lahir, tanggal_lahir,
 | Pembayaran PSB | `/keuangan/pembayaran-psb` | Pembayaran calon siswa |
 | Tutup Buku | `/keuangan/tutup-buku` | Proses akhir tahun buku |
 | Kuitansi Print | (komponen) | `PrintKuitansi.tsx` — cetak kuitansi dari InputPembayaran |
+| Lap. Pengeluaran per Jenis | `/keuangan/laporan-pengeluaran` | Ringkasan & detail pengeluaran per jenis |
+| Penerimaan Lain | `/keuangan/penerimaan-lain` | Penerimaan non-SPP (pendaftaran, uang pangkal, dll) |
+| Audit Trail | `/keuangan/audit-trail` | Log seluruh transaksi penerimaan & pengeluaran |
+| Bukti Pengeluaran | (dalam InputPengeluaran) | Dialog cetak bukti pengeluaran |
 
 #### Sub-Modul yang Masih Perlu Dibangun
 
 | Fitur | Referensi Lama | Prioritas |
 |---|---|---|
-| Laporan Pengeluaran per Jenis | `lappengeluaran_jenis_*.php` | Sedang |
-| Laporan Penerimaan Lain | `lappenerimaanlain_*.php` | Sedang |
-| Audit Trail | `lapaudit_*.php` | Rendah |
-| Tahun Buku | `tahunbuku_*.php` | Sedang |
 | Online Payment | `/keuangan/onlinepay/` | Rendah |
 | SchoolPay | `/keuangan/schoolpay/` | Rendah |
 
