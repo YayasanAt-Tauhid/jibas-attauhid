@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Send, MessageCircle, TestTube2 } from "lucide-react";
+import { Send, MessageCircle, Phone } from "lucide-react";
 
 export default function NotifikasiGateway() {
   const { user } = useAuth();
