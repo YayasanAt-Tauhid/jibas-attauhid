@@ -58,6 +58,12 @@ export default function PortalCheckout() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [keranjang, setKeranjang] = useState<KeranjangItem[]>([]);
+  const { isReady: isMidtransReady, isLoading: isMidtransLoading, error: midtransError, loadMidtrans } = useMidtrans();
+
+  // Load Midtrans script when component mounts
+  useEffect(() => {
+    loadMidtrans();
+  }, [loadMidtrans]);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("keranjang_tagihan");
