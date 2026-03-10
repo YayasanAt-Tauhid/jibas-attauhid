@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useMidtrans } from "@/hooks/useMidtrans";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,12 @@ export default function PortalCheckout() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [keranjang, setKeranjang] = useState<KeranjangItem[]>([]);
+  const { isReady: isMidtransReady, isLoading: isMidtransLoading, error: midtransError, loadMidtrans } = useMidtrans();
+
+  // Load Midtrans script when component mounts
+  useEffect(() => {
+    loadMidtrans();
+  }, [loadMidtrans]);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("keranjang_tagihan");
@@ -267,14 +274,14 @@ export default function PortalCheckout() {
         <Button
           className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-12 text-base"
           onClick={handleBayar}
-          disabled={isLoading}
+          disabled={isLoading || !isMidtransReady}
         >
-          {isLoading ? (
+          {isLoading || isMidtransLoading ? (
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
           ) : (
             <CreditCard className="h-5 w-5 mr-2" />
           )}
-          Bayar {formatRupiah(totalAmount)} Sekarang
+          {isMidtransLoading ? "Memuat..." : `Bayar ${formatRupiah(totalAmount)} Sekarang`}
         </Button>
       </div>
     </div>
