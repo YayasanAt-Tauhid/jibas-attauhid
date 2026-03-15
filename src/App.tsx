@@ -141,6 +141,7 @@ const App = () => (
                 <Route element={<ProtectedRoute allowedRoles={["admin", "kepala_sekolah", "keuangan"]} />}>
                   <Route path="/keuangan/pengeluaran" element={<InputPengeluaran />} />
                   <Route path="/keuangan/tabungan" element={<TabunganSiswa />} />
+                  <Route path="/keuangan/tabungan-pegawai" element={<TabunganPegawai />} />
                   <Route path="/keuangan/laporan" element={<LaporanKeuangan />} />
                   <Route path="/keuangan/laporan-siswa" element={<LaporanBayarSiswa />} />
                   <Route path="/keuangan/laporan-kelas" element={<LaporanBayarKelas />} />
