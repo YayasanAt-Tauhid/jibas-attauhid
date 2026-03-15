@@ -109,7 +109,7 @@ export default function TabTarifTagihan() {
   };
 
   const openAdd = () => {
-    setEditItem(null); setJenisId(""); setSiswaId(""); setKelasId(""); setTahunAjaranId(""); setNominal(""); setKeterangan(""); setSiswaSearch("");
+    setEditItem(null); setJenisId(""); setSiswaId(""); setDeptId(""); setKelasId(""); setTahunAjaranId(""); setNominal(""); setKeterangan(""); setSiswaSearch("");
     setAutoGenerate(true); setGenBulanList([]); setGenDeptId("");
     setDialogOpen(true);
   };
