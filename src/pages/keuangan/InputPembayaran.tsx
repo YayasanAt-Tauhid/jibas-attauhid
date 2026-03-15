@@ -63,6 +63,10 @@ export default function InputPembayaran() {
 
   // Get kelas_id of the selected student for tarif lookup
   const siswaKelasId = selectedSiswa?.kelas_siswa?.[0]?.kelas?.id;
+  // Check if there's an existing tagihan (piutang) for this student+jenis+bulan
+  const tagihanBulanToCheck = isSekali ? undefined : Number(bulan);
+  const { data: existingTagihan } = useTagihanBySiswa(selectedSiswa?.id, jenisId || undefined, tagihanBulanToCheck);
+
   const { data: tarifNominal } = useTarifSiswa(jenisId || undefined, selectedSiswa?.id, siswaKelasId);
 
   // Auto-detect tunggakan: cek bulan yang sudah dibayar (untuk tipe bulanan)
