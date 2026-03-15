@@ -368,7 +368,15 @@ export default function TabTarifTagihan() {
                       <Alert className="py-2">
                         <Info className="h-3 w-3" />
                         <AlertDescription className="text-xs">
-                          Akan membuat tagihan + jurnal piutang untuk semua siswa aktif. Siswa yang sudah punya tagihan akan di-skip.
+                          Akan membuat tagihan + jurnal piutang untuk{" "}
+                          {siswaId
+                            ? <strong>siswa {siswaSearch.split(" (")[0]}</strong>
+                            : kelasId
+                              ? <strong>siswa di kelas {filteredKelasList.find((k: any) => k.id === kelasId)?.nama}</strong>
+                              : (deptId || genDeptId)
+                                ? <strong>siswa di lembaga {lembagaList?.find((l: any) => l.id === (deptId || genDeptId))?.kode}</strong>
+                                : <strong>semua siswa aktif di tahun ajaran terpilih</strong>
+                          }. Siswa yang sudah punya tagihan akan di-skip.
                         </AlertDescription>
                       </Alert>
 
