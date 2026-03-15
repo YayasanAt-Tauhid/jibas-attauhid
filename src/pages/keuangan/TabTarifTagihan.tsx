@@ -237,7 +237,7 @@ function GenerateTagihanSection() {
   const [genOpen, setGenOpen] = useState(false);
   const [genJenisId, setGenJenisId] = useState("");
   const [genTahunId, setGenTahunId] = useState("");
-  const [genBulan, setGenBulan] = useState("");
+  const [genBulanList, setGenBulanList] = useState<number[]>([]);
   const [genDeptId, setGenDeptId] = useState("");
 
   // Tagihan list filters
@@ -254,14 +254,31 @@ function GenerateTagihanSection() {
   const selectedGenJenis = jenisList?.find((j: any) => j.id === genJenisId);
   const isSekali = selectedGenJenis?.tipe === "sekali";
 
+  const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
+  const allSelected = genBulanList.length === 12;
+
+  const toggleBulan = (b: number) => {
+    setGenBulanList((prev) => prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b].sort((a, c) => a - c));
+  };
+
   const handleGenerate = async () => {
     if (!genTahunId || !genJenisId) return;
-    await generateMut.mutateAsync({
-      tahun_ajaran_id: genTahunId,
-      jenis_id: genJenisId,
-      bulan: isSekali ? undefined : Number(genBulan) || undefined,
-      departemen_id: genDeptId || undefined,
-    });
+    if (isSekali) {
+      await generateMut.mutateAsync({
+        tahun_ajaran_id: genTahunId,
+        jenis_id: genJenisId,
+        departemen_id: genDeptId || undefined,
+      });
+    } else {
+      const bulanToGenerate = genBulanList.length > 0 ? genBulanList : undefined;
+      if (!bulanToGenerate || bulanToGenerate.length === 0) return;
+      await generateMut.mutateAsync({
+        tahun_ajaran_id: genTahunId,
+        jenis_id: genJenisId,
+        bulan_list: bulanToGenerate,
+        departemen_id: genDeptId || undefined,
+      });
+    }
     setGenOpen(false);
   };
 
