@@ -286,13 +286,31 @@ function TabJenisPengeluaran() {
   );
 }
 
+// ─── Konfigurasi filter per setting bawaan ───
+const BUILTIN_SETTINGS = ["kas_tunai", "bank_midtrans", "kas_pengeluaran", "piutang_siswa", "tabungan_siswa"];
+
+const SETTING_FILTER: Record<string, { filterFn: (a: any) => boolean; hint: string }> = {
+  kas_tunai: { filterFn: (a) => a.jenis === "aset" && a.kode?.startsWith("1-100"), hint: "Akun tempat uang masuk saat siswa bayar di kasir" },
+  bank_midtrans: { filterFn: (a) => a.jenis === "aset" && a.kode?.startsWith("1-100"), hint: "Akun bank yang menerima dana pembayaran online" },
+  kas_pengeluaran: { filterFn: (a) => a.jenis === "aset" && a.kode?.startsWith("1-100"), hint: "Akun kas yang berkurang saat ada pengeluaran" },
+  piutang_siswa: { filterFn: (a) => a.jenis === "aset", hint: "Akun piutang saat tagihan siswa dibuat tapi belum dibayar" },
+  tabungan_siswa: { filterFn: (a) => a.jenis === "liabilitas", hint: "Akun dana titipan/tabungan siswa (kewajiban sekolah)" },
+};
+
 // ─── Tab Pengaturan Akun Sistem ───
 function TabPengaturanAkun() {
   const { data: settings, isLoading } = usePengaturanAkun();
-  const { data: akunAsetList } = useAkunByJenis("aset");
+  const { data: allAkun } = useAllAkunRekening();
   const updateMut = useUpdatePengaturanAkun();
+  const createMut = useCreatePengaturanAkun();
+  const deleteMut = useDeletePengaturanAkun();
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [newKode, setNewKode] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newKeterangan, setNewKeterangan] = useState("");
 
   useEffect(() => {
     if (settings) {
@@ -302,30 +320,45 @@ function TabPengaturanAkun() {
     }
   }, [settings]);
 
-  const settingsConfig = [
-    { kode: "kas_tunai", label: "Akun Kas Tunai", desc: "Digunakan saat kasir input pembayaran manual" },
-    { kode: "bank_midtrans", label: "Akun Bank Online Payment", desc: "Digunakan saat pembayaran online via Midtrans berhasil" },
-    { kode: "kas_pengeluaran", label: "Akun Kas Pengeluaran", desc: "Digunakan saat ada pengeluaran (sisi kredit)" },
-  ];
+  const activeAkun = allAkun?.filter((a: any) => a.aktif) || [];
+
+  const getFilteredAkun = (kodeSetting: string) => {
+    const cfg = SETTING_FILTER[kodeSetting];
+    if (cfg) return activeAkun.filter(cfg.filterFn);
+    return activeAkun; // custom settings show all
+  };
+
+  const getHint = (setting: any) => {
+    const cfg = SETTING_FILTER[setting.kode_setting];
+    return cfg?.hint || setting.keterangan || "";
+  };
 
   const hasUnset = settings?.some((s: any) => !s.akun_id);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      for (const cfg of settingsConfig) {
-        const currentSetting = settings?.find((s: any) => s.kode_setting === cfg.kode);
-        const newVal = values[cfg.kode] || null;
-        if (currentSetting && currentSetting.akun_id !== newVal) {
-          await updateMut.mutateAsync({ kode_setting: cfg.kode, akun_id: newVal });
+      for (const s of (settings || [])) {
+        const newVal = values[s.kode_setting] || null;
+        if (s.akun_id !== newVal) {
+          await updateMut.mutateAsync({ kode_setting: s.kode_setting, akun_id: newVal });
         }
       }
       toast.success("Pengaturan akun berhasil disimpan");
     } catch {
-      // error handled by mutation
+      // handled by mutation
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddCustom = async () => {
+    if (!newKode || !newLabel) return;
+    await createMut.mutateAsync({ kode_setting: newKode, label: newLabel, keterangan: newKeterangan || undefined });
+    setAddOpen(false);
+    setNewKode("");
+    setNewLabel("");
+    setNewKeterangan("");
   };
 
   if (isLoading) {
@@ -333,47 +366,104 @@ function TabPengaturanAkun() {
   }
 
   return (
-    <Card className="mt-4">
-      <CardContent className="pt-6 space-y-6">
-        {hasUnset && (
-          <Alert variant="destructive" className="border-yellow-300 bg-yellow-50 text-yellow-800">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              ⚠️ Beberapa akun sistem belum dikonfigurasi. Jurnal otomatis tidak akan berjalan sampai semua akun diset.
-            </AlertDescription>
-          </Alert>
-        )}
+    <>
+      <Card className="mt-4">
+        <CardContent className="pt-6 space-y-6">
+          {hasUnset && (
+            <Alert variant="destructive" className="border-destructive/30 bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                ⚠️ Beberapa akun sistem belum dikonfigurasi. Jurnal otomatis tidak akan berjalan sampai semua akun diset.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {settingsConfig.map((cfg) => {
-          const setting = settings?.find((s: any) => s.kode_setting === cfg.kode);
-          return (
-            <div key={cfg.kode} className="space-y-2 p-4 border rounded-lg">
-              <Label className="text-base font-semibold">{cfg.label}</Label>
-              <p className="text-sm text-muted-foreground">{cfg.desc}</p>
-              <Select value={values[cfg.kode] || "__none__"} onValueChange={(v) => setValues(prev => ({ ...prev, [cfg.kode]: v === "__none__" ? "" : v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih akun..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Belum diset —</SelectItem>
-                  {akunAsetList?.map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>{a.kode} - {a.nama}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {setting?.akun && (
-                <p className="text-xs text-muted-foreground">Saat ini: <span className="font-medium">{setting.akun.kode} - {setting.akun.nama}</span></p>
-              )}
+          {settings?.map((setting: any) => {
+            const filteredAkun = getFilteredAkun(setting.kode_setting);
+            const isBuiltin = BUILTIN_SETTINGS.includes(setting.kode_setting);
+            return (
+              <div key={setting.id} className="space-y-2 p-4 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-semibold">{setting.label}</Label>
+                    <Badge variant="outline" className="ml-2 text-xs">{setting.kode_setting}</Badge>
+                  </div>
+                  {!isBuiltin && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(setting.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">{getHint(setting)}</p>
+                <Select
+                  value={values[setting.kode_setting] || "__none__"}
+                  onValueChange={(v) => setValues(prev => ({ ...prev, [setting.kode_setting]: v === "__none__" ? "" : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih akun..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Belum diset —</SelectItem>
+                    {filteredAkun.map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>{a.kode} - {a.nama} ({a.jenis})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {setting.akun && (
+                  <p className="text-xs text-muted-foreground">Saat ini: <span className="font-medium">{setting.akun.kode} - {setting.akun.nama}</span></p>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="flex gap-2">
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? "Menyimpan..." : "Simpan Pengaturan"}
+            </Button>
+            <Button variant="outline" onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Tambah Setting Custom
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Tambah Setting Akun Custom</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Kode Setting</Label>
+              <Input value={newKode} onChange={(e) => setNewKode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} placeholder="contoh: kas_cadangan" />
+              <p className="text-xs text-muted-foreground mt-1">Huruf kecil, angka, dan underscore saja</p>
             </div>
-          );
-        })}
+            <div>
+              <Label>Label / Nama</Label>
+              <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="contoh: Akun Kas Cadangan" />
+            </div>
+            <div>
+              <Label>Keterangan (opsional)</Label>
+              <Textarea value={newKeterangan} onChange={(e) => setNewKeterangan(e.target.value)} placeholder="Deskripsi fungsi setting ini..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+            <Button onClick={handleAddCustom} disabled={!newKode || !newLabel || createMut.isPending}>
+              {createMut.isPending ? "Menyimpan..." : "Tambah"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <Button onClick={handleSave} disabled={saving}>
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? "Menyimpan..." : "Simpan Pengaturan"}
-        </Button>
-      </CardContent>
-    </Card>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={() => setDeleteId(null)}
+        title="Hapus Setting Akun"
+        description="Yakin ingin menghapus setting akun custom ini?"
+        onConfirm={() => { if (deleteId) deleteMut.mutate(deleteId); setDeleteId(null); }}
+      />
+    </>
   );
 }
 
