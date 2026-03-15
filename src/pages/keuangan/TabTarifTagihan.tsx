@@ -311,12 +311,22 @@ export default function TabTarifTagihan() {
               {siswaId && <Button variant="ghost" size="sm" className="mt-1 text-xs" onClick={() => { setSiswaId(""); setSiswaSearch(""); }}>Hapus pilihan siswa</Button>}
             </div>
             <div>
+              <Label>Lembaga (opsional — pilih sebelum kelas)</Label>
+              <Select value={deptId || "__none__"} onValueChange={(v) => { setDeptId(v === "__none__" ? "" : v); setKelasId(""); }} disabled={!!editItem}>
+                <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Semua Lembaga —</SelectItem>
+                  {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Kelas (opsional)</Label>
               <Select value={kelasId || "__none__"} onValueChange={(v) => setKelasId(v === "__none__" ? "" : v)} disabled={!!editItem}>
                 <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Semua Kelas —</SelectItem>
-                  {kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+                  {filteredKelasList.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
