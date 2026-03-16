@@ -117,8 +117,22 @@ export default function InputPembayaran() {
     setSearchTerm("");
   };
 
+  const effectiveTarif = tarifNominal ?? Number(selectedJenis?.nominal) ?? 0;
+  const isJumlahLocked = tarifNominal != null || selectedJenis?.nominal != null;
+
   const handleSubmit = async () => {
     if (!selectedSiswa || !jenisId || !jumlah) return;
+
+    // Validasi: jumlah harus sesuai tarif
+    if (isJumlahLocked && Number(jumlah) !== effectiveTarif) {
+      toast.error(`Jumlah harus sesuai tarif: ${formatRupiah(effectiveTarif)}`);
+      return;
+    }
+
+    if (!tahunAktif?.id) {
+      toast.error("Tahun ajaran aktif belum dikonfigurasi. Pembayaran tidak dapat disimpan.");
+      return;
+    }
 
     // A. Validasi akun tersedia
     const kasAkunId = pengaturanAkun?.find((p: any) => p.kode_setting === "kas_tunai")?.akun?.id;
@@ -240,6 +254,9 @@ export default function InputPembayaran() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Pembayaran SPP</h1>
         <p className="text-sm text-muted-foreground">Input dan kelola pembayaran siswa</p>
+        {!tahunAktif && (
+          <p className="text-sm text-destructive font-medium mt-1">⚠️ Tahun ajaran aktif belum dikonfigurasi. Tarif dan pembayaran tidak akan berfungsi dengan benar.</p>
+        )}
       </div>
 
       {/* Lembaga + Search */}
@@ -418,7 +435,8 @@ export default function InputPembayaran() {
                   )}
                   <div className={(isSekali || (jenisId && bulanDibayar)) ? "col-span-2" : ""}>
                     <Label>Jumlah (Rp)</Label>
-                    <Input type="number" value={jumlah} onChange={(e) => setJumlah(e.target.value)} placeholder="0" />
+                    <Input type="number" value={jumlah} onChange={(e) => !isJumlahLocked && setJumlah(e.target.value)} placeholder="0" disabled={isJumlahLocked} className={isJumlahLocked ? "bg-muted" : ""} />
+                    {isJumlahLocked && <p className="text-xs text-muted-foreground mt-1">🔒 Nominal sesuai tarif, tidak dapat diubah</p>}
                   </div>
                 </div>
                 <div>
