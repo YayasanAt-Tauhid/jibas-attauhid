@@ -432,7 +432,8 @@ export default function InputPembayaran() {
                   )}
                   <div className={(isSekali || (jenisId && bulanDibayar)) ? "col-span-2" : ""}>
                     <Label>Jumlah (Rp)</Label>
-                    <Input type="number" value={jumlah} onChange={(e) => setJumlah(e.target.value)} placeholder="0" />
+                    <Input type="number" value={jumlah} onChange={(e) => !isJumlahLocked && setJumlah(e.target.value)} placeholder="0" disabled={isJumlahLocked} className={isJumlahLocked ? "bg-muted" : ""} />
+                    {isJumlahLocked && <p className="text-xs text-muted-foreground mt-1">🔒 Nominal sesuai tarif, tidak dapat diubah</p>}
                   </div>
                 </div>
                 <div>
