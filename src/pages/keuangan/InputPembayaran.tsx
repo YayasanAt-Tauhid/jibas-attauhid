@@ -254,6 +254,9 @@ export default function InputPembayaran() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Pembayaran SPP</h1>
         <p className="text-sm text-muted-foreground">Input dan kelola pembayaran siswa</p>
+        {!tahunAktif && (
+          <p className="text-sm text-destructive font-medium mt-1">⚠️ Tahun ajaran aktif belum dikonfigurasi. Tarif dan pembayaran tidak akan berfungsi dengan benar.</p>
+        )}
       </div>
 
       {/* Lembaga + Search */}
