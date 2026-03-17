@@ -298,6 +298,16 @@ export default function TunggakanPembayaran() {
               </Select>
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Tahun Ajaran</Label>
+              <Select value={tahunAjaranId} onValueChange={(v) => { setTahunAjaranId(v); setSelectedIds(new Set()); }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+                <SelectContent>
+                  {tahunAjaranList?.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>{t.nama}{t.aktif ? " (Aktif)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            <div className="space-y-1">
               <Label className="text-xs">Jenis Pembayaran</Label>
               <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setSelectedIds(new Set()); }}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
