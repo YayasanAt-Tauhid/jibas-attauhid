@@ -25,6 +25,7 @@ const STATUS_OPTIONS = [
 ];
 
 const BULAN_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+const BULAN_ORDER_AKADEMIK = [7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
 
 interface PresensiRow {
   pegawai_id: string;
