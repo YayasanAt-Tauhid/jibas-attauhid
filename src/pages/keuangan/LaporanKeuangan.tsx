@@ -84,9 +84,20 @@ export default function LaporanKeuangan() {
 function TabPenerimaan({ departemenId }: { departemenId?: string }) {
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
+  const [filterTA, setFilterTA] = useState("all");
+
+  // Fetch tahun ajaran list
+  const { data: tahunAjaranList } = useQuery({
+    queryKey: ["tahun_ajaran_list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tahun_ajaran").select("id, nama").order("nama", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["laporan_penerimaan", bulan, tahun, departemenId],
+    queryKey: ["laporan_penerimaan", bulan, tahun, departemenId, filterTA],
     queryFn: async () => {
       const start = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
       const endM = bulan === 12 ? 1 : bulan + 1;
@@ -94,25 +105,60 @@ function TabPenerimaan({ departemenId }: { departemenId?: string }) {
       const end = `${endY}-${String(endM).padStart(2, "0")}-01`;
       let q = supabase
         .from("pembayaran")
-        .select("*, siswa:siswa_id(nama, nis), jenis_pembayaran:jenis_id(nama, akun_pendapatan_id), departemen:departemen_id(nama, kode), jurnal:jurnal_id(id, nomor)")
+        .select("*, siswa:siswa_id(nama, nis), jenis_pembayaran:jenis_id(nama, akun_pendapatan_id), departemen:departemen_id(nama, kode), jurnal:jurnal_id(id, nomor), tahun_ajaran:tahun_ajaran_id(id, nama)")
         .gte("tanggal_bayar", start)
         .lt("tanggal_bayar", end)
         .order("tanggal_bayar", { ascending: false });
       if (departemenId) q = q.eq("departemen_id", departemenId);
+      if (filterTA && filterTA !== "all") q = q.eq("tahun_ajaran_id", filterTA);
       const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
   });
 
-  const total = data?.reduce((s, r) => s + Number(r.jumlah || 0), 0) || 0;
+  // Fetch pendapatan_dimuka to cross-reference
+  const pembayaranIds = data?.map((r: any) => r.id).filter(Boolean) || [];
+  const { data: dimukaList } = useQuery({
+    queryKey: ["dimuka_by_pembayaran", pembayaranIds],
+    enabled: pembayaranIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pendapatan_dimuka")
+        .select("pembayaran_id, status")
+        .in("pembayaran_id", pembayaranIds);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const dimukaSet = new Set(dimukaList?.map((d: any) => d.pembayaran_id) || []);
+
+  const isDimuka = (row: any) => {
+    if (dimukaSet.has(row.id)) return true;
+    if (row.keterangan && (row.keterangan as string).includes("[DIMUKA]")) return true;
+    return false;
+  };
+
+  const regulerItems = data?.filter((r: any) => !isDimuka(r)) || [];
+  const dimukaItems = data?.filter((r: any) => isDimuka(r)) || [];
+  const totalReguler = regulerItems.reduce((s, r) => s + Number(r.jumlah || 0), 0);
+  const totalDimuka = dimukaItems.reduce((s, r) => s + Number(r.jumlah || 0), 0);
+  const total = totalReguler + totalDimuka;
 
   const columns: DataTableColumn<any>[] = [
     { key: "tanggal_bayar", label: "Tanggal", render: (v) => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },
     { key: "siswa_nama", label: "Siswa", render: (_, r) => (r as any).siswa?.nama || "-" },
     { key: "jenis", label: "Jenis Bayar", render: (_, r) => (r as any).jenis_pembayaran?.nama || "-" },
+    { key: "tahun_ajaran", label: "TA", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
     { key: "lembaga", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "-" },
     { key: "jumlah", label: "Jumlah", render: (v) => formatRupiah(Number(v)) },
+    {
+      key: "status_dimuka", label: "Status",
+      render: (_, r) => isDimuka(r as any)
+        ? <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Di Muka</Badge>
+        : <Badge variant="outline" className="bg-success/15 text-success border-success/30">Reguler</Badge>,
+    },
     {
       key: "jurnal", label: "Jurnal",
       render: (_, r) => {
@@ -135,7 +181,7 @@ function TabPenerimaan({ departemenId }: { departemenId?: string }) {
 
   return (
     <div className="space-y-4 pt-4">
-      <div className="flex gap-3 items-end">
+      <div className="flex gap-3 items-end flex-wrap">
         <div>
           <Label>Bulan</Label>
           <Select value={String(bulan)} onValueChange={(v) => setBulan(Number(v))}>
@@ -147,11 +193,29 @@ function TabPenerimaan({ departemenId }: { departemenId?: string }) {
           <Label>Tahun</Label>
           <Input type="number" className="w-24" value={tahun} onChange={(e) => setTahun(Number(e.target.value))} />
         </div>
+        <div>
+          <Label>Tahun Ajaran</Label>
+          <Select value={filterTA} onValueChange={setFilterTA}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Semua TA" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Tahun Ajaran</SelectItem>
+              {tahunAjaranList?.map((ta: any) => (
+                <SelectItem key={ta.id} value={ta.id}>{ta.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <Card>
         <CardContent className="pt-6">
           <DataTable columns={columns} data={data || []} loading={isLoading} exportable exportFilename="laporan-penerimaan" pageSize={20} />
-          {!isLoading && <p className="text-right font-bold mt-4">Total: {formatRupiah(total)}</p>}
+          {!isLoading && (
+            <div className="mt-4 space-y-1 text-right text-sm">
+              <p>Penerimaan Reguler: <span className="font-semibold text-success">{formatRupiah(totalReguler)}</span></p>
+              <p>Pembayaran Di Muka (Belum Diakui): <span className="font-semibold text-warning">{formatRupiah(totalDimuka)}</span></p>
+              <p className="text-base font-bold border-t pt-2">Total: {formatRupiah(total)}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
