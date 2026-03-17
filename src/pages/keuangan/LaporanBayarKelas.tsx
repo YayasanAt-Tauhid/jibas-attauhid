@@ -123,8 +123,13 @@ export default function LaporanBayarKelas() {
   const kelasNamaStr = kelasList?.find((k: any) => k.id === kelasId)?.nama || "";
   const jenisNamaStr = jenisList?.find((j: any) => j.id === jenisId)?.nama || "";
   const lembagaNama = lembagaList?.find((l: any) => l.id === departemenId);
+  const tahunAjaranNama = tahunAjaranList?.find((t: any) => t.id === tahunAjaranId);
 
   const activeFilters: ActiveFilter[] = [
+    ...(tahunAjaranId ? [{
+      key: "tahun", label: "Tahun Ajaran", value: tahunAjaranNama?.nama || tahunAjaranId,
+      onClear: () => setTahunAjaranId(""),
+    }] : []),
     ...(departemenId ? [{
       key: "lembaga", label: "Lembaga", value: lembagaNama?.kode || lembagaNama?.nama || "",
       onClear: () => { setDepartemenId(""); setKelasId(""); setJenisId(""); },
