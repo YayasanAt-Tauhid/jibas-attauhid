@@ -81,7 +81,7 @@ export default function LaporanKeuangan() {
 
         <TabsContent value="penerimaan"><TabPenerimaan departemenId={deptId} /></TabsContent>
         <TabsContent value="pengeluaran"><TabPengeluaran departemenId={deptId} /></TabsContent>
-        <TabsContent value="rekap-spp"><TabRekapSPP /></TabsContent>
+        <TabsContent value="rekap-spp"><TabRekapSPP departemenId={deptId} /></TabsContent>
         <TabsContent value="ringkasan-kas"><TabNeraca departemenId={deptId} /></TabsContent>
         <TabsContent value="laba-rugi"><TabLabaRugi departemenId={deptId} /></TabsContent>
         <TabsContent value="neraca-akuntansi"><TabNeracaAkuntansi departemenId={deptId} /></TabsContent>
