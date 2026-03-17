@@ -87,7 +87,7 @@ export default function LaporanBayarKelas() {
             bulanLunas,
           };
         }
-      }).sort((a: any, b: any) => a.nama.localeCompare(b.nama));
+      }).filter(Boolean).sort((a: any, b: any) => a.nama.localeCompare(b.nama));
     },
   });
 
