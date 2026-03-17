@@ -123,7 +123,7 @@ export default function InputPembayaran() {
   const isJumlahLocked = !isSekali && tarifNominal != null;
 
   const handleSubmit = async () => {
-    if (!selectedSiswa || !jenisId || !jumlah) return;
+    if (!selectedSiswa || !jenisId || !jumlah || tarifTidakAda) return;
 
     // Validasi: untuk tipe bulanan, jumlah harus sesuai tarif
     if (!isSekali && isJumlahLocked && Number(jumlah) !== effectiveTarif) {
