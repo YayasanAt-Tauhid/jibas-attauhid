@@ -143,8 +143,6 @@ export default function TunggakanPembayaran() {
           for (const b of bulanRange) {
             if (!paid.has(b)) bulanTunggak.push(b);
           }
-            if (!paid.has(b)) bulanTunggak.push(b);
-          }
           if (bulanTunggak.length > 0) {
             result.push({
               id: ks.siswa_id,
