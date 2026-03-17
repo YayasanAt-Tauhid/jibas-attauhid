@@ -98,6 +98,7 @@ const App = () => (
             {/* Public pages */}
             <Route path="/infoguru" element={<InfoGuru />} />
             <Route path="/anjungan" element={<Anjungan />} />
+            <Route path="/psb" element={<PSBDaftar />} />
             {/* Portal Orang Tua */}
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route element={<ProtectedPortalRoute />}>
