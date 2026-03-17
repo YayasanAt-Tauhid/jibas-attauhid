@@ -137,13 +137,13 @@ export function useJurnalDetail(jurnalId?: string) {
 async function checkPeriodeLocked(tanggal: string): Promise<void> {
   const { data } = await supabase
     .from("tahun_ajaran")
-    .select("id, nama")
-    .eq("ditutup" as any, true)
+    .select("id, nama, ditutup, tanggal_mulai, tanggal_selesai")
     .lte("tanggal_mulai", tanggal)
     .gte("tanggal_selesai", tanggal)
     .limit(1);
-  if (data && data.length > 0) {
-    throw new Error(`Transaksi ditolak: periode "${(data[0] as any).nama}" sudah ditutup buku.`);
+  const locked = (data || []).find((d: any) => d.ditutup === true);
+  if (locked) {
+    throw new Error(`Transaksi ditolak: periode "${(locked as any).nama}" sudah ditutup buku.`);
   }
 }
 
