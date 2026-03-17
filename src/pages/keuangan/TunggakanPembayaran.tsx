@@ -1,13 +1,11 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { StatsCard } from "@/components/shared/StatsCard";
+import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useJenisPembayaran, useLembaga, formatRupiah, namaBulan } from "@/hooks/useKeuangan";
 import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { useKelas } from "@/hooks/useAkademikData";
@@ -61,8 +59,6 @@ export default function TunggakanPembayaran() {
       if (!filtered.length) return [];
 
       const siswaIds = filtered.map((s: any) => s.siswa_id);
-
-      // Get per-student tarif
       const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId || undefined);
       const tipe = (selectedJenis as any)?.tipe || "bulanan";
 
@@ -81,7 +77,7 @@ export default function TunggakanPembayaran() {
         const result: any[] = [];
         filtered.forEach((ks: any) => {
           const nominal = tarifMap.get(ks.siswa_id) || 0;
-          if (nominal === 0) return; // Skip students without configured tarif
+          if (nominal === 0) return;
           const paid = paidMap.get(ks.siswa_id) || 0;
           const sisa = nominal - paid;
           if (sisa > 0) {
@@ -117,7 +113,7 @@ export default function TunggakanPembayaran() {
         const result: any[] = [];
         filtered.forEach((ks: any) => {
           const nominal = tarifMap.get(ks.siswa_id) || 0;
-          if (nominal === 0) return; // Skip students without configured tarif
+          if (nominal === 0) return;
           const paid = paidMap.get(ks.siswa_id) || new Set();
           const bulanTunggak: number[] = [];
           for (let b = Number(bulanDari); b <= Number(bulanSampai); b++) {
@@ -178,7 +174,7 @@ export default function TunggakanPembayaran() {
             siswa_id: sr.id,
             jenis_id: jenisId,
             bulan: b,
-            jumlah: sr.nominal, // Use per-student tarif
+            jumlah: sr.nominal,
             tanggal_bayar: today,
             departemen_id: departemenId || undefined,
           });
@@ -224,114 +220,118 @@ export default function TunggakanPembayaran() {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Tunggakan Pembayaran</h1>
-        <p className="text-sm text-muted-foreground">Laporan siswa yang belum membayar</p>
+    <div className="space-y-0 animate-fade-in">
+      {/* Header + Stats inline */}
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Tunggakan Pembayaran</h1>
+          <p className="text-xs text-muted-foreground">Laporan siswa yang belum membayar</p>
+        </div>
+        {jenisId && tunggakanData && (
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Badge variant="secondary" className="gap-1.5 py-1 px-2.5 text-xs font-medium">
+              <Users className="h-3 w-3" />
+              {totalSiswa} siswa
+            </Badge>
+            <Badge variant="destructive" className="gap-1.5 py-1 px-2.5 text-xs font-medium">
+              <AlertTriangle className="h-3 w-3" />
+              {formatRupiah(totalNominal)}
+            </Badge>
+          </div>
+        )}
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div>
-              <Label>Lembaga</Label>
-              <Select value={departemenId || "__all__"} onValueChange={(v) => {
-                setDepartemenId(v === "__all__" ? "" : v);
-                setJenisId("");
-                setKelasId("");
-                setSelectedIds(new Set());
-              }}>
-                <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
+      {/* Filter toolbar — no Card wrapper */}
+      <div className="flex gap-3 items-end flex-wrap border-b border-border pb-3 mb-4">
+        <div className="space-y-1">
+          <Label className="text-xs">Lembaga</Label>
+          <Select value={departemenId || "__all__"} onValueChange={(v) => {
+            setDepartemenId(v === "__all__" ? "" : v);
+            setJenisId("");
+            setKelasId("");
+            setSelectedIds(new Set());
+          }}>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Semua Lembaga</SelectItem>
+              {lembagaList?.map((l: any) => (
+                <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Jenis Pembayaran</Label>
+          <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setSelectedIds(new Set()); }}>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
+            <SelectContent>
+              {jenisList?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Kelas</Label>
+          <Select value={kelasId || "__all__"} onValueChange={(v) => setKelasId(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Semua" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Semua</SelectItem>
+              {filteredKelas?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {!isSekaliBayar && (
+          <>
+            <div className="space-y-1">
+              <Label className="text-xs">Bulan Dari</Label>
+              <Select value={bulanDari} onValueChange={setBulanDari}>
+                <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Semua Lembaga</SelectItem>
-                  {lembagaList?.map((l: any) => (
-                    <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>{namaBulan(i + 1)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Jenis Pembayaran</Label>
-              <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setSelectedIds(new Set()); }}>
-                <SelectTrigger><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
+            <div className="space-y-1">
+              <Label className="text-xs">Bulan Sampai</Label>
+              <Select value={bulanSampai} onValueChange={setBulanSampai}>
+                <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {jenisList?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama}</SelectItem>)}
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>{namaBulan(i + 1)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Kelas</Label>
-              <Select value={kelasId || "__all__"} onValueChange={(v) => setKelasId(v === "__all__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Semua</SelectItem>
-                  {filteredKelas?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {!isSekaliBayar && (
-              <>
-                <div>
-                  <Label>Bulan Dari</Label>
-                  <Select value={bulanDari} onValueChange={setBulanDari}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)}>{namaBulan(i + 1)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Bulan Sampai</Label>
-                  <Select value={bulanSampai} onValueChange={setBulanSampai}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)}>{namaBulan(i + 1)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <StatsCard title="Total Siswa Menunggak" value={totalSiswa} icon={Users} color="warning" />
-        <StatsCard title="Total Nominal Tunggakan" value={formatRupiah(totalNominal)} icon={AlertTriangle} color="destructive" />
+          </>
+        )}
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          {!jenisId ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Pilih jenis pembayaran untuk melihat tunggakan</p>
-          ) : (
-            <>
-              {tunggakanData && tunggakanData.length > 0 && (
-                <div className="flex items-center gap-2 mb-3">
-                  <Checkbox
-                    checked={tunggakanData.length > 0 && selectedIds.size === tunggakanData.length}
-                    onCheckedChange={toggleAll}
-                  />
-                  <span className="text-sm text-muted-foreground">Pilih Semua</span>
-                </div>
-              )}
-              <DataTable
-                columns={columns}
-                data={tunggakanData || []}
-                loading={isLoading}
-                exportable
-                exportFilename="tunggakan-pembayaran"
-                pageSize={20}
-                onRowClick={(row) => navigate(`/keuangan/pembayaran?siswa=${row.id}`)}
+      {/* Table — no Card wrapper */}
+      {!jenisId ? (
+        <p className="text-sm text-muted-foreground text-center py-12">Pilih jenis pembayaran untuk melihat tunggakan</p>
+      ) : (
+        <>
+          {tunggakanData && tunggakanData.length > 0 && (
+            <div className="flex items-center gap-2 mb-2">
+              <Checkbox
+                checked={tunggakanData.length > 0 && selectedIds.size === tunggakanData.length}
+                onCheckedChange={toggleAll}
               />
-            </>
+              <span className="text-xs text-muted-foreground">Pilih Semua</span>
+            </div>
           )}
-        </CardContent>
-      </Card>
+          <DataTable
+            columns={columns}
+            data={tunggakanData || []}
+            loading={isLoading}
+            exportable
+            exportFilename="tunggakan-pembayaran"
+            pageSize={20}
+            onRowClick={(row) => navigate(`/keuangan/pembayaran?siswa=${row.id}`)}
+          />
+        </>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-xl rounded-xl px-6 py-3 flex items-center gap-4 animate-fade-in">

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
@@ -8,7 +8,7 @@ import { useLembaga, useJenisPembayaran, formatRupiah, namaBulan } from "@/hooks
 import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, Users } from "lucide-react";
 
 export default function LaporanBayarKelas() {
   const [departemenId, setDepartemenId] = useState("");
@@ -43,8 +43,6 @@ export default function LaporanBayarKelas() {
       if (!kelasSiswa?.length) return [];
 
       const siswaIds = kelasSiswa.map((ks: any) => ks.siswa?.id).filter(Boolean);
-
-      // Get per-student tarif
       const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId);
 
       const { data: payments } = await supabase
@@ -61,7 +59,7 @@ export default function LaporanBayarKelas() {
         const siswaPayments = (payments || []).filter((p: any) => p.siswa_id === siswa.id);
         const totalBayar = siswaPayments.reduce((s: number, p: any) => s + Number(p.jumlah || 0), 0);
         const nominal = tarifMap.get(siswa.id) || 0;
-        if (nominal === 0) return null; // Skip students without configured tarif
+        if (nominal === 0) return null;
 
         if (tipe === "sekali") {
           return {
@@ -119,71 +117,69 @@ export default function LaporanBayarKelas() {
   ];
 
   const columns = isSekali ? columnsSekali : columnsBulanan;
-
   const kelasNama = kelasList?.find((k: any) => k.id === kelasId)?.nama || "";
   const jenisNama = jenisList?.find((j: any) => j.id === jenisId)?.nama || "";
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Laporan Pembayaran Per Kelas</h1>
-        <p className="text-sm text-muted-foreground">Status pembayaran seluruh siswa dalam satu kelas</p>
+    <div className="space-y-0 animate-fade-in">
+      {/* Header + count badge inline */}
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Laporan Pembayaran Per Kelas</h1>
+          <p className="text-xs text-muted-foreground">Status pembayaran seluruh siswa dalam satu kelas</p>
+        </div>
+        {kelasId && jenisId && reportData && (
+          <Badge variant="secondary" className="gap-1.5 py-1 px-2.5 text-xs font-medium">
+            <Users className="h-3 w-3" />
+            {reportData.length} siswa — {kelasNama} — {jenisNama}
+          </Badge>
+        )}
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-3 items-end flex-wrap">
-            <div>
-              <Label>Lembaga</Label>
-              <Select value={departemenId} onValueChange={(v) => { setDepartemenId(v); setKelasId(""); setJenisId(""); }}>
-                <SelectTrigger className="w-48"><SelectValue placeholder="Pilih lembaga" /></SelectTrigger>
-                <SelectContent>
-                  {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Kelas</Label>
-              <Select value={kelasId} onValueChange={setKelasId} disabled={!departemenId}>
-                <SelectTrigger className="w-40"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-                <SelectContent>
-                  {kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Jenis Pembayaran</Label>
-              <Select value={jenisId} onValueChange={setJenisId} disabled={!departemenId}>
-                <SelectTrigger className="w-52"><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
-                <SelectContent>
-                  {jenisList?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filter toolbar — no Card */}
+      <div className="flex gap-3 items-end flex-wrap border-b border-border pb-3 mb-4">
+        <div className="space-y-1">
+          <Label className="text-xs">Lembaga</Label>
+          <Select value={departemenId} onValueChange={(v) => { setDepartemenId(v); setKelasId(""); setJenisId(""); }}>
+            <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Pilih lembaga" /></SelectTrigger>
+            <SelectContent>
+              {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Kelas</Label>
+          <Select value={kelasId} onValueChange={setKelasId} disabled={!departemenId}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+            <SelectContent>
+              {kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Jenis Pembayaran</Label>
+          <Select value={jenisId} onValueChange={setJenisId} disabled={!departemenId}>
+            <SelectTrigger className="w-48 h-8 text-xs"><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
+            <SelectContent>
+              {jenisList?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-      {kelasId && jenisId && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {kelasNama} — {jenisNama}
-              {reportData && <span className="text-sm font-normal text-muted-foreground ml-2">({reportData.length} siswa)</span>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-40" /> : (
-              <DataTable
-                columns={columns}
-                data={reportData || []}
-                exportable
-                exportFilename={`laporan-kelas-${kelasNama}-${jenisNama}`}
-                pageSize={50}
-              />
-            )}
-          </CardContent>
-        </Card>
+      {/* Table — no Card */}
+      {kelasId && jenisId ? (
+        isLoading ? <Skeleton className="h-40" /> : (
+          <DataTable
+            columns={columns}
+            data={reportData || []}
+            exportable
+            exportFilename={`laporan-kelas-${kelasNama}-${jenisNama}`}
+            pageSize={50}
+          />
+        )
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-12">Pilih lembaga, kelas, dan jenis pembayaran</p>
       )}
     </div>
   );
