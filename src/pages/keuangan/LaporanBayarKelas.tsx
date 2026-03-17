@@ -41,8 +41,8 @@ export default function LaporanBayarKelas() {
   const isSekali = (selectedJenis as any)?.tipe === "sekali";
 
   const { data: reportData, isLoading } = useQuery({
-    queryKey: ["laporan_bayar_kelas", kelasId, jenisId],
-    enabled: !!kelasId && !!jenisId,
+    queryKey: ["laporan_bayar_kelas", kelasId, jenisId, tahunAjaranId],
+    enabled: !!kelasId && !!jenisId && !!tahunAjaranId,
     queryFn: async () => {
       const { data: kelasSiswa } = await supabase
         .from("kelas_siswa")
