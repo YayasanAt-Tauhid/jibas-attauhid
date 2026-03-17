@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
-import { useJenisPembayaran, useLembaga, formatRupiah, namaBulan } from "@/hooks/useKeuangan";
+import { useJenisPembayaran, useLembaga, useTahunAjaranAktif, useTahunAjaran, formatRupiah, namaBulan } from "@/hooks/useKeuangan";
 import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { useKelas } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,8 +27,18 @@ export default function TunggakanPembayaran() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirm, setShowConfirm] = useState(false);
   const [isBulkPaying, setIsBulkPaying] = useState(false);
+  const [tahunAjaranId, setTahunAjaranId] = useState<string>("");
 
   const { data: lembagaList } = useLembaga();
+  const { data: tahunAjaranList } = useTahunAjaran();
+  const { data: tahunAjaranAktif } = useTahunAjaranAktif();
+
+  // Auto-select active tahun ajaran
+  useEffect(() => {
+    if (tahunAjaranAktif?.id && !tahunAjaranId) {
+      setTahunAjaranId(tahunAjaranAktif.id);
+    }
+  }, [tahunAjaranAktif]);
   const { data: jenisList } = useJenisPembayaran(departemenId || undefined);
   const { data: kelasList } = useKelas();
 
@@ -42,13 +52,14 @@ export default function TunggakanPembayaran() {
   const isSekaliBayar = (selectedJenis as any)?.tipe === "sekali";
 
   const { data: tunggakanData, isLoading } = useQuery({
-    queryKey: ["tunggakan", departemenId, kelasId, jenisId, bulanDari, bulanSampai],
-    enabled: !!jenisId,
+    queryKey: ["tunggakan", departemenId, kelasId, jenisId, bulanDari, bulanSampai, tahunAjaranId],
+    enabled: !!jenisId && !!tahunAjaranId,
     queryFn: async () => {
       let siswaQuery = supabase
         .from("kelas_siswa")
         .select("siswa_id, kelas_id, siswa:siswa_id(id, nis, nama), kelas:kelas_id(nama, departemen_id)")
-        .eq("aktif", true);
+        .eq("aktif", true)
+        .eq("tahun_ajaran_id", tahunAjaranId);
       if (kelasId) siswaQuery = siswaQuery.eq("kelas_id", kelasId);
       const { data: siswaList } = await siswaQuery;
       if (!siswaList?.length) return [];
@@ -60,7 +71,7 @@ export default function TunggakanPembayaran() {
       if (!filtered.length) return [];
 
       const siswaIds = filtered.map((s: any) => s.siswa_id);
-      const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId || undefined);
+      const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId || undefined, tahunAjaranId);
       const tipe = (selectedJenis as any)?.tipe || "bulanan";
 
       if (tipe === "sekali") {
@@ -68,6 +79,7 @@ export default function TunggakanPembayaran() {
           .from("pembayaran")
           .select("siswa_id, jumlah")
           .eq("jenis_id", jenisId)
+          .eq("tahun_ajaran_id", tahunAjaranId)
           .in("siswa_id", siswaIds);
 
         const paidMap = new Map<string, number>();
@@ -101,6 +113,7 @@ export default function TunggakanPembayaran() {
           .from("pembayaran")
           .select("siswa_id, bulan")
           .eq("jenis_id", jenisId)
+          .eq("tahun_ajaran_id", tahunAjaranId)
           .in("siswa_id", siswaIds)
           .gte("bulan", Number(bulanDari))
           .lte("bulan", Number(bulanSampai));
@@ -200,8 +213,13 @@ export default function TunggakanPembayaran() {
   const lembagaNama = lembagaList?.find((l: any) => l.id === departemenId);
   const kelasNama = filteredKelas?.find((k: any) => k.id === kelasId);
   const jenisNama = jenisList?.find((j: any) => j.id === jenisId);
+  const tahunAjaranNama = tahunAjaranList?.find((t: any) => t.id === tahunAjaranId);
 
   const activeFilters: ActiveFilter[] = [
+    ...(tahunAjaranId ? [{
+      key: "tahun", label: "Tahun Ajaran", value: tahunAjaranNama?.nama || tahunAjaranId,
+      onClear: () => setTahunAjaranId(""),
+    }] : []),
     ...(departemenId ? [{
       key: "lembaga", label: "Lembaga", value: lembagaNama?.kode || lembagaNama?.nama || departemenId,
       onClear: () => { setDepartemenId(""); setJenisId(""); setKelasId(""); setSelectedIds(new Set()); },
@@ -275,6 +293,17 @@ export default function TunggakanPembayaran() {
                   <SelectItem value="__all__">Semua Lembaga</SelectItem>
                   {lembagaList?.map((l: any) => (
                     <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tahun Ajaran</Label>
+              <Select value={tahunAjaranId} onValueChange={(v) => { setTahunAjaranId(v); setSelectedIds(new Set()); }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+                <SelectContent>
+                  {tahunAjaranList?.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>{t.nama}{t.aktif ? " (Aktif)" : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
