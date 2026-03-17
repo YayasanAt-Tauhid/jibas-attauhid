@@ -186,6 +186,12 @@ export default function PortalLogin() {
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
+          Belum terdaftar?{" "}
+          <Link to="/psb" className="text-emerald-700 underline font-medium">
+            Daftarkan anak Anda
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
           Untuk login admin,{" "}
           <Link to="/login" className="text-emerald-700 underline font-medium">
             klik di sini

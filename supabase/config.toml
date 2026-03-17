@@ -1,1 +1,4 @@
 project_id = "jywjiivyvohojveoecat"
+
+[functions.psb-daftar]
+verify_jwt = false

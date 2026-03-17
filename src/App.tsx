@@ -78,6 +78,7 @@ import PortalNilai from "./pages/portal/PortalNilai";
 // Public pages
 import InfoGuru from "./pages/InfoGuru";
 import Anjungan from "./pages/Anjungan";
+import PSBDaftar from "./pages/portal/PSBDaftar";
 // Pengaturan
 import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 import BackupExport from "./pages/pengaturan/BackupExport";
@@ -97,6 +98,7 @@ const App = () => (
             {/* Public pages */}
             <Route path="/infoguru" element={<InfoGuru />} />
             <Route path="/anjungan" element={<Anjungan />} />
+            <Route path="/psb" element={<PSBDaftar />} />
             {/* Portal Orang Tua */}
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route element={<ProtectedPortalRoute />}>
