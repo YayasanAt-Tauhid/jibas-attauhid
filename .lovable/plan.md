@@ -1,36 +1,51 @@
 
 
-## Perbaikan Proses Tutup Buku
+## Analisis Menu & Sub-Modul Keuangan
 
-### Masalah Saat Ini
-1. **Tidak ada pencatatan Laba/Rugi ke Ekuitas** — Selisih pendapatan dan beban (laba/rugi) tidak dipindahkan ke akun "Laba Ditahan" di Ekuitas
-2. **Tidak ada penguncian periode** — Setelah tutup buku, transaksi masih bisa diinput ke periode lama
-3. **Tidak ada audit trail** — Tidak tercatat siapa yang melakukan tutup buku dan kapan
+Setelah memeriksa kode sidebar, routing, dan semua halaman laporan keuangan, berikut temuan dan rencana perbaikan:
+
+### Temuan Masalah
+
+#### 1. TabLabaRugi: Tidak Mendukung Filter Lembaga & Limit 1000 Baris
+- `TabLabaRugi` tidak menerima prop `departemenId`, sehingga filter lembaga global di Laporan Keuangan tidak berlaku untuk Laba Rugi
+- Query `jurnal_detail` masih tanpa pagination (terkena limit default 1000 baris Supabase), sama seperti masalah Neraca yang sudah diperbaiki sebelumnya
+
+#### 2. TabArusKas: Tidak Berbasis Jurnal
+- Arus Kas mengambil data langsung dari tabel `pembayaran` dan `pengeluaran`, bukan dari `jurnal_detail`
+- Ini inkonsisten dengan Neraca dan Laba Rugi yang berbasis jurnal (accrual basis)
+- Akibatnya: angka Arus Kas bisa tidak cocok dengan laporan akuntansi lainnya
+
+#### 3. Tab "Neraca Bulanan" Redundan
+- Ada 2 tab neraca: "Neraca Bulanan" (cash-basis, dari tabel pembayaran/pengeluaran) dan "Neraca" (accrual-basis, dari jurnal)
+- "Neraca Bulanan" sebenarnya bukan neraca akuntansi yang benar, lebih mirip ringkasan kas masuk/keluar per bulan
+- Membingungkan user karena angkanya akan berbeda
+
+#### 4. Terlalu Banyak Tab di Laporan Keuangan (8 Tab)
+- Penerimaan, Pengeluaran, Rekap SPP, Neraca Bulanan, Laba Rugi, Neraca, Arus Kas, Konsolidasi Yayasan
+- Sulit dinavigasi, terutama di layar kecil
 
 ### Rencana Perbaikan
 
-#### 1. Database Migration
-- Tambah kolom `ditutup` (boolean, default false) pada tabel `tahun_ajaran` untuk menandai periode yang sudah ditutup buku (berbeda dari `aktif`)
-- Tambah tabel `log_tutup_buku` untuk audit trail:
-  - `id`, `tahun_ajaran_id`, `user_id`, `tanggal_proses`, `total_laba_rugi`, `jurnal_id`, `keterangan`
-- Tambah setting `AKUN_LABA_DITAHAN` di tabel `pengaturan_akun` agar user bisa mapping akun Ekuitas untuk menampung laba/rugi
+#### A. Perbaiki TabLabaRugi
+- Tambahkan prop `departemenId` dan filter query berdasarkan `jurnal.departemen_id`
+- Implementasi pagination batch (sama seperti perbaikan Neraca sebelumnya) untuk mengatasi limit 1000 baris
 
-#### 2. Perbaikan Logika Tutup Buku (`TutupBuku.tsx`)
-- Sebelum proses, cek apakah akun "Laba Ditahan" sudah dikonfigurasi di `pengaturan_akun`
-- Pada jurnal penutup, tambahkan baris untuk memindahkan selisih laba/rugi ke akun Laba Ditahan:
-  - Laba (positif): Kredit akun Laba Ditahan
-  - Rugi (negatif): Debit akun Laba Ditahan
-- Set `ditutup = true` pada tahun ajaran yang ditutup
-- Insert record ke `log_tutup_buku`
-- Tampilkan ringkasan Laba/Rugi di preview sebelum tutup buku
+#### B. Perbaiki TabArusKas agar Berbasis Jurnal
+- Ubah sumber data dari tabel `pembayaran`/`pengeluaran` menjadi dari `jurnal_detail` dengan filter akun bertipe Kas/Bank
+- Tetap tampilkan breakdown Kas Masuk (kredit ke akun Kas) dan Kas Keluar (debit dari akun Kas)
+- Tambahkan pagination batch
 
-#### 3. Penguncian Periode
-- Pada hook `useCreateJurnal` dan `useUpdateJurnal` di `useJurnal.ts`, tambahkan validasi: jika tanggal jurnal jatuh dalam periode tahun ajaran yang `ditutup = true`, tolak transaksi
-- Pada `InputPembayaran` dan `InputPengeluaran`, tambahkan validasi serupa
+#### C. Rename/Hapus Tab Redundan
+- Rename tab "Neraca Bulanan" menjadi "Ringkasan Kas" agar tidak membingungkan dengan Neraca akuntansi yang sebenarnya
+- Atau hapus jika dirasa tidak perlu (karena sudah ada Rekap Harian yang fungsinya serupa)
 
-#### 4. UI Tambahan di Halaman Tutup Buku
-- Tampilkan card ringkasan: Total Pendapatan, Total Beban, Laba/Rugi Bersih
-- Tampilkan warning jika akun Laba Ditahan belum dikonfigurasi
-- Tampilkan riwayat tutup buku dari tabel `log_tutup_buku`
-- Filter dropdown tahun buku: tandai yang sudah ditutup agar tidak bisa ditutup ulang
+#### D. Reorganisasi Tab Menjadi 2 Kelompok
+Pisahkan 8 tab menjadi sub-group yang lebih jelas:
+- **Operasional**: Penerimaan, Pengeluaran, Rekap SPP, Konsolidasi Yayasan
+- **Akuntansi**: Laba Rugi, Neraca, Arus Kas
+
+### File yang Akan Diubah
+1. `src/pages/keuangan/TabLabaRugi.tsx` — tambah filter lembaga + pagination
+2. `src/pages/keuangan/TabArusKas.tsx` — ubah ke jurnal-based + pagination
+3. `src/pages/keuangan/LaporanKeuangan.tsx` — reorganisasi tab, hapus/rename Neraca Bulanan, pass departemenId ke TabLabaRugi
 
