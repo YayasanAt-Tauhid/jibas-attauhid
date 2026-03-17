@@ -47,18 +47,34 @@ export default function PortalDashboard() {
     enabled: !!user,
   });
 
-  // Count tagihan belum bayar
+  // Count tagihan belum bayar (same logic as PortalTagihan with tarif filtering)
   const siswaIds = anakList.map((a: any) => a.siswa_id);
   const { data: tagihanCount = 0 } = useQuery({
     queryKey: ["portal-tagihan-count", siswaIds],
     queryFn: async () => {
       if (siswaIds.length === 0) return 0;
-      const { count } = await supabase
+      const { data } = await supabase
         .from("v_tagihan_belum_bayar")
-        .select("*", { count: "exact", head: true })
+        .select("*")
         .in("siswa_id", siswaIds)
         .eq("sudah_bayar", false);
-      return count || 0;
+      
+      const items = (data || []) as any[];
+      
+      // Apply tarif filtering (same as PortalTagihan)
+      const combos = [...new Set(items.map(t => `${t.jenis_id}|${t.tahun_ajaran_id}`))];
+      for (const combo of combos) {
+        const [jId, taId] = combo.split("|");
+        const relevantItems = items.filter(t => t.jenis_id === jId && t.tahun_ajaran_id === taId);
+        const sIds = [...new Set(relevantItems.map(t => t.siswa_id))];
+        const tarifMap = await getTarifBatch(jId, sIds, undefined, taId);
+        relevantItems.forEach(t => {
+          const tarif = tarifMap.get(t.siswa_id);
+          if (tarif != null) t.nominal = tarif;
+        });
+      }
+      
+      return items.filter(t => t.nominal > 0).length;
     },
     enabled: siswaIds.length > 0,
   });
