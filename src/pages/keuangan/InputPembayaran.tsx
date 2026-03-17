@@ -96,9 +96,9 @@ export default function InputPembayaran() {
         .eq("siswa_id", selectedSiswa.id)
         .eq("jenis_id", jenisId);
       if (error) throw error;
-      const effectiveNominal = tarifNominal || Number(selectedJenis?.nominal) || 0;
+      const effectiveNominal = tarifNominal || 0;
       const totalBayar = (data || []).reduce((sum, r) => sum + (Number(r.jumlah) || 0), 0);
-      return { totalBayar, lunas: totalBayar >= effectiveNominal };
+      return { totalBayar, lunas: effectiveNominal > 0 && totalBayar >= effectiveNominal };
     },
   });
 
