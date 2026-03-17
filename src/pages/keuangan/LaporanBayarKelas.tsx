@@ -191,6 +191,17 @@ export default function LaporanBayarKelas() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tahun Ajaran</Label>
+              <Select value={tahunAjaranId} onValueChange={setTahunAjaranId}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+                <SelectContent>
+                  {tahunAjaranList?.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>{t.nama}{t.aktif ? " (Aktif)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </FilterToolbar>
       </div>
