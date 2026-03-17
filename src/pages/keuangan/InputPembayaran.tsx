@@ -118,7 +118,8 @@ export default function InputPembayaran() {
   };
 
   const effectiveTarif = tarifNominal ?? Number(selectedJenis?.nominal) ?? 0;
-  const isJumlahLocked = tarifNominal != null || selectedJenis?.nominal != null;
+  // Only lock amount for bulanan types; sekali bayar allows partial/installment payments
+  const isJumlahLocked = !isSekali && (tarifNominal != null || selectedJenis?.nominal != null);
 
   const handleSubmit = async () => {
     if (!selectedSiswa || !jenisId || !jumlah) return;
