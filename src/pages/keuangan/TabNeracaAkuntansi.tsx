@@ -23,7 +23,7 @@ interface AkunNeraca {
   saldo: number;
 }
 
-export default function TabNeracaAkuntansi() {
+export default function TabNeracaAkuntansi({ departemenId }: { departemenId?: string }) {
   const [tanggal, setTanggal] = useState<Date>(new Date());
   const [showZero, setShowZero] = useState(false);
   const tanggalStr = format(tanggal, "yyyy-MM-dd");
