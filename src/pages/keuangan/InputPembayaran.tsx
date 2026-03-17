@@ -124,10 +124,19 @@ export default function InputPembayaran() {
   const handleSubmit = async () => {
     if (!selectedSiswa || !jenisId || !jumlah) return;
 
-    // Validasi: jumlah harus sesuai tarif
-    if (isJumlahLocked && Number(jumlah) !== effectiveTarif) {
+    // Validasi: untuk tipe bulanan, jumlah harus sesuai tarif
+    if (!isSekali && isJumlahLocked && Number(jumlah) !== effectiveTarif) {
       toast.error(`Jumlah harus sesuai tarif: ${formatRupiah(effectiveTarif)}`);
       return;
+    }
+
+    // Validasi: untuk sekali bayar, jumlah tidak boleh melebihi sisa
+    if (isSekali && pembayaranSekali) {
+      const sisa = effectiveTarif - pembayaranSekali.totalBayar;
+      if (Number(jumlah) > sisa) {
+        toast.error(`Jumlah melebihi sisa tagihan: ${formatRupiah(sisa)}`);
+        return;
+      }
     }
 
     if (!tahunAktif?.id) {
