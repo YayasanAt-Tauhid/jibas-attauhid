@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { Users, FileText, CreditCard, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { getTarifBatch } from "@/hooks/useTarifTagihan";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
