@@ -30,6 +30,7 @@ export default function LaporanKeuangan() {
   const [searchParams] = useSearchParams();
   const [filterLembagaId, setFilterLembagaId] = useState(searchParams.get("lembaga") || "");
   const { data: lembagaList } = useLembaga();
+  const deptId = filterLembagaId && filterLembagaId !== "all" ? filterLembagaId : undefined;
 
   return (
     <div className="space-y-6 animate-fade-in">
