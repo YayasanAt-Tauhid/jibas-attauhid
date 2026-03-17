@@ -334,9 +334,9 @@ function TabRekapSPP() {
   const sppColumns: DataTableColumn<any>[] = [
     { key: "nis", label: "NIS" },
     { key: "nama", label: "Nama" },
-    ...Array.from({ length: 12 }, (_, i) => ({
-      key: `b${i + 1}`,
-      label: BULAN_NAMES[i].substring(0, 3),
+    ...BULAN_ORDER_AKADEMIK.map((m) => ({
+      key: `b${m}`,
+      label: BULAN_NAMES[m - 1].substring(0, 3),
       render: (v: unknown) => (
         <span className={v === "✓" ? "text-success font-bold" : "text-destructive font-bold"}>
           {v as string}
