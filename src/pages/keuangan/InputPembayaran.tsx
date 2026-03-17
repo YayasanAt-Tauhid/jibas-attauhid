@@ -163,7 +163,6 @@ export default function InputPembayaran() {
     }
   }, [tahunAktif?.id]);
 
-  const effectiveTahunAjaranId = selectedTahunAjaranId || tahunAktif?.id;
   const isBayarDimuka = !!(tahunAktif?.id && effectiveTahunAjaranId && effectiveTahunAjaranId !== tahunAktif.id);
 
   const handleSelectSiswa = (s: any) => {
