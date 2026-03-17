@@ -114,7 +114,8 @@ export default function InputPembayaran() {
   const tagihanBulanToCheck = isSekali ? undefined : Number(bulan);
   const { data: existingTagihan } = useTagihanBySiswa(selectedSiswa?.id, jenisId || undefined, tagihanBulanToCheck);
 
-  const { data: tarifNominal } = useTarifSiswa(jenisId || undefined, selectedSiswa?.id, siswaKelasId, tahunAktif?.id);
+  const effectiveTahunAjaranId = selectedTahunAjaranId || tahunAktif?.id;
+  const { data: tarifNominal } = useTarifSiswa(jenisId || undefined, selectedSiswa?.id, siswaKelasId, effectiveTahunAjaranId);
 
   const { data: bulanDibayar } = useQuery({
     queryKey: ["cek_tunggakan", selectedSiswa?.id, jenisId],
@@ -162,7 +163,6 @@ export default function InputPembayaran() {
     }
   }, [tahunAktif?.id]);
 
-  const effectiveTahunAjaranId = selectedTahunAjaranId || tahunAktif?.id;
   const isBayarDimuka = !!(tahunAktif?.id && effectiveTahunAjaranId && effectiveTahunAjaranId !== tahunAktif.id);
 
   const handleSelectSiswa = (s: any) => {
