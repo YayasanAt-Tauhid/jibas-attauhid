@@ -15,8 +15,17 @@ export default function LaporanBayarKelas() {
   const [departemenId, setDepartemenId] = useState("");
   const [kelasId, setKelasId] = useState("");
   const [jenisId, setJenisId] = useState("");
+  const [tahunAjaranId, setTahunAjaranId] = useState("");
 
   const { data: lembagaList } = useLembaga();
+  const { data: tahunAjaranList } = useTahunAjaran();
+  const { data: tahunAjaranAktif } = useTahunAjaranAktif();
+
+  useEffect(() => {
+    if (tahunAjaranAktif?.id && !tahunAjaranId) {
+      setTahunAjaranId(tahunAjaranAktif.id);
+    }
+  }, [tahunAjaranAktif]);
   const { data: jenisList } = useJenisPembayaran(departemenId || undefined);
 
   const { data: kelasList } = useQuery({
