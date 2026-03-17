@@ -113,6 +113,7 @@ export default function TunggakanPembayaran() {
           .from("pembayaran")
           .select("siswa_id, bulan")
           .eq("jenis_id", jenisId)
+          .eq("tahun_ajaran_id", tahunAjaranId)
           .in("siswa_id", siswaIds)
           .gte("bulan", Number(bulanDari))
           .lte("bulan", Number(bulanSampai));
