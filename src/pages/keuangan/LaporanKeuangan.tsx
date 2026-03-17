@@ -84,9 +84,20 @@ export default function LaporanKeuangan() {
 function TabPenerimaan({ departemenId }: { departemenId?: string }) {
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
+  const [filterTA, setFilterTA] = useState("all");
+
+  // Fetch tahun ajaran list
+  const { data: tahunAjaranList } = useQuery({
+    queryKey: ["tahun_ajaran_list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tahun_ajaran").select("id, nama").order("nama", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["laporan_penerimaan", bulan, tahun, departemenId],
+    queryKey: ["laporan_penerimaan", bulan, tahun, departemenId, filterTA],
     queryFn: async () => {
       const start = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
       const endM = bulan === 12 ? 1 : bulan + 1;
@@ -94,25 +105,60 @@ function TabPenerimaan({ departemenId }: { departemenId?: string }) {
       const end = `${endY}-${String(endM).padStart(2, "0")}-01`;
       let q = supabase
         .from("pembayaran")
-        .select("*, siswa:siswa_id(nama, nis), jenis_pembayaran:jenis_id(nama, akun_pendapatan_id), departemen:departemen_id(nama, kode), jurnal:jurnal_id(id, nomor)")
+        .select("*, siswa:siswa_id(nama, nis), jenis_pembayaran:jenis_id(nama, akun_pendapatan_id), departemen:departemen_id(nama, kode), jurnal:jurnal_id(id, nomor), tahun_ajaran:tahun_ajaran_id(id, nama)")
         .gte("tanggal_bayar", start)
         .lt("tanggal_bayar", end)
         .order("tanggal_bayar", { ascending: false });
       if (departemenId) q = q.eq("departemen_id", departemenId);
+      if (filterTA && filterTA !== "all") q = q.eq("tahun_ajaran_id", filterTA);
       const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
   });
 
-  const total = data?.reduce((s, r) => s + Number(r.jumlah || 0), 0) || 0;
+  // Fetch pendapatan_dimuka to cross-reference
+  const pembayaranIds = data?.map((r: any) => r.id).filter(Boolean) || [];
+  const { data: dimukaList } = useQuery({
+    queryKey: ["dimuka_by_pembayaran", pembayaranIds],
+    enabled: pembayaranIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pendapatan_dimuka")
+        .select("pembayaran_id, status")
+        .in("pembayaran_id", pembayaranIds);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const dimukaSet = new Set(dimukaList?.map((d: any) => d.pembayaran_id) || []);
+
+  const isDimuka = (row: any) => {
+    if (dimukaSet.has(row.id)) return true;
+    if (row.keterangan && (row.keterangan as string).includes("[DIMUKA]")) return true;
+    return false;
+  };
+
+  const regulerItems = data?.filter((r: any) => !isDimuka(r)) || [];
+  const dimukaItems = data?.filter((r: any) => isDimuka(r)) || [];
+  const totalReguler = regulerItems.reduce((s, r) => s + Number(r.jumlah || 0), 0);
+  const totalDimuka = dimukaItems.reduce((s, r) => s + Number(r.jumlah || 0), 0);
+  const total = totalReguler + totalDimuka;
 
   const columns: DataTableColumn<any>[] = [
     { key: "tanggal_bayar", label: "Tanggal", render: (v) => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },
     { key: "siswa_nama", label: "Siswa", render: (_, r) => (r as any).siswa?.nama || "-" },
     { key: "jenis", label: "Jenis Bayar", render: (_, r) => (r as any).jenis_pembayaran?.nama || "-" },
+    { key: "tahun_ajaran", label: "TA", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
     { key: "lembaga", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "-" },
     { key: "jumlah", label: "Jumlah", render: (v) => formatRupiah(Number(v)) },
+    {
+      key: "status_dimuka", label: "Status",
+      render: (_, r) => isDimuka(r as any)
+        ? <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Di Muka</Badge>
+        : <Badge variant="outline" className="bg-success/15 text-success border-success/30">Reguler</Badge>,
+    },
     {
       key: "jurnal", label: "Jurnal",
       render: (_, r) => {
@@ -135,7 +181,7 @@ function TabPenerimaan({ departemenId }: { departemenId?: string }) {
 
   return (
     <div className="space-y-4 pt-4">
-      <div className="flex gap-3 items-end">
+      <div className="flex gap-3 items-end flex-wrap">
         <div>
           <Label>Bulan</Label>
           <Select value={String(bulan)} onValueChange={(v) => setBulan(Number(v))}>
@@ -147,11 +193,29 @@ function TabPenerimaan({ departemenId }: { departemenId?: string }) {
           <Label>Tahun</Label>
           <Input type="number" className="w-24" value={tahun} onChange={(e) => setTahun(Number(e.target.value))} />
         </div>
+        <div>
+          <Label>Tahun Ajaran</Label>
+          <Select value={filterTA} onValueChange={setFilterTA}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Semua TA" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Tahun Ajaran</SelectItem>
+              {tahunAjaranList?.map((ta: any) => (
+                <SelectItem key={ta.id} value={ta.id}>{ta.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <Card>
         <CardContent className="pt-6">
           <DataTable columns={columns} data={data || []} loading={isLoading} exportable exportFilename="laporan-penerimaan" pageSize={20} />
-          {!isLoading && <p className="text-right font-bold mt-4">Total: {formatRupiah(total)}</p>}
+          {!isLoading && (
+            <div className="mt-4 space-y-1 text-right text-sm">
+              <p>Penerimaan Reguler: <span className="font-semibold text-success">{formatRupiah(totalReguler)}</span></p>
+              <p>Pembayaran Di Muka (Belum Diakui): <span className="font-semibold text-warning">{formatRupiah(totalDimuka)}</span></p>
+              <p className="text-base font-bold border-t pt-2">Total: {formatRupiah(total)}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -300,36 +364,57 @@ function TabNeraca({ departemenId }: { departemenId?: string }) {
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
 
-  const { data: penerimaan, isLoading: lP } = useQuery({
-    queryKey: ["neraca_penerimaan", bulan, tahun, departemenId],
+  const start = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
+  const endM = bulan === 12 ? 1 : bulan + 1;
+  const endY = bulan === 12 ? tahun + 1 : tahun;
+  const end = `${endY}-${String(endM).padStart(2, "0")}-01`;
+
+  const { data: rawPenerimaan, isLoading: lP } = useQuery({
+    queryKey: ["neraca_penerimaan_v2", bulan, tahun, departemenId],
     queryFn: async () => {
-      const start = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
-      const endM = bulan === 12 ? 1 : bulan + 1;
-      const endY = bulan === 12 ? tahun + 1 : tahun;
-      const end = `${endY}-${String(endM).padStart(2, "0")}-01`;
       let q = supabase
         .from("pembayaran")
-        .select("jumlah, jenis_pembayaran:jenis_id(nama)")
+        .select("id, jumlah, jenis_pembayaran:jenis_id(nama), keterangan")
         .gte("tanggal_bayar", start)
         .lt("tanggal_bayar", end);
       if (departemenId) q = q.eq("departemen_id", departemenId);
       const { data } = await q;
-      const grouped = new Map<string, number>();
-      data?.forEach((r: any) => {
-        const key = r.jenis_pembayaran?.nama || "Lainnya";
-        grouped.set(key, (grouped.get(key) || 0) + Number(r.jumlah));
-      });
-      return Array.from(grouped, ([nama, total]) => ({ nama, total }));
+      return data || [];
     },
   });
+
+  // Cross-reference dimuka
+  const pembIds = rawPenerimaan?.map((r: any) => r.id).filter(Boolean) || [];
+  const { data: dimukaRefs } = useQuery({
+    queryKey: ["neraca_dimuka_refs", pembIds],
+    enabled: pembIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase.from("pendapatan_dimuka").select("pembayaran_id").in("pembayaran_id", pembIds);
+      return new Set((data || []).map((d: any) => d.pembayaran_id));
+    },
+  });
+
+  const dimukaSetN = dimukaRefs || new Set<string>();
+  const isDimukaN = (r: any) => dimukaSetN.has(r.id) || (r.keterangan && (r.keterangan as string).includes("[DIMUKA]"));
+
+  const penerimaan = (() => {
+    const grouped = new Map<string, number>();
+    let totalDimuka = 0;
+    rawPenerimaan?.forEach((r: any) => {
+      if (isDimukaN(r)) {
+        totalDimuka += Number(r.jumlah);
+      } else {
+        const key = r.jenis_pembayaran?.nama || "Lainnya";
+        grouped.set(key, (grouped.get(key) || 0) + Number(r.jumlah));
+      }
+    });
+    const items = Array.from(grouped, ([nama, total]) => ({ nama, total }));
+    return { items, totalDimuka };
+  })();
 
   const { data: pengeluaran, isLoading: lE } = useQuery({
     queryKey: ["neraca_pengeluaran", bulan, tahun, departemenId],
     queryFn: async () => {
-      const start = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
-      const endM = bulan === 12 ? 1 : bulan + 1;
-      const endY = bulan === 12 ? tahun + 1 : tahun;
-      const end = `${endY}-${String(endM).padStart(2, "0")}-01`;
       let q = supabase
         .from("pengeluaran" as any)
         .select("jumlah, jenis_pengeluaran:jenis_id(nama)")
@@ -346,7 +431,8 @@ function TabNeraca({ departemenId }: { departemenId?: string }) {
     },
   });
 
-  const totalP = penerimaan?.reduce((s, r) => s + r.total, 0) || 0;
+  const totalP = penerimaan.items.reduce((s, r) => s + r.total, 0);
+  const totalDimuka = penerimaan.totalDimuka;
   const totalE = pengeluaran?.reduce((s, r) => s + r.total, 0) || 0;
   const saldo = totalP - totalE;
   const loading = lP || lE;
@@ -370,16 +456,21 @@ function TabNeraca({ departemenId }: { departemenId?: string }) {
       {loading ? <Skeleton className="h-48" /> : (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-success">Penerimaan</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-success">Penerimaan (Reguler)</CardTitle></CardHeader>
             <CardContent>
-              {penerimaan?.map((r) => (
+              {penerimaan.items.map((r) => (
                 <div key={r.nama} className="flex justify-between py-1.5 border-b last:border-0">
                   <span>{r.nama}</span><span className="font-medium">{formatRupiah(r.total)}</span>
                 </div>
               ))}
               <div className="flex justify-between pt-3 font-bold border-t mt-2">
-                <span>Total Penerimaan</span><span className="text-success">{formatRupiah(totalP)}</span>
+                <span>Total Penerimaan Reguler</span><span className="text-success">{formatRupiah(totalP)}</span>
               </div>
+              {totalDimuka > 0 && (
+                <div className="flex justify-between pt-2 text-sm text-warning">
+                  <span>Pembayaran Di Muka (Kewajiban)</span><span className="font-semibold">{formatRupiah(totalDimuka)}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -401,7 +492,7 @@ function TabNeraca({ departemenId }: { departemenId?: string }) {
       <Card>
         <CardContent className="pt-6">
           <div className="flex justify-between items-center text-lg">
-            <span className="font-bold">Saldo Akhir</span>
+            <span className="font-bold">Saldo Akhir (Reguler)</span>
             <span className={`font-bold text-xl ${saldo >= 0 ? "text-success" : "text-destructive"}`}>
               {formatRupiah(saldo)}
             </span>
