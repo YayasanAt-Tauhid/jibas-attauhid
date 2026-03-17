@@ -54,7 +54,7 @@ export default function LaporanBayarKelas() {
       if (!kelasSiswa?.length) return [];
 
       const siswaIds = kelasSiswa.map((ks: any) => ks.siswa?.id).filter(Boolean);
-      const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId);
+      const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId, tahunAjaranId);
 
       const { data: payments } = await supabase
         .from("pembayaran")
