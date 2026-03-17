@@ -533,8 +533,8 @@ export default function InputPembayaran() {
               <div className="space-y-2">
                 <Label className="text-xs">Status Per Bulan</Label>
                 <div className="grid grid-cols-6 gap-1.5">
-                  {Array.from({ length: 12 }, (_, i) => {
-                    const m = i + 1;
+                  {BULAN_ORDER_AKADEMIK.map((m) => {
+                    const sudah = bulanDibayar.has(m);
                     const sudah = bulanDibayar.has(m);
                     const isSelected = bulan === String(m);
                     return (
