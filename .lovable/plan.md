@@ -1,36 +1,35 @@
 
 
-## Perbaikan Proses Tutup Buku
+## Masalah: Laporan Penerimaan Mencampur Pembayaran Beda Tahun Ajaran
 
-### Masalah Saat Ini
-1. **Tidak ada pencatatan Laba/Rugi ke Ekuitas** — Selisih pendapatan dan beban (laba/rugi) tidak dipindahkan ke akun "Laba Ditahan" di Ekuitas
-2. **Tidak ada penguncian periode** — Setelah tutup buku, transaksi masih bisa diinput ke periode lama
-3. **Tidak ada audit trail** — Tidak tercatat siapa yang melakukan tutup buku dan kapan
+### Analisis
+
+Di `TabPenerimaan` (LaporanKeuangan.tsx line 84-158), query pembayaran hanya filter berdasarkan `tanggal_bayar` — tidak memisahkan pembayaran berdasarkan `tahun_ajaran_id`. Akibatnya:
+
+- Pembayaran SPP untuk TA 2025/2026 dan TA 2026/2027 tampil bersama di satu laporan
+- Pembayaran di muka (yang harusnya masuk sebagai **Pendapatan Diterima di Muka / Unearned Revenue**) terlihat sama seperti pembayaran biasa
+- Ini menyesatkan laporan keuangan karena secara akuntansi, pembayaran di muka belum boleh diakui sebagai pendapatan
+
+Sistem `PengakuanPendapatan.tsx` sudah benar mencatat ke tabel `pendapatan_dimuka` dan membuat jurnal penyesuaian saat diakui. Tapi laporan penerimaan belum memanfaatkan data ini.
 
 ### Rencana Perbaikan
 
-#### 1. Database Migration
-- Tambah kolom `ditutup` (boolean, default false) pada tabel `tahun_ajaran` untuk menandai periode yang sudah ditutup buku (berbeda dari `aktif`)
-- Tambah tabel `log_tutup_buku` untuk audit trail:
-  - `id`, `tahun_ajaran_id`, `user_id`, `tanggal_proses`, `total_laba_rugi`, `jurnal_id`, `keterangan`
-- Tambah setting `AKUN_LABA_DITAHAN` di tabel `pengaturan_akun` agar user bisa mapping akun Ekuitas untuk menampung laba/rugi
+**File: `src/pages/keuangan/LaporanKeuangan.tsx` — TabPenerimaan**
 
-#### 2. Perbaikan Logika Tutup Buku (`TutupBuku.tsx`)
-- Sebelum proses, cek apakah akun "Laba Ditahan" sudah dikonfigurasi di `pengaturan_akun`
-- Pada jurnal penutup, tambahkan baris untuk memindahkan selisih laba/rugi ke akun Laba Ditahan:
-  - Laba (positif): Kredit akun Laba Ditahan
-  - Rugi (negatif): Debit akun Laba Ditahan
-- Set `ditutup = true` pada tahun ajaran yang ditutup
-- Insert record ke `log_tutup_buku`
-- Tampilkan ringkasan Laba/Rugi di preview sebelum tutup buku
+1. **Tambah filter Tahun Ajaran** di TabPenerimaan agar user bisa filter pembayaran per TA
+2. **Tambah kolom "Tahun Ajaran"** di tabel penerimaan (join ke `tahun_ajaran:tahun_ajaran_id(nama)`)
+3. **Tambah kolom/badge "Di Muka"** — cek apakah keterangan mengandung `[DIMUKA]` atau ada record di `pendapatan_dimuka` untuk pembayaran tersebut, dan tampilkan badge visual
+4. **Pisahkan subtotal**: tampilkan total pendapatan biasa vs total pembayaran di muka di bagian bawah
 
-#### 3. Penguncian Periode
-- Pada hook `useCreateJurnal` dan `useUpdateJurnal` di `useJurnal.ts`, tambahkan validasi: jika tanggal jurnal jatuh dalam periode tahun ajaran yang `ditutup = true`, tolak transaksi
-- Pada `InputPembayaran` dan `InputPengeluaran`, tambahkan validasi serupa
+**File: `src/pages/keuangan/LaporanKeuangan.tsx` — TabNeraca**
 
-#### 4. UI Tambahan di Halaman Tutup Buku
-- Tampilkan card ringkasan: Total Pendapatan, Total Beban, Laba/Rugi Bersih
-- Tampilkan warning jika akun Laba Ditahan belum dikonfigurasi
-- Tampilkan riwayat tutup buku dari tabel `log_tutup_buku`
-- Filter dropdown tahun buku: tandai yang sudah ditutup agar tidak bisa ditutup ulang
+5. **Pisahkan penerimaan biasa vs di muka** di neraca bulanan, agar pembayaran di muka masuk ke kategori terpisah (Kewajiban/Liability) bukan Penerimaan
+
+### Detail Perubahan
+
+- Query `pembayaran` di TabPenerimaan: tambah join `tahun_ajaran:tahun_ajaran_id(nama)` dan optional filter `.eq("tahun_ajaran_id", filterTA)`
+- Tambah state `filterTahunAjaran` dan dropdown Select di toolbar
+- Tambah kolom tabel: "TA" dan "Status" (badge Di Muka / Reguler)
+- Cross-reference dengan tabel `pendapatan_dimuka` untuk menandai pembayaran di muka
+- Di summary bawah, pisahkan: "Total Penerimaan Reguler" dan "Total Pembayaran Di Muka (Belum Diakui)"
 
