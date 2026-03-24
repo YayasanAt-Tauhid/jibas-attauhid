@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      akun_rekening: {
+        Row: {
+          aktif: boolean | null
+          created_at: string | null
+          departemen_id: string | null
+          id: string
+          jenis: string
+          keterangan: string | null
+          kode: string
+          nama: string
+          saldo_awal: number | null
+          saldo_normal: string
+        }
+        Insert: {
+          aktif?: boolean | null
+          created_at?: string | null
+          departemen_id?: string | null
+          id?: string
+          jenis: string
+          keterangan?: string | null
+          kode: string
+          nama: string
+          saldo_awal?: number | null
+          saldo_normal: string
+        }
+        Update: {
+          aktif?: boolean | null
+          created_at?: string | null
+          departemen_id?: string | null
+          id?: string
+          jenis?: string
+          keterangan?: string | null
+          kode?: string
+          nama?: string
+          saldo_awal?: number | null
+          saldo_normal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "akun_rekening_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       angkatan: {
         Row: {
           aktif: boolean | null
@@ -176,6 +223,143 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jenis_pengeluaran: {
+        Row: {
+          aktif: boolean | null
+          created_at: string | null
+          departemen_id: string | null
+          id: string
+          keterangan: string | null
+          nama: string
+        }
+        Insert: {
+          aktif?: boolean | null
+          created_at?: string | null
+          departemen_id?: string | null
+          id?: string
+          keterangan?: string | null
+          nama: string
+        }
+        Update: {
+          aktif?: boolean | null
+          created_at?: string | null
+          departemen_id?: string | null
+          id?: string
+          keterangan?: string | null
+          nama?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jenis_pengeluaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jurnal: {
+        Row: {
+          created_at: string | null
+          departemen_id: string | null
+          dibuat_oleh: string | null
+          id: string
+          keterangan: string
+          nomor: string | null
+          referensi: string | null
+          status: string | null
+          tanggal: string
+          total_debit: number | null
+          total_kredit: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          departemen_id?: string | null
+          dibuat_oleh?: string | null
+          id?: string
+          keterangan: string
+          nomor?: string | null
+          referensi?: string | null
+          status?: string | null
+          tanggal: string
+          total_debit?: number | null
+          total_kredit?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          departemen_id?: string | null
+          dibuat_oleh?: string | null
+          id?: string
+          keterangan?: string
+          nomor?: string | null
+          referensi?: string | null
+          status?: string | null
+          tanggal?: string
+          total_debit?: number | null
+          total_kredit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jurnal_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_dibuat_oleh_fkey"
+            columns: ["dibuat_oleh"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jurnal_detail: {
+        Row: {
+          akun_id: string | null
+          debit: number | null
+          id: string
+          jurnal_id: string | null
+          keterangan: string | null
+          kredit: number | null
+          urutan: number | null
+        }
+        Insert: {
+          akun_id?: string | null
+          debit?: number | null
+          id?: string
+          jurnal_id?: string | null
+          keterangan?: string | null
+          kredit?: number | null
+          urutan?: number | null
+        }
+        Update: {
+          akun_id?: string | null
+          debit?: number | null
+          id?: string
+          jurnal_id?: string | null
+          keterangan?: string | null
+          kredit?: number | null
+          urutan?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jurnal_detail_akun_id_fkey"
+            columns: ["akun_id"]
+            isOneToOne: false
+            referencedRelation: "akun_rekening"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_detail_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "jurnal"
             referencedColumns: ["id"]
           },
         ]
@@ -468,6 +652,61 @@ export type Database = {
             columns: ["tahun_ajaran_id"]
             isOneToOne: false
             referencedRelation: "tahun_ajaran"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pengeluaran: {
+        Row: {
+          created_at: string | null
+          departemen_id: string | null
+          id: string
+          jenis_id: string | null
+          jumlah: number
+          keterangan: string | null
+          petugas_id: string | null
+          tanggal: string
+        }
+        Insert: {
+          created_at?: string | null
+          departemen_id?: string | null
+          id?: string
+          jenis_id?: string | null
+          jumlah: number
+          keterangan?: string | null
+          petugas_id?: string | null
+          tanggal: string
+        }
+        Update: {
+          created_at?: string | null
+          departemen_id?: string | null
+          id?: string
+          jenis_id?: string | null
+          jumlah?: number
+          keterangan?: string | null
+          petugas_id?: string | null
+          tanggal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pengeluaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pengeluaran_jenis_id_fkey"
+            columns: ["jenis_id"]
+            isOneToOne: false
+            referencedRelation: "jenis_pengeluaran"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pengeluaran_petugas_id_fkey"
+            columns: ["petugas_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
             referencedColumns: ["id"]
           },
         ]
@@ -895,6 +1134,35 @@ export type Database = {
           },
         ]
       }
+      tabungan_siswa: {
+        Row: {
+          id: string
+          saldo: number | null
+          siswa_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          saldo?: number | null
+          siswa_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          saldo?: number | null
+          siswa_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tabungan_siswa_siswa_id_fkey"
+            columns: ["siswa_id"]
+            isOneToOne: true
+            referencedRelation: "siswa"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tahun_ajaran: {
         Row: {
           aktif: boolean | null
@@ -950,6 +1218,57 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transaksi_tabungan: {
+        Row: {
+          created_at: string | null
+          id: string
+          jenis: string
+          jumlah: number
+          keterangan: string | null
+          petugas_id: string | null
+          saldo_sesudah: number | null
+          siswa_id: string | null
+          tanggal: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          jenis: string
+          jumlah: number
+          keterangan?: string | null
+          petugas_id?: string | null
+          saldo_sesudah?: number | null
+          siswa_id?: string | null
+          tanggal: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          jenis?: string
+          jumlah?: number
+          keterangan?: string | null
+          petugas_id?: string | null
+          saldo_sesudah?: number | null
+          siswa_id?: string | null
+          tanggal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaksi_tabungan_petugas_id_fkey"
+            columns: ["petugas_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaksi_tabungan_siswa_id_fkey"
+            columns: ["siswa_id"]
+            isOneToOne: false
+            referencedRelation: "siswa"
             referencedColumns: ["id"]
           },
         ]
