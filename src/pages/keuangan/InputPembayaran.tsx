@@ -46,8 +46,8 @@ export default function InputPembayaran() {
   const { data: riwayat, isLoading: loadRiwayat } = usePembayaranBySiswa(selectedSiswa?.id);
 
   const siswaKelasId = selectedSiswa?.kelas_siswa?.[0]?.kelas?.id;
+  const effectiveTahunAjaranId = selectedTahunAjaranId || tahunAktif?.id;
 
-  const { data: applicableTarifJenisIds } = useQuery({
     queryKey: ["applicable_tarif_jenis", selectedSiswa?.id, siswaKelasId, effectiveTahunAjaranId, departemenId],
     enabled: !!selectedSiswa && !!departemenId,
     queryFn: async () => {
