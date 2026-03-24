@@ -25,6 +25,7 @@ function diagnosaNIS(row: Record<string, unknown>): { alasan?: "no_dept_angkatan
 }
 
 export default function PSB() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: angkatanList = [] } = useAngkatan();
   const { data: departemenList = [] } = useDepartemen();
