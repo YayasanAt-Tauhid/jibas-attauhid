@@ -223,44 +223,6 @@ export default function PSB() {
     toast.success("Siswa diaktifkan");
   };
 
-  // ─── edit ──────────────────────────────────────────────────────────────────
-  const openEdit = (row: Record<string, unknown>) => {
-    setEditData({
-      id: row.id,
-      nama: row.nama || "",
-      jenis_kelamin: row.jenis_kelamin || "L",
-      telepon: row.telepon || "",
-      alamat: row.alamat || "",
-      angkatan_id: (row.angkatan_id as string) || "",
-      departemen_id: (row.departemen_id as string) || "",
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleEditSave = async () => {
-    if (!editData) return;
-    setEditSaving(true);
-    const { error } = await supabase
-      .from("siswa")
-      .update({
-        nama: editData.nama,
-        jenis_kelamin: editData.jenis_kelamin,
-        telepon: editData.telepon || null,
-        alamat: editData.alamat || null,
-        angkatan_id: editData.angkatan_id || null,
-        departemen_id: editData.departemen_id || null,
-      } as any)
-      .eq("id", editData.id);
-    setEditSaving(false);
-    if (error) {
-      toast.error("Gagal menyimpan: " + error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["siswa"] });
-    toast.success("Data berhasil diperbarui");
-    setEditDialogOpen(false);
-    setEditData(null);
-  };
 
   // ─── verifikasi ────────────────────────────────────────────────────────────
   const handleVerifikasi = async (row: Record<string, unknown>) => {
@@ -276,14 +238,6 @@ export default function PSB() {
     qc.invalidateQueries({ queryKey: ["siswa"] });
     toast.success(`${row.nama} berhasil diverifikasi`);
   };
-
-  // ─── edit filtered lists ──────────────────────────────────────────────────
-  const editFilteredKelas = kelasList.filter(
-    (k: any) => !editData?.departemen_id || k.departemen_id === editData.departemen_id
-  );
-  const editFilteredAngkatan = angkatanList.filter(
-    (a: any) => !editData?.departemen_id || a.departemen_id === editData.departemen_id
-  );
 
   // ─── columns ───────────────────────────────────────────────────────────────
   const columns: DataTableColumn<Record<string, unknown>>[] = [
