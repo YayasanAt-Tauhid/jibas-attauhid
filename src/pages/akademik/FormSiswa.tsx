@@ -81,6 +81,9 @@ export default function FormSiswa() {
   const watchKelas = form.watch("kelas_id");
   const { data: tingkatList = [] } = useTingkat(watchDept);
   const { data: kelasList = [] } = useKelas(watchTingkat);
+  const angkatanList = allAngkatanList.filter(
+    (a: any) => !watchDept || a.departemen_id === watchDept
+  );
 
   const nisParamsComplete = !!(watchDept && watchAngkatan && watchKelas);
 
