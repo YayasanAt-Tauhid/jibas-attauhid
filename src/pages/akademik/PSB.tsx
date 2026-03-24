@@ -498,63 +498,6 @@ export default function PSB() {
         pageSize={20}
       />
 
-      {/* ── Edit Dialog ── */}
-      <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditData(null); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Data Calon Siswa</DialogTitle></DialogHeader>
-          {editData && (
-            <div className="space-y-4">
-              <div>
-                <Label>Nama Lengkap *</Label>
-                <Input value={editData.nama} onChange={(e) => setEditData({ ...editData, nama: e.target.value })} />
-              </div>
-              <div>
-                <Label>Jenis Kelamin</Label>
-                <Select value={editData.jenis_kelamin} onValueChange={(v) => setEditData({ ...editData, jenis_kelamin: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="L">Laki-laki</SelectItem>
-                    <SelectItem value="P">Perempuan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Lembaga/Sekolah</Label>
-                <Select value={editData.departemen_id} onValueChange={(v) => setEditData({ ...editData, departemen_id: v, angkatan_id: "" })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih lembaga" /></SelectTrigger>
-                  <SelectContent>
-                    {departemenList.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Angkatan</Label>
-                <Select value={editData.angkatan_id} onValueChange={(v) => setEditData({ ...editData, angkatan_id: v })} disabled={!editData.departemen_id}>
-                  <SelectTrigger><SelectValue placeholder="Pilih angkatan" /></SelectTrigger>
-                  <SelectContent>
-                    {editFilteredAngkatan.map((a: any) => (
-                      <SelectItem key={a.id} value={a.id}>{a.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Telepon</Label>
-                <Input value={editData.telepon} onChange={(e) => setEditData({ ...editData, telepon: e.target.value })} />
-              </div>
-              <div>
-                <Label>Alamat</Label>
-                <Textarea value={editData.alamat} onChange={(e) => setEditData({ ...editData, alamat: e.target.value })} />
-              </div>
-              <Button className="w-full" onClick={handleEditSave} disabled={editSaving}>
-                {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
