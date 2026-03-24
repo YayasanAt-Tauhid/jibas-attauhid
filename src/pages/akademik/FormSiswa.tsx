@@ -62,7 +62,7 @@ export default function FormSiswa() {
   const updateSiswa = useUpdateSiswa();
   const { data: siswa } = useSiswaDetail(id || "");
   const { data: orangtua } = useSiswaDetailOrangtua(id || "");
-  const { data: angkatanList = [] } = useAngkatan();
+  const { data: allAngkatanList = [] } = useAngkatan();
   const { data: departemenList = [] } = useDepartemen();
   const { data: tahunAjaranList = [] } = useTahunAjaran();
 
@@ -81,6 +81,9 @@ export default function FormSiswa() {
   const watchKelas = form.watch("kelas_id");
   const { data: tingkatList = [] } = useTingkat(watchDept);
   const { data: kelasList = [] } = useKelas(watchTingkat);
+  const angkatanList = allAngkatanList.filter(
+    (a: any) => !watchDept || a.departemen_id === watchDept
+  );
 
   const nisParamsComplete = !!(watchDept && watchAngkatan && watchKelas);
 
@@ -455,8 +458,8 @@ export default function FormSiswa() {
                       <FormField control={form.control} name="angkatan_id" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Angkatan</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Pilih angkatan" /></SelectTrigger></FormControl>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={!watchDept}>
+                            <FormControl><SelectTrigger><SelectValue placeholder={watchDept ? "Pilih angkatan" : "Pilih departemen dulu"} /></SelectTrigger></FormControl>
                             <SelectContent>
                               {angkatanList.map((a) => <SelectItem key={a.id} value={a.id}>{a.nama}</SelectItem>)}
                             </SelectContent>
@@ -482,7 +485,7 @@ export default function FormSiswa() {
                       <FormField control={form.control} name="departemen_id" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Departemen</FormLabel>
-                          <Select onValueChange={(v) => { field.onChange(v); form.setValue("tingkat_id", ""); form.setValue("kelas_id", ""); }} value={field.value}>
+                          <Select onValueChange={(v) => { field.onChange(v); form.setValue("tingkat_id", ""); form.setValue("kelas_id", ""); form.setValue("angkatan_id", ""); }} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Pilih departemen" /></SelectTrigger></FormControl>
                             <SelectContent>
                               {departemenList.map((d) => <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>)}
