@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSiswaDetail, useSiswaDetailOrangtua, useCreateSiswa, useUpdateSiswa } from "@/hooks/useSiswa";
 import { useAngkatan, useDepartemen, useTingkat, useKelas, useTahunAjaran } from "@/hooks/useAkademikData";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,10 +19,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { FileUpload } from "@/components/shared/FileUpload";
 import { FormSection } from "@/components/shared/FormSection";
-import { ArrowLeft, CalendarIcon, Save } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Save, Wand2, Pencil, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
 
 const siswaSchema = z.object({
   nis: z.string().optional(),
@@ -55,6 +57,7 @@ export default function FormSiswa() {
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const createSiswa = useCreateSiswa();
   const updateSiswa = useUpdateSiswa();
   const { data: siswa } = useSiswaDetail(id || "");
@@ -63,6 +66,10 @@ export default function FormSiswa() {
   const { data: departemenList = [] } = useDepartemen();
   const { data: tahunAjaranList = [] } = useTahunAjaran();
 
+  const [nisMode, setNisMode] = useState<"otomatis" | "manual">(isEdit ? "manual" : "otomatis");
+  const [savedSiswaId, setSavedSiswaId] = useState<string | null>(null);
+  const [isGeneratingNis, setIsGeneratingNis] = useState(false);
+
   const form = useForm<SiswaForm>({
     resolver: zodResolver(siswaSchema),
     defaultValues: { status: "aktif" },
@@ -70,8 +77,12 @@ export default function FormSiswa() {
 
   const watchDept = form.watch("departemen_id");
   const watchTingkat = form.watch("tingkat_id");
+  const watchAngkatan = form.watch("angkatan_id");
+  const watchKelas = form.watch("kelas_id");
   const { data: tingkatList = [] } = useTingkat(watchDept);
   const { data: kelasList = [] } = useKelas(watchTingkat);
+
+  const nisParamsComplete = !!(watchDept && watchAngkatan && watchKelas);
 
   // Populate form on edit
   useEffect(() => {
@@ -104,6 +115,34 @@ export default function FormSiswa() {
     }
   }, [siswa, orangtua, isEdit]);
 
+  const invokeGenerateNis = async (siswaId: string, deptId: string, angkatanId: string, kelasId: string) => {
+    setIsGeneratingNis(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-nis", {
+        body: { siswa_id: siswaId, departemen_id: deptId, angkatan_id: angkatanId, kelas_id: kelasId },
+      });
+      if (error || !data?.success) throw new Error(data?.error || error?.message || "Gagal generate NIS");
+      return data.nis as string;
+    } finally {
+      setIsGeneratingNis(false);
+    }
+  };
+
+  const handleGenerateNisClick = async () => {
+    const siswaId = isEdit ? id! : savedSiswaId;
+    if (!siswaId || !watchDept || !watchAngkatan || !watchKelas) return;
+
+    try {
+      const nis = await invokeGenerateNis(siswaId, watchDept, watchAngkatan, watchKelas);
+      form.setValue("nis", nis);
+      toast.success("NIS berhasil dibuat: " + nis);
+      queryClient.invalidateQueries({ queryKey: ["siswa"] });
+      navigate("/akademik/siswa");
+    } catch (err: any) {
+      toast.error(err.message || "Gagal generate NIS");
+    }
+  };
+
   const onSubmit = async (values: SiswaForm) => {
     const siswaData: Record<string, unknown> = {
       nama: values.nama,
@@ -134,18 +173,56 @@ export default function FormSiswa() {
         ? { kelas_id: values.kelas_id, tahun_ajaran_id: values.tahun_ajaran_id }
         : undefined;
       await updateSiswa.mutateAsync({ id: id!, siswa: siswaData, detail: detailData, kelas_siswa: kelasData });
+
+      if (nisMode === "otomatis") {
+        if (nisParamsComplete) {
+          try {
+            const nis = await invokeGenerateNis(id!, watchDept!, watchAngkatan!, watchKelas!);
+            toast.success("Siswa disimpan. NIS: " + nis);
+          } catch (err: any) {
+            toast.warning("Siswa disimpan, tapi NIS gagal di-generate: " + (err.message || ""));
+          }
+        } else {
+          toast.warning("Siswa disimpan tanpa NIS. Lengkapi departemen, angkatan, dan kelas untuk generate NIS.");
+        }
+      }
+
       navigate(`/akademik/siswa/${id}`);
     } else {
       const kelasData = values.kelas_id && values.tahun_ajaran_id
         ? { kelas_id: values.kelas_id, tahun_ajaran_id: values.tahun_ajaran_id, aktif: true }
         : undefined;
-      await createSiswa.mutateAsync({ siswa: siswaData, detail: detailData, kelas_siswa: kelasData });
-      navigate("/akademik/siswa");
+      const result = await createSiswa.mutateAsync({ siswa: siswaData, detail: detailData, kelas_siswa: kelasData });
+      const newSiswaId = (result as any)?.id;
+
+      if (nisMode === "otomatis") {
+        if (nisParamsComplete && newSiswaId) {
+          try {
+            const nis = await invokeGenerateNis(newSiswaId, watchDept!, watchAngkatan!, watchKelas!);
+            toast.success("Siswa disimpan. NIS: " + nis);
+          } catch (err: any) {
+            toast.warning("Siswa disimpan, tapi NIS gagal di-generate: " + (err.message || ""));
+          }
+        } else {
+          toast.warning("Siswa disimpan tanpa NIS. Lengkapi departemen, angkatan, dan kelas untuk generate NIS.");
+        }
+        navigate("/akademik/siswa");
+      } else {
+        // Manual mode: stay on page, let user click "Buat NIS"
+        if (newSiswaId) {
+          setSavedSiswaId(newSiswaId);
+          toast.success("Siswa disimpan! Klik 'Buat NIS' untuk generate NIS.");
+        } else {
+          toast.success("Siswa disimpan.");
+          navigate("/akademik/siswa");
+        }
+      }
     }
   };
 
-
-
+  const canGenerateManual = isEdit
+    ? nisParamsComplete
+    : !!(savedSiswaId && nisParamsComplete);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -187,13 +264,7 @@ export default function FormSiswa() {
 
                   <FormSection title="Identitas">
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <FormField control={form.control} name="nis" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>NIS</FormLabel>
-                          <FormControl><Input placeholder="Nomor Induk Siswa" {...field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
+                      {/* Nama */}
                       <FormField control={form.control} name="nama" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Nama Lengkap *</FormLabel>
@@ -201,6 +272,91 @@ export default function FormSiswa() {
                           <FormMessage />
                         </FormItem>
                       )} />
+
+                      {/* NIS Mode Toggle + Field */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-medium">Mode NIS</span>
+                          <div className="flex gap-1 ml-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={nisMode === "otomatis" ? "default" : "outline"}
+                              onClick={() => setNisMode("otomatis")}
+                              className="h-7 text-xs px-2"
+                            >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              Otomatis
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={nisMode === "manual" ? "default" : "outline"}
+                              onClick={() => setNisMode("manual")}
+                              className="h-7 text-xs px-2"
+                            >
+                              <Pencil className="h-3 w-3 mr-1" />
+                              Manual
+                            </Button>
+                          </div>
+                        </div>
+
+                        <FormField control={form.control} name="nis" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>NIS</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                disabled
+                                placeholder={
+                                  nisMode === "otomatis"
+                                    ? "NIS akan di-generate otomatis saat simpan"
+                                    : "Klik tombol untuk generate NIS"
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+
+                        {/* Mode Otomatis + Edit: tombol Generate Ulang */}
+                        {nisMode === "otomatis" && isEdit && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!nisParamsComplete || isGeneratingNis}
+                            onClick={handleGenerateNisClick}
+                          >
+                            {isGeneratingNis ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                            Generate Ulang NIS
+                          </Button>
+                        )}
+
+                        {/* Mode Manual: tombol Buat NIS */}
+                        {nisMode === "manual" && (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!canGenerateManual || isGeneratingNis}
+                              onClick={handleGenerateNisClick}
+                            >
+                              {isGeneratingNis ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                              Buat NIS
+                            </Button>
+                            {!isEdit && !savedSiswaId && (
+                              <p className="text-xs text-muted-foreground">Simpan siswa dulu sebelum generate NIS</p>
+                            )}
+                            {!nisParamsComplete && (savedSiswaId || isEdit) && (
+                              <p className="text-xs text-muted-foreground">Lengkapi departemen, angkatan, dan kelas di tab Akademik</p>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Jenis Kelamin */}
                       <FormField control={form.control} name="jenis_kelamin" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Jenis Kelamin *</FormLabel>
@@ -448,7 +604,7 @@ export default function FormSiswa() {
           {/* Sticky save button */}
           <div className="sticky bottom-0 bg-background border-t py-4 mt-6 flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={() => navigate(-1)}>Batal</Button>
-            <Button type="submit" disabled={createSiswa.isPending || updateSiswa.isPending}>
+            <Button type="submit" disabled={createSiswa.isPending || updateSiswa.isPending || isGeneratingNis}>
               <Save className="h-4 w-4 mr-2" />
               {isEdit ? "Simpan Perubahan" : "Simpan Siswa"}
             </Button>
