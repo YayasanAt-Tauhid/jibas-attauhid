@@ -19,7 +19,7 @@ export default function DataAlumni() {
     queryFn: async () => {
       let q = supabase.from("siswa")
         .select("id, nis, nama, jenis_kelamin, tempat_lahir, tanggal_lahir, angkatan:angkatan_id(nama), status, telepon, email, alamat")
-        .eq("status", "lulus")
+        .in("status", ["lulus", "alumni"])
         .order("nama");
       if (angkatanId) q = q.eq("angkatan_id", angkatanId);
       const { data } = await q;
