@@ -485,7 +485,7 @@ export default function FormSiswa() {
                       <FormField control={form.control} name="departemen_id" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Departemen</FormLabel>
-                          <Select onValueChange={(v) => { field.onChange(v); form.setValue("tingkat_id", ""); form.setValue("kelas_id", ""); }} value={field.value}>
+                          <Select onValueChange={(v) => { field.onChange(v); form.setValue("tingkat_id", ""); form.setValue("kelas_id", ""); form.setValue("angkatan_id", ""); }} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Pilih departemen" /></SelectTrigger></FormControl>
                             <SelectContent>
                               {departemenList.map((d) => <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>)}
