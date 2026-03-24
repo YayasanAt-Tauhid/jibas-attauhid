@@ -9,21 +9,18 @@ import { StatsCard } from "@/components/shared/StatsCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { NISPreview } from "@/components/shared/NISPreview";
 import { useAngkatan, useDepartemen, useKelas } from "@/hooks/useAkademikData";
 import { generateNISViaEdgeFunction } from "@/utils/nisGenerator";
 import { UserPlus, Users, UserCheck, Clock, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-// ─── helper: cek kelengkapan data siswa ───────────────────────────────────────
-function diagnosaNIS(row: Record<string, unknown>): {
-  bisa: boolean;
-  alasan?: "no_dept_angkatan" | "no_kelas";
-} {
+function diagnosaNIS(row: Record<string, unknown>): { alasan?: "no_dept_angkatan" | "no_kelas" } {
   const departemenId = row.departemen_id as string | null;
   const angkatanId = row.angkatan_id as string | null;
-  if (!departemenId || !angkatanId) return { bisa: false, alasan: "no_dept_angkatan" };
-  return { bisa: true };
+  if (!departemenId || !angkatanId) return { alasan: "no_dept_angkatan" };
+  return {};
 }
 
 export default function PSB() {
@@ -34,10 +31,17 @@ export default function PSB() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [nisLoadingId, setNisLoadingId] = useState<string | null>(null);
 
+  // "lengkap" = kelas & angkatan wajib, NIS langsung dibuat saat Terima
+  // "cepat"   = kelas & angkatan opsional, NIS dibuat belakangan
+  const [modePendaftaran, setModePendaftaran] = useState<"lengkap" | "cepat">("lengkap");
+
   const [formData, setFormData] = useState({
     nama: "", jenis_kelamin: "L", telepon: "", alamat: "",
     angkatan_id: "", departemen_id: "", kelas_id: "",
   });
+
+  const resetForm = () =>
+    setFormData({ nama: "", jenis_kelamin: "L", telepon: "", alamat: "", angkatan_id: "", departemen_id: "", kelas_id: "" });
 
   const filteredKelas = kelasList.filter(
     (k: any) => !formData.departemen_id || k.departemen_id === formData.departemen_id
@@ -49,6 +53,12 @@ export default function PSB() {
   const selectedDept = departemenList.find((d: any) => d.id === formData.departemen_id);
   const selectedKelas = kelasList.find((k: any) => k.id === formData.kelas_id);
   const selectedAngkatan = angkatanList.find((a: any) => a.id === formData.angkatan_id);
+
+  const canPreviewNIS =
+    modePendaftaran === "lengkap" &&
+    selectedDept?.npsn &&
+    selectedKelas &&
+    selectedAngkatan;
 
   const { data: calonList = [], isLoading } = useQuery({
     queryKey: ["siswa", "calon"],
@@ -65,17 +75,16 @@ export default function PSB() {
 
   const calonCount = calonList.filter((s: any) => s.status === "calon").length;
   const diterimaCount = calonList.filter((s: any) => s.status === "diterima").length;
-  // siswa "diterima" tapi NIS masih kosong
-  const nisKosongCount = calonList.filter(
-    (s: any) => s.status === "diterima" && !s.nis
-  ).length;
+  const nisKosongCount = calonList.filter((s: any) => s.status === "diterima" && !s.nis).length;
 
-  // ─── daftarkan calon siswa ─────────────────────────────────────────────────
+  // ─── daftar ────────────────────────────────────────────────────────────────
   const handleDaftar = async () => {
     if (!formData.nama) { toast.error("Nama wajib diisi"); return; }
     if (!formData.departemen_id) { toast.error("Lembaga wajib dipilih"); return; }
-    if (!formData.angkatan_id) { toast.error("Angkatan wajib dipilih agar NIS bisa dibuat"); return; }
-    if (!formData.kelas_id) { toast.error("Kelas wajib dipilih agar NIS bisa dibuat"); return; }
+    if (modePendaftaran === "lengkap") {
+      if (!formData.angkatan_id) { toast.error("Angkatan wajib diisi (mode lengkap)"); return; }
+      if (!formData.kelas_id) { toast.error("Kelas wajib diisi (mode lengkap)"); return; }
+    }
 
     const { data: siswa, error: insertErr } = await supabase
       .from("siswa")
@@ -84,7 +93,7 @@ export default function PSB() {
         jenis_kelamin: formData.jenis_kelamin,
         telepon: formData.telepon || null,
         alamat: formData.alamat || null,
-        angkatan_id: formData.angkatan_id,
+        angkatan_id: formData.angkatan_id || null,
         departemen_id: formData.departemen_id,
         agama: "Islam",
         status: "calon",
@@ -94,26 +103,31 @@ export default function PSB() {
 
     if (insertErr || !siswa) { toast.error(insertErr?.message || "Gagal mendaftarkan"); return; }
 
-    await supabase.from("kelas_siswa").insert({
-      siswa_id: siswa.id,
-      kelas_id: formData.kelas_id,
-      aktif: true,
-    } as any);
+    if (formData.kelas_id) {
+      await supabase.from("kelas_siswa").insert({
+        siswa_id: siswa.id,
+        kelas_id: formData.kelas_id,
+        aktif: true,
+      } as any);
+    }
 
     qc.invalidateQueries({ queryKey: ["siswa"] });
-    toast.success("Calon siswa berhasil didaftarkan");
+    toast.success("Calon siswa berhasil didaftarkan", {
+      description: modePendaftaran === "cepat"
+        ? "Lengkapi kelas & angkatan sebelum menerima agar NIS bisa dibuat."
+        : undefined,
+    });
     setDialogOpen(false);
-    setFormData({ nama: "", jenis_kelamin: "L", telepon: "", alamat: "", angkatan_id: "", departemen_id: "", kelas_id: "" });
+    resetForm();
   };
 
-  // ─── generate NIS (bisa dipanggil dari tombol Terima maupun Buat NIS) ──────
+  // ─── generate NIS (reusable) ───────────────────────────────────────────────
   const generateNIS = async (
     siswaId: string,
     departemenId: string,
     angkatanId: string,
     namaSiswa: string,
   ): Promise<boolean> => {
-    // cari kelas aktif siswa
     const { data: kelasSiswa } = await supabase
       .from("kelas_siswa")
       .select("kelas_id")
@@ -123,7 +137,7 @@ export default function PSB() {
 
     if (!kelasSiswa?.kelas_id) {
       toast.warning(`NIS belum dibuat untuk ${namaSiswa}`, {
-        description: "Siswa belum dimasukkan ke kelas. Assign kelas terlebih dahulu melalui halaman Data Siswa.",
+        description: "Siswa belum dimasukkan ke kelas. Assign kelas melalui halaman Data Siswa, lalu klik Buat NIS.",
         duration: 8000,
       });
       return false;
@@ -139,21 +153,18 @@ export default function PSB() {
       toast.success(`NIS berhasil dibuat: ${nis}`, { description: namaSiswa });
       return true;
     } catch (e: any) {
-      // Cek apakah error karena NPSN belum diisi
-      const pesanError: string = e.message || "Terjadi kesalahan teknis";
-      const isNpsnError = pesanError.toLowerCase().includes("npsn");
-
+      const pesan: string = e.message || "Terjadi kesalahan teknis";
       toast.error(`NIS gagal dibuat untuk ${namaSiswa}`, {
-        description: isNpsnError
-          ? "NPSN belum diisi pada data lembaga. Hubungi admin untuk melengkapinya."
-          : pesanError,
+        description: pesan.toLowerCase().includes("npsn")
+          ? "NPSN belum diisi pada data lembaga. Hubungi admin."
+          : pesan,
         duration: 10000,
       });
       return false;
     }
   };
 
-  // ─── terima siswa ──────────────────────────────────────────────────────────
+  // ─── terima ────────────────────────────────────────────────────────────────
   const handleTerima = async (row: Record<string, unknown>) => {
     const id = row.id as string;
     const departemenId = row.departemen_id as string | null;
@@ -162,28 +173,19 @@ export default function PSB() {
 
     setNisLoadingId(id);
     try {
-      // Kondisi 1: departemen/angkatan belum diisi
+      await supabase.from("siswa").update({ status: "diterima" } as any).eq("id", id);
+
       if (!departemenId || !angkatanId) {
-        await supabase.from("siswa").update({ status: "diterima" } as any).eq("id", id);
         qc.invalidateQueries({ queryKey: ["siswa"] });
         toast.warning(`${namaSiswa} diterima`, {
-          description: "NIS belum dibuat — lembaga atau angkatan belum diisi. Edit data siswa untuk melengkapinya.",
+          description: "NIS belum dibuat — lembaga atau angkatan belum diisi. Lengkapi data siswa, lalu klik Buat NIS.",
           duration: 8000,
         });
         return;
       }
 
-      // Update status dulu
-      await supabase.from("siswa").update({ status: "diterima" } as any).eq("id", id);
-
-      // Kondisi 2 & 3 ditangani di dalam generateNIS
-      const berhasil = await generateNIS(id, departemenId, angkatanId, namaSiswa);
-      if (!berhasil) {
-        // status sudah "diterima", tapi NIS belum — invalidate tetap perlu
-        qc.invalidateQueries({ queryKey: ["siswa"] });
-      } else {
-        qc.invalidateQueries({ queryKey: ["siswa"] });
-      }
+      await generateNIS(id, departemenId, angkatanId, namaSiswa);
+      qc.invalidateQueries({ queryKey: ["siswa"] });
     } catch {
       toast.error("Gagal menerima siswa");
     } finally {
@@ -191,7 +193,7 @@ export default function PSB() {
     }
   };
 
-  // ─── buat NIS manual (untuk siswa "diterima" yang NIS-nya masih kosong) ───
+  // ─── buat NIS manual ───────────────────────────────────────────────────────
   const handleBuatNIS = async (row: Record<string, unknown>) => {
     const id = row.id as string;
     const departemenId = row.departemen_id as string | null;
@@ -231,12 +233,8 @@ export default function PSB() {
           const { alasan } = diagnosaNIS(row);
           return (
             <span
-              className="inline-flex items-center gap-1 text-xs text-warning"
-              title={
-                alasan === "no_dept_angkatan"
-                  ? "Lembaga/angkatan belum diisi"
-                  : "Kelas belum diatur"
-              }
+              className="inline-flex items-center gap-1 text-xs text-warning cursor-help"
+              title={alasan === "no_dept_angkatan" ? "Lembaga/angkatan belum diisi" : "Kelas belum diatur"}
             >
               <AlertTriangle className="h-3 w-3" />
               Belum ada
@@ -265,39 +263,30 @@ export default function PSB() {
       key: "id", label: "Aksi", className: "w-48",
       render: (_, row) => {
         const status = row.status as string;
-        const isLoading = nisLoadingId === (row.id as string);
+        const loading = nisLoadingId === (row.id as string);
         return (
           <div className="flex gap-1 flex-wrap">
             {status === "calon" && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={isLoading}
+              <Button size="sm" variant="outline" disabled={loading}
                 onClick={(e) => { e.stopPropagation(); handleTerima(row); }}
               >
-                {isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Terima"}
+                {loading ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Terima"}
               </Button>
             )}
-
             {status === "diterima" && !row.nis && (
-              <Button
-                size="sm"
-                variant="outline"
+              <Button size="sm" variant="outline"
                 className="border-warning/50 text-warning hover:bg-warning/10"
-                disabled={isLoading}
+                disabled={loading}
                 onClick={(e) => { e.stopPropagation(); handleBuatNIS(row); }}
               >
-                {isLoading
+                {loading
                   ? <RefreshCw className="h-3 w-3 animate-spin" />
                   : <><RefreshCw className="h-3 w-3 mr-1" />Buat NIS</>
                 }
               </Button>
             )}
-
             {status === "diterima" && (
-              <Button
-                size="sm"
-                disabled={isLoading}
+              <Button size="sm" disabled={loading}
                 onClick={(e) => { e.stopPropagation(); handleAktifkan(row.id as string); }}
               >
                 Aktifkan
@@ -309,6 +298,7 @@ export default function PSB() {
     },
   ];
 
+  // ─── render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -316,20 +306,52 @@ export default function PSB() {
           <h1 className="text-2xl font-bold text-foreground">Penerimaan Siswa Baru (PSB)</h1>
           <p className="text-sm text-muted-foreground">Kelola pendaftaran dan penerimaan siswa baru</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button><UserPlus className="h-4 w-4 mr-2" />Daftarkan Calon Siswa</Button>
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Formulir Pendaftaran</DialogTitle></DialogHeader>
+
+            {/* ── Toggle mode ── */}
+            <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium leading-none">
+                  {modePendaftaran === "lengkap" ? "Mode lengkap" : "Mode cepat"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {modePendaftaran === "lengkap"
+                    ? "Kelas & angkatan wajib — NIS langsung dibuat saat diterima"
+                    : "Kelas & angkatan opsional — NIS dibuat belakangan"}
+                </p>
+              </div>
+              <Switch
+                checked={modePendaftaran === "lengkap"}
+                onCheckedChange={(v) => {
+                  setModePendaftaran(v ? "lengkap" : "cepat");
+                  setFormData((f) => ({ ...f, kelas_id: "", angkatan_id: "" }));
+                }}
+              />
+            </div>
+
             <div className="space-y-4">
+              {/* Nama */}
               <div>
                 <Label>Nama Lengkap *</Label>
-                <Input value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} />
+                <Input
+                  value={formData.nama}
+                  onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                />
               </div>
+
+              {/* Jenis kelamin */}
               <div>
                 <Label>Jenis Kelamin</Label>
-                <Select value={formData.jenis_kelamin} onValueChange={(v) => setFormData({ ...formData, jenis_kelamin: v })}>
+                <Select
+                  value={formData.jenis_kelamin}
+                  onValueChange={(v) => setFormData({ ...formData, jenis_kelamin: v })}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="L">Laki-laki</SelectItem>
@@ -337,20 +359,40 @@ export default function PSB() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Lembaga */}
               <div>
                 <Label>Lembaga/Sekolah *</Label>
                 <Select
                   value={formData.departemen_id}
-                  onValueChange={(v) => setFormData({ ...formData, departemen_id: v, kelas_id: "", angkatan_id: "" })}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, departemen_id: v, kelas_id: "", angkatan_id: "" })
+                  }
                 >
                   <SelectTrigger><SelectValue placeholder="Pilih lembaga" /></SelectTrigger>
                   <SelectContent>
-                    {departemenList.map((d) => <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>)}
+                    {departemenList.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {selectedDept && !selectedDept.npsn && (
+                  <p className="text-xs text-warning flex items-center gap-1.5 mt-1">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Lembaga ini belum memiliki NPSN — NIS tidak bisa dibuat otomatis.
+                  </p>
+                )}
               </div>
+
+              {/* Kelas */}
               <div>
-                <Label>Kelas *</Label>
+                <Label className="flex items-center gap-1.5">
+                  Kelas
+                  {modePendaftaran === "lengkap"
+                    ? <span className="text-destructive">*</span>
+                    : <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+                  }
+                </Label>
                 <Select
                   value={formData.kelas_id}
                   onValueChange={(v) => setFormData({ ...formData, kelas_id: v })}
@@ -358,12 +400,22 @@ export default function PSB() {
                 >
                   <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
                   <SelectContent>
-                    {filteredKelas.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+                    {filteredKelas.map((k: any) => (
+                      <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Angkatan */}
               <div>
-                <Label>Angkatan *</Label>
+                <Label className="flex items-center gap-1.5">
+                  Angkatan
+                  {modePendaftaran === "lengkap"
+                    ? <span className="text-destructive">*</span>
+                    : <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+                  }
+                </Label>
                 <Select
                   value={formData.angkatan_id}
                   onValueChange={(v) => setFormData({ ...formData, angkatan_id: v })}
@@ -371,45 +423,54 @@ export default function PSB() {
                 >
                   <SelectTrigger><SelectValue placeholder="Pilih angkatan" /></SelectTrigger>
                   <SelectContent>
-                    {filteredAngkatan.map((a: any) => <SelectItem key={a.id} value={a.id}>{a.nama}</SelectItem>)}
+                    {filteredAngkatan.map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>{a.nama}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* NIS Preview — tampil hanya jika semua data sudah dipilih */}
-              {selectedDept?.npsn && selectedKelas && selectedAngkatan && (
+              {/* NIS Preview */}
+              {canPreviewNIS && (
                 <NISPreview
-                  npsn={selectedDept.npsn}
-                  namaKelas={selectedKelas.nama}
-                  namaAngkatan={selectedAngkatan.nama}
+                  npsn={selectedDept!.npsn}
+                  namaKelas={selectedKelas!.nama}
+                  namaAngkatan={selectedAngkatan!.nama}
                   estimasiUrut={1}
                 />
               )}
 
-              {/* Info jika NPSN belum diisi di lembaga yang dipilih */}
-              {selectedDept && !selectedDept.npsn && (
-                <p className="text-xs text-warning flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Lembaga ini belum memiliki NPSN. NIS tidak bisa di-generate otomatis.
-                  Hubungi admin untuk melengkapi data lembaga.
+              {/* Info mode cepat */}
+              {modePendaftaran === "cepat" && (
+                <p className="text-xs text-muted-foreground bg-muted/40 rounded-md px-3 py-2 leading-relaxed">
+                  NIS akan dibuat setelah kelas dan angkatan dilengkapi di halaman Data Siswa,
+                  kemudian klik tombol <strong>Buat NIS</strong> di tabel PSB.
                 </p>
               )}
 
+              {/* Telepon & Alamat */}
               <div>
                 <Label>Telepon</Label>
-                <Input value={formData.telepon} onChange={(e) => setFormData({ ...formData, telepon: e.target.value })} />
+                <Input
+                  value={formData.telepon}
+                  onChange={(e) => setFormData({ ...formData, telepon: e.target.value })}
+                />
               </div>
               <div>
                 <Label>Alamat</Label>
-                <Textarea value={formData.alamat} onChange={(e) => setFormData({ ...formData, alamat: e.target.value })} />
+                <Textarea
+                  value={formData.alamat}
+                  onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                />
               </div>
+
               <Button className="w-full" onClick={handleDaftar}>Daftarkan</Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats — tambah kartu NIS kosong jika ada */}
+      {/* Stats */}
       <div className={`grid gap-4 ${nisKosongCount > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <StatsCard title="Total Pendaftar" value={calonList.length} icon={Users} color="primary" />
         <StatsCard title="Menunggu" value={calonCount} icon={Clock} color="warning" />
