@@ -148,6 +148,7 @@ export type Database = {
       jenis_pembayaran: {
         Row: {
           aktif: boolean | null
+          departemen_id: string | null
           id: string
           keterangan: string | null
           nama: string
@@ -155,6 +156,7 @@ export type Database = {
         }
         Insert: {
           aktif?: boolean | null
+          departemen_id?: string | null
           id?: string
           keterangan?: string | null
           nama: string
@@ -162,12 +164,21 @@ export type Database = {
         }
         Update: {
           aktif?: boolean | null
+          departemen_id?: string | null
           id?: string
           keterangan?: string | null
           nama?: string
           nominal?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jenis_pembayaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       kelas: {
         Row: {
@@ -533,6 +544,92 @@ export type Database = {
           },
         ]
       }
+      presensi_kbm: {
+        Row: {
+          created_at: string | null
+          id: string
+          jadwal_id: string | null
+          keterangan: string | null
+          siswa_id: string | null
+          status: string | null
+          tanggal: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          jadwal_id?: string | null
+          keterangan?: string | null
+          siswa_id?: string | null
+          status?: string | null
+          tanggal: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          jadwal_id?: string | null
+          keterangan?: string | null
+          siswa_id?: string | null
+          status?: string | null
+          tanggal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presensi_kbm_jadwal_id_fkey"
+            columns: ["jadwal_id"]
+            isOneToOne: false
+            referencedRelation: "jadwal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "presensi_kbm_siswa_id_fkey"
+            columns: ["siswa_id"]
+            isOneToOne: false
+            referencedRelation: "siswa"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      presensi_pegawai: {
+        Row: {
+          created_at: string | null
+          id: string
+          jam_keluar: string | null
+          jam_masuk: string | null
+          keterangan: string | null
+          pegawai_id: string | null
+          status: string | null
+          tanggal: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          jam_keluar?: string | null
+          jam_masuk?: string | null
+          keterangan?: string | null
+          pegawai_id?: string | null
+          status?: string | null
+          tanggal: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          jam_keluar?: string | null
+          jam_masuk?: string | null
+          keterangan?: string | null
+          pegawai_id?: string | null
+          status?: string | null
+          tanggal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presensi_pegawai_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       presensi_siswa: {
         Row: {
           id: string
@@ -682,6 +779,7 @@ export type Database = {
           alamat: string | null
           angkatan_id: string | null
           created_at: string | null
+          departemen_id: string | null
           email: string | null
           foto_url: string | null
           id: string
@@ -698,6 +796,7 @@ export type Database = {
           alamat?: string | null
           angkatan_id?: string | null
           created_at?: string | null
+          departemen_id?: string | null
           email?: string | null
           foto_url?: string | null
           id?: string
@@ -714,6 +813,7 @@ export type Database = {
           alamat?: string | null
           angkatan_id?: string | null
           created_at?: string | null
+          departemen_id?: string | null
           email?: string | null
           foto_url?: string | null
           id?: string
@@ -733,12 +833,23 @@ export type Database = {
             referencedRelation: "angkatan"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "siswa_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
         ]
       }
       siswa_detail: {
         Row: {
           alamat_ortu: string | null
+          alasan_pindah: string | null
+          asal_sekolah: string | null
           id: string
+          jenis_pendaftaran: string | null
+          kelas_terakhir: string | null
           nama_ayah: string | null
           nama_ibu: string | null
           pekerjaan_ayah: string | null
@@ -748,7 +859,11 @@ export type Database = {
         }
         Insert: {
           alamat_ortu?: string | null
+          alasan_pindah?: string | null
+          asal_sekolah?: string | null
           id?: string
+          jenis_pendaftaran?: string | null
+          kelas_terakhir?: string | null
           nama_ayah?: string | null
           nama_ibu?: string | null
           pekerjaan_ayah?: string | null
@@ -758,7 +873,11 @@ export type Database = {
         }
         Update: {
           alamat_ortu?: string | null
+          alasan_pindah?: string | null
+          asal_sekolah?: string | null
           id?: string
+          jenis_pendaftaran?: string | null
+          kelas_terakhir?: string | null
           nama_ayah?: string | null
           nama_ibu?: string | null
           pekerjaan_ayah?: string | null
@@ -885,9 +1004,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_my_pegawai_id: { Args: { _user_id: string }; Returns: string }
+      get_my_siswa_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: { Args: { _user_id: string }; Returns: string }
+      guru_teaches_class: {
+        Args: { _kelas_id: string; _user_id: string }
+        Returns: boolean
+      }
+      guru_teaches_mapel: {
+        Args: { _mapel_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       is_admin_or_kepala: { Args: { _user_id: string }; Returns: boolean }
+      is_own_pegawai: {
+        Args: { _pegawai_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_own_siswa: {
+        Args: { _siswa_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
