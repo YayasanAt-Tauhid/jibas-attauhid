@@ -119,14 +119,18 @@ export default function InputPembayaran() {
   const { data: tarifNominal } = useTarifSiswa(jenisId || undefined, selectedSiswa?.id, siswaKelasId, effectiveTahunAjaranId);
 
   const { data: bulanDibayar } = useQuery({
-    queryKey: ["cek_tunggakan", selectedSiswa?.id, jenisId],
+    queryKey: ["cek_tunggakan", selectedSiswa?.id, jenisId, effectiveTahunAjaranId],
     enabled: !!selectedSiswa && !!jenisId && !isSekali,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("pembayaran")
         .select("bulan")
         .eq("siswa_id", selectedSiswa.id)
         .eq("jenis_id", jenisId);
+      if (effectiveTahunAjaranId) {
+        q = q.eq("tahun_ajaran_id", effectiveTahunAjaranId);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return new Set((data || []).map((r) => r.bulan));
     },
