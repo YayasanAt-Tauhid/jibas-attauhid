@@ -114,7 +114,7 @@ export default function InputPembayaran() {
   const tagihanBulanToCheck = isSekali ? undefined : Number(bulan);
   const { data: existingTagihan } = useTagihanBySiswa(selectedSiswa?.id, jenisId || undefined, tagihanBulanToCheck);
 
-  const effectiveTahunAjaranId = selectedTahunAjaranId || tahunAktif?.id;
+  // effectiveTahunAjaranId already defined above
   const { data: tarifNominal } = useTarifSiswa(jenisId || undefined, selectedSiswa?.id, siswaKelasId, effectiveTahunAjaranId);
 
   const { data: bulanDibayar } = useQuery({
