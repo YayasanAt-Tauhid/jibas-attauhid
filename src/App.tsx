@@ -165,6 +165,12 @@ const App = () => (
                   <Route path="/keuangan/online-payment" element={<OnlinePayment />} />
                   <Route path="/keuangan/audit-trail" element={<AuditTrail />} />
                   <Route path="/keuangan/pengakuan-pendapatan" element={<PengakuanPendapatan />} />
+                  <Route path="/keuangan/aset-tetap" element={<AsetTetap />} />
+                  <Route path="/keuangan/isak35" element={<RingkasanISAK35 />} />
+                  <Route path="/keuangan/isak35/komprehensif" element={<LaporanKomprehensif />} />
+                  <Route path="/keuangan/isak35/posisi-keuangan" element={<LaporanPosisiKeuangan />} />
+                  <Route path="/keuangan/isak35/arus-kas" element={<LaporanArusKasISAK35 />} />
+                  <Route path="/keuangan/isak35/perubahan-aset-neto" element={<LaporanPerubahanAsetNeto />} />
                 </Route>
                 {/* Kepegawaian */}
                 <Route path="/kepegawaian" element={<Kepegawaian />} />
