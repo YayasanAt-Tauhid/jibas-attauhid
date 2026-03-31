@@ -88,6 +88,8 @@ import PSBDaftar from "./pages/portal/PSBDaftar";
 // Pengaturan
 import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 import BackupExport from "./pages/pengaturan/BackupExport";
+import MigrasiData from "./pages/pengaturan/MigrasiData";
+import CekKesehatan from "./pages/pengaturan/CekKesehatan";
 
 const queryClient = new QueryClient();
 
@@ -197,6 +199,8 @@ const App = () => (
                 <Route path="/pengaturan/ortu" element={<ManajemenOrtu />} />
                 <Route path="/pengaturan/notifikasi" element={<NotifikasiGateway />} />
                 <Route path="/pengaturan/backup" element={<BackupExport />} />
+                <Route path="/pengaturan/migrasi-data" element={<MigrasiData />} />
+                <Route path="/pengaturan/cek-kesehatan" element={<CekKesehatan />} />
                 <Route path="/pengaturan/:tab" element={<Pengaturan />} />
               </Route>
             </Route>

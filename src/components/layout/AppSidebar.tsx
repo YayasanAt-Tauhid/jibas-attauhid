@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GraduationCap, Wallet, Users,
   MonitorPlay, BookOpen, Megaphone, Settings,
-  ChevronRight,
+  ChevronRight, Database, ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,8 @@ const menuItems: MenuItem[] = [
       { title: "Manajemen Ortu", url: "/pengaturan/ortu" },
       { title: "Notifikasi Gateway", url: "/pengaturan/notifikasi" },
       { title: "Backup & Export", url: "/pengaturan/backup" },
+      { title: "Migrasi Data", url: "/pengaturan/migrasi-data" },
+      { title: "Cek Kesehatan Data", url: "/pengaturan/cek-kesehatan" },
     ],
   },
 ];
