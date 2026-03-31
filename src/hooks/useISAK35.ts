@@ -85,24 +85,56 @@ async function totalDepresiasi(tahun: number, departemenId?: string) {
   return { totalHP, totalBeban, totalAkum, totalNB };
 }
 
+// Helper: filter accounts by pos_isak35 and only include those with non-zero saldo
+function byPos(saldo: SaldoAkun[], ...positions: string[]) {
+  return saldo.filter(a => positions.includes(a.pos_isak35));
+}
+
+function sumSaldo(items: SaldoAkun[]) {
+  return items.reduce((s, a) => s + a.saldo, 0);
+}
+
 export function useLaporanKomprehensif(tahun: number, departemenId?: string) {
   return useQuery({
     queryKey: ["isak35_komprehensif", tahun, departemenId],
     queryFn: async () => {
       const [saldo, dep] = await Promise.all([hitungSaldoAkun(tahun, departemenId), totalDepresiasi(tahun, departemenId)]);
-      const get = (pos: string) => saldo.filter(a => a.pos_isak35 === pos);
-      const pendapatan = get("pendapatan");
-      const totalPendapatan = pendapatan.reduce((s, a) => s + a.saldo, 0);
-      const beban = get("beban").map(a => a.kode === "5-120" ? { ...a, saldo: dep.totalBeban } : a);
-      const totalBeban = beban.reduce((s, a) => s + a.saldo, 0);
+
+      // Pendapatan tanpa pembatasan
+      const pendapatan = byPos(saldo, "pendapatan_tidak_terikat");
+      const totalPendapatan = sumSaldo(pendapatan);
+
+      // Beban (program + penunjang)
+      const beban = byPos(saldo, "beban_program", "beban_penunjang");
+      const totalBeban = sumSaldo(beban);
+
       const surplusDefisit = totalPendapatan - totalBeban;
-      const pendapatanTerbatas = get("pendapatan_terbatas");
-      const totalPT = pendapatanTerbatas.reduce((s, a) => s + a.saldo, 0);
-      const bebanTerbatas = get("beban_terbatas");
-      const totalBT = bebanTerbatas.reduce((s, a) => s + a.saldo, 0);
+
+      // Pendapatan dengan pembatasan (terikat temporer + permanen)
+      const pendapatanTerbatas = byPos(saldo, "pendapatan_terikat_temporer", "pendapatan_terikat_permanen");
+      const totalPT = sumSaldo(pendapatanTerbatas);
+
+      // Beban terbatas (if any accounts mapped)
+      const bebanTerbatas = byPos(saldo, "beban_terbatas");
+      const totalBT = sumSaldo(bebanTerbatas);
+
       const surplusTerbatas = totalPT - totalBT;
-      const pkl = get("pkl").reduce((s, a) => s + a.saldo, 0);
-      return { pendapatan, totalPendapatan, beban, totalBeban, surplusDefisit, pendapatanTerbatas, totalPT, bebanTerbatas, totalBT, surplusTerbatas, pkl, totalKomprehensif: surplusDefisit + surplusTerbatas + pkl, dep };
+
+      // Penghasilan Komprehensif Lain
+      const pklItems = byPos(saldo, "pkl");
+      const pkl = sumSaldo(pklItems);
+
+      return {
+        pendapatan, totalPendapatan,
+        beban, totalBeban,
+        surplusDefisit,
+        pendapatanTerbatas, totalPT,
+        bebanTerbatas, totalBT,
+        surplusTerbatas,
+        pkl,
+        totalKomprehensif: surplusDefisit + surplusTerbatas + pkl,
+        dep,
+      };
     },
   });
 }
@@ -112,20 +144,47 @@ export function useLaporanPosisiKeuangan(tahun: number, departemenId?: string) {
     queryKey: ["isak35_posisi", tahun, departemenId],
     queryFn: async () => {
       const [saldo, dep] = await Promise.all([hitungSaldoAkun(tahun, departemenId), totalDepresiasi(tahun, departemenId)]);
-      const g = (kode: string) => saldo.find(a => a.kode === kode)?.saldo ?? 0;
-      const asetLancar = { kas: g("1-111"), piutang: g("1-112"), invJP: g("1-113"), persediaan: g("1-114"), lainnya: g("1-115") };
-      const totalAL = Object.values(asetLancar).reduce((s, v) => s + v, 0);
-      const asetTL = { properti: g("1-211"), invJG: g("1-212"), asetTetap: dep.totalHP, akmPenyusutan: -dep.totalAkum };
-      const totalATL = Object.values(asetTL).reduce((s, v) => s + v, 0);
+
+      // Aset Lancar - all accounts with pos_isak35 = 'aset_lancar'
+      const asetLancarItems = byPos(saldo, "aset_lancar");
+      const totalAL = sumSaldo(asetLancarItems);
+
+      // Aset Tidak Lancar - all accounts with pos_isak35 = 'aset_tidak_lancar'
+      const asetTidakLancarItems = byPos(saldo, "aset_tidak_lancar");
+      const totalATL = sumSaldo(asetTidakLancarItems);
+
       const totalAset = totalAL + totalATL;
-      const liabJP = { pdd: g("2-111"), utangJP: g("2-112") };
-      const totalLJP = liabJP.pdd + liabJP.utangJP;
-      const liabJG = { utangJG: g("2-113"), lik: g("2-114") };
-      const totalLJG = liabJG.utangJG + liabJG.lik;
+
+      // Liabilitas Jangka Pendek
+      const liabJPItems = byPos(saldo, "kewajiban_jangka_pendek");
+      const totalLJP = sumSaldo(liabJPItems);
+
+      // Liabilitas Jangka Panjang
+      const liabJGItems = byPos(saldo, "kewajiban_jangka_panjang");
+      const totalLJG = sumSaldo(liabJGItems);
+
       const totalLiabilitas = totalLJP + totalLJG;
+
+      // Aset Neto
+      const asetNetoItems = byPos(saldo, "aset_neto_tidak_terikat", "aset_neto_terikat_temporer", "aset_neto_terikat_permanen");
+      const totalAsetNetoSaldo = sumSaldo(asetNetoItems);
+
+      // Calculated aset neto = total aset - total liabilitas
       const totalAsetNeto = totalAset - totalLiabilitas;
-      const surplusAkumulasian = g("2-115");
-      return { asetLancar, totalAL, asetTL, totalATL, totalAset, liabJP, totalLJP, liabJG, totalLJG, totalLiabilitas, totalAsetNeto, surplusAkumulasian, selisih: totalAset - totalLiabilitas - totalAsetNeto };
+
+      const selisih = totalAset - totalLiabilitas - totalAsetNeto;
+
+      return {
+        asetLancarItems, totalAL,
+        asetTidakLancarItems, totalATL,
+        totalAset,
+        liabJPItems, totalLJP,
+        liabJGItems, totalLJG,
+        totalLiabilitas,
+        asetNetoItems, totalAsetNetoSaldo,
+        totalAsetNeto,
+        selisih,
+      };
     },
   });
 }
@@ -135,15 +194,33 @@ export function useLaporanArusKas(tahun: number, departemenId?: string) {
     queryKey: ["isak35_arus_kas", tahun, departemenId],
     queryFn: async () => {
       const saldo = await hitungSaldoAkun(tahun, departemenId);
-      const g = (kode: string) => saldo.find(a => a.kode === kode)?.saldo ?? 0;
-      const penerimaanOperasi = ["4-114","4-115","4-116","4-117","4-118"].reduce((s, k) => s + g(k), 0);
-      const pengeluaranOperasi = ["5-111","5-112","5-113","5-114","5-115","5-116","5-117","5-118","5-119","5-121"].reduce((s, k) => s + g(k), 0);
+
+      // Penerimaan operasi = all pendapatan accounts
+      const pendapatanItems = byPos(saldo, "pendapatan_tidak_terikat", "pendapatan_terikat_temporer", "pendapatan_terikat_permanen");
+      const penerimaanOperasi = sumSaldo(pendapatanItems);
+
+      // Pengeluaran operasi = all beban accounts
+      const bebanItems = byPos(saldo, "beban_program", "beban_penunjang", "beban_terbatas");
+      const pengeluaranOperasi = sumSaldo(bebanItems);
+
       const arusOperasi = penerimaanOperasi - pengeluaranOperasi;
-      const arusInvestasi = -(g("1-213"));
-      const arusPendanaan = g("2-112") + g("2-113");
+
+      // Investasi = aset tidak lancar movement (simplified)
+      const asetTLItems = byPos(saldo, "aset_tidak_lancar");
+      const arusInvestasi = -sumSaldo(asetTLItems);
+
+      // Pendanaan = liabilitas movement
+      const liabItems = byPos(saldo, "kewajiban_jangka_pendek", "kewajiban_jangka_panjang");
+      const arusPendanaan = sumSaldo(liabItems);
+
       const kenaikanKas = arusOperasi + arusInvestasi + arusPendanaan;
       const kasAwal = 0;
-      return { penerimaanOperasi, pengeluaranOperasi, arusOperasi, arusInvestasi, arusPendanaan, kenaikanKas, kasAwal, kasAkhir: kasAwal + kenaikanKas };
+
+      return {
+        penerimaanOperasi, pengeluaranOperasi, arusOperasi,
+        arusInvestasi, arusPendanaan,
+        kenaikanKas, kasAwal, kasAkhir: kasAwal + kenaikanKas,
+      };
     },
   });
 }
