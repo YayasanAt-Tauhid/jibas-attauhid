@@ -217,6 +217,7 @@ function TabKodeAkun() {
 interface JurnalRow {
   nomor_jurnal: string; tanggal: string; keterangan: string; kode_akun: string;
   debit: number; kredit: number; referensi_dokumen: string; tahun_ajaran: string; periode_bulan: number;
+  departemen_id?: string;
   error?: string;
 }
 interface JurnalGroup {
