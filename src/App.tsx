@@ -88,6 +88,8 @@ import PSBDaftar from "./pages/portal/PSBDaftar";
 // Pengaturan
 import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 import BackupExport from "./pages/pengaturan/BackupExport";
+import MigrasiData from "./pages/pengaturan/MigrasiData";
+import CekKesehatan from "./pages/pengaturan/CekKesehatan";
 
 const queryClient = new QueryClient();
 
