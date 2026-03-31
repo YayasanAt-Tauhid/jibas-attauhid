@@ -62,6 +62,12 @@ import LaporanPenerimaanLain from "./pages/keuangan/LaporanPenerimaanLain";
 import AuditTrail from "./pages/keuangan/AuditTrail";
 import OnlinePayment from "./pages/keuangan/OnlinePayment";
 import PengakuanPendapatan from "./pages/keuangan/PengakuanPendapatan";
+import AsetTetap from "./pages/keuangan/AsetTetap";
+import RingkasanISAK35 from "./pages/keuangan/RingkasanISAK35";
+import LaporanKomprehensif from "./pages/keuangan/LaporanKomprehensif";
+import LaporanPosisiKeuangan from "./pages/keuangan/LaporanPosisiKeuangan";
+import LaporanArusKasISAK35 from "./pages/keuangan/LaporanArusKasISAK35";
+import LaporanPerubahanAsetNeto from "./pages/keuangan/LaporanPerubahanAsetNeto";
 import ProfilYayasan from "./pages/pengaturan/ProfilYayasan";
 import ManajemenPengguna from "./pages/pengaturan/ManajemenPengguna";
 import ManajemenOrtu from "./pages/pengaturan/ManajemenOrtu";
@@ -159,6 +165,12 @@ const App = () => (
                   <Route path="/keuangan/online-payment" element={<OnlinePayment />} />
                   <Route path="/keuangan/audit-trail" element={<AuditTrail />} />
                   <Route path="/keuangan/pengakuan-pendapatan" element={<PengakuanPendapatan />} />
+                  <Route path="/keuangan/aset-tetap" element={<AsetTetap />} />
+                  <Route path="/keuangan/isak35" element={<RingkasanISAK35 />} />
+                  <Route path="/keuangan/isak35/komprehensif" element={<LaporanKomprehensif />} />
+                  <Route path="/keuangan/isak35/posisi-keuangan" element={<LaporanPosisiKeuangan />} />
+                  <Route path="/keuangan/isak35/arus-kas" element={<LaporanArusKasISAK35 />} />
+                  <Route path="/keuangan/isak35/perubahan-aset-neto" element={<LaporanPerubahanAsetNeto />} />
                 </Route>
                 {/* Kepegawaian */}
                 <Route path="/kepegawaian" element={<Kepegawaian />} />
