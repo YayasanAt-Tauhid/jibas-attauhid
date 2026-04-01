@@ -19,6 +19,7 @@ type DeptRow = Record<string, unknown> & {
   id: string; kode: string | null; nama: string; keterangan: string | null; aktif: boolean | null;
   alamat: string | null; kota: string | null; telepon: string | null; email: string | null;
   kepala_sekolah: string | null; npsn: string | null; akreditasi: string | null; logo_url: string | null;
+  kategori: string | null;
 };
 
 export default function ProfilYayasan() {
