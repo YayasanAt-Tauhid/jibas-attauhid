@@ -230,6 +230,7 @@ function DialogLembaga({ open, onOpenChange, initial, onSaved }: {
   const [npsn, setNpsn] = useState(initial?.npsn || "");
   const [akreditasi, setAkreditasi] = useState(initial?.akreditasi || "");
   const [logoUrl, setLogoUrl] = useState(initial?.logo_url || "");
+  const [kategori, setKategori] = useState(initial?.kategori || "");
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
