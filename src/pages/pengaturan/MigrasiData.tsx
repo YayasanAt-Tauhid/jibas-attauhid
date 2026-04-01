@@ -287,7 +287,7 @@ function TabJurnal() {
   };
 
   const downloadTemplate = () => {
-    const template = [{ nomor_jurnal: "JU-2025-001", tanggal: "2025-01-15", keterangan: "Penerimaan SPP", kode_akun: "1-111", debit: 500000, kredit: 0, referensi_dokumen: "BKM-001", tahun_ajaran: "2024/2025", periode_bulan: 1, departemen_id: "b8108afd-6070-4f82-85e0-4372d6faca4b" }];
+    const template = [{ nomor_jurnal: "JU-2025-001", tanggal: "2025-01-15", keterangan: "Penerimaan SPP", kode_akun: "1-111", debit: 500000, kredit: 0, referensi_dokumen: "BKM-001", tahun_ajaran: "2024/2025", periode_bulan: 1, departemen_id: "b8108afd-6070-4f82-85e0-4372d6faca4b", program_dana_id: "" }];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Jurnal");
