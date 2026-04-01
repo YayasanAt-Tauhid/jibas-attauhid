@@ -35,12 +35,13 @@ export default function ReferensiKeuangan() {
         <p className="text-sm text-muted-foreground">Kelola jenis penerimaan dan pengeluaran</p>
       </div>
       <Tabs defaultValue="penerimaan">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="penerimaan">Jenis Penerimaan</TabsTrigger>
           <TabsTrigger value="pengeluaran">Jenis Pengeluaran</TabsTrigger>
           <TabsTrigger value="akun">Akun Rekening</TabsTrigger>
           <TabsTrigger value="pengaturan-akun">Pengaturan Akun</TabsTrigger>
           <TabsTrigger value="tahun-buku">Tahun Buku</TabsTrigger>
+          <TabsTrigger value="program-dana">Program Dana</TabsTrigger>
           <TabsTrigger value="tarif">Tarif Tagihan</TabsTrigger>
           <TabsTrigger value="template">Template Nomor</TabsTrigger>
         </TabsList>
@@ -49,6 +50,7 @@ export default function ReferensiKeuangan() {
         <TabsContent value="akun"><TabAkunRekening /></TabsContent>
         <TabsContent value="pengaturan-akun"><TabPengaturanAkun /></TabsContent>
         <TabsContent value="tahun-buku"><TabTahunBuku /></TabsContent>
+        <TabsContent value="program-dana"><TabProgramDana /></TabsContent>
         <TabsContent value="tarif"><TabTarifTagihan /></TabsContent>
         <TabsContent value="template"><TabTemplateNomor /></TabsContent>
       </Tabs>
