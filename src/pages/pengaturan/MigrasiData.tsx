@@ -218,6 +218,7 @@ interface JurnalRow {
   nomor_jurnal: string; tanggal: string; keterangan: string; kode_akun: string;
   debit: number; kredit: number; referensi_dokumen: string; tahun_ajaran: string; periode_bulan: number;
   departemen_id?: string;
+  program_dana_id?: string;
   error?: string;
 }
 interface JurnalGroup {
@@ -286,7 +287,7 @@ function TabJurnal() {
   };
 
   const downloadTemplate = () => {
-    const template = [{ nomor_jurnal: "JU-2025-001", tanggal: "2025-01-15", keterangan: "Penerimaan SPP", kode_akun: "1-111", debit: 500000, kredit: 0, referensi_dokumen: "BKM-001", tahun_ajaran: "2024/2025", periode_bulan: 1, departemen_id: "b8108afd-6070-4f82-85e0-4372d6faca4b" }];
+    const template = [{ nomor_jurnal: "JU-2025-001", tanggal: "2025-01-15", keterangan: "Penerimaan SPP", kode_akun: "1-111", debit: 500000, kredit: 0, referensi_dokumen: "BKM-001", tahun_ajaran: "2024/2025", periode_bulan: 1, departemen_id: "b8108afd-6070-4f82-85e0-4372d6faca4b", program_dana_id: "" }];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Jurnal");
@@ -304,11 +305,14 @@ function TabJurnal() {
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const rawDeptId = g.rows[0]?.departemen_id?.toString().trim();
       const departemenId = rawDeptId && UUID_RE.test(rawDeptId) ? rawDeptId : null;
-      const { data: jrn, error: jErr } = await supabase.from("jurnal").insert({
+      const rawProgId = g.rows[0]?.program_dana_id?.toString().trim();
+      const programDanaId = rawProgId && UUID_RE.test(rawProgId) ? rawProgId : null;
+      const { data: jrn, error: jErr } = await (supabase.from("jurnal") as any).insert({
         nomor: g.nomor, tanggal: g.tanggal, keterangan: g.keterangan,
         total_debit: g.totalDebit, total_kredit: g.totalKredit, status: "posted",
         referensi: g.rows[0]?.referensi_dokumen || null,
         departemen_id: departemenId,
+        program_dana_id: programDanaId,
       }).select("id").single();
 
       if (jErr) { toast.error(`Error jurnal ${g.nomor}: ${jErr.message}`); continue; }
