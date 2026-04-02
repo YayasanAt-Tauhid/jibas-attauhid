@@ -65,7 +65,7 @@ const sections = [
   {
     title: "9. Hubungi Kami",
     content:
-      "Email: privacy@hijrah-attauhid.or.id\nWhatsApp: +62 812-0000-0000\nAlamat: Yayasan Hijrah At-Tauhid, Indonesia",
+      "Email: admin@hijrah-attauhid.or.id\nWhatsApp: +62 822-8114-2343\nAlamat: Jerambah Gantung, Jl. Jebung Dalam, RT.005/RW.05, Kec. Gabek, Kota Pangkal Pinang, Kepulauan Bangka Belitung 33116",
   },
 ];
 
