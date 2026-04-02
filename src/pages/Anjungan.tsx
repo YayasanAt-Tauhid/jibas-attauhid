@@ -95,7 +95,7 @@ export default function Anjungan() {
               J
             </div>
             <div>
-              <h1 className="text-xl font-bold">{sekolah?.nama || "JIBAS"}</h1>
+              <h1 className="text-xl font-bold">{sekolah?.nama || "Hijrah At-Tauhid"}</h1>
               <p className="text-sm text-emerald-300">{sekolah?.alamat || "Anjungan Informasi"}</p>
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function Anjungan() {
       </main>
 
       <footer className="mt-8 border-t border-white/10 py-4 text-center text-xs text-emerald-400">
-        © {new Date().getFullYear()} JIBAS — Anjungan Informasi Sekolah
+        © {new Date().getFullYear()} Hijrah At-Tauhid — Anjungan Informasi Sekolah
       </footer>
     </div>
   );

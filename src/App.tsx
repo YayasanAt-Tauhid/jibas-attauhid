@@ -72,6 +72,8 @@ import ProfilYayasan from "./pages/pengaturan/ProfilYayasan";
 import ManajemenPengguna from "./pages/pengaturan/ManajemenPengguna";
 import ManajemenOrtu from "./pages/pengaturan/ManajemenOrtu";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Support from "./pages/Support";
 // Portal Orang Tua
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
@@ -107,6 +109,8 @@ const App = () => (
             <Route path="/infoguru" element={<InfoGuru />} />
             <Route path="/anjungan" element={<Anjungan />} />
             <Route path="/psb" element={<PSBDaftar />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/support" element={<Support />} />
             {/* Portal Orang Tua */}
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route element={<ProtectedPortalRoute />}>
