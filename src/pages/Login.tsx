@@ -46,11 +46,11 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary font-bold text-primary-foreground text-2xl shadow-lg">
-            J
+            H
           </div>
-          <h1 className="text-2xl font-bold text-foreground">JIBAS</h1>
+          <h1 className="text-2xl font-bold text-foreground">Hijrah At-Tauhid</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Jaringan Informasi Bersama Antar Sekolah
+            Sistem Manajemen Sekolah Islam At-Tauhid
           </p>
         </div>
 
