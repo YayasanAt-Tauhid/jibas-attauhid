@@ -60,6 +60,7 @@ import TutupBuku from "./pages/keuangan/TutupBuku";
 import LaporanPengeluaran from "./pages/keuangan/LaporanPengeluaran";
 import LaporanPenerimaanLain from "./pages/keuangan/LaporanPenerimaanLain";
 import AuditTrail from "./pages/keuangan/AuditTrail";
+import AuditPerubahanData from "./pages/keuangan/AuditPerubahanData";
 import OnlinePayment from "./pages/keuangan/OnlinePayment";
 import PengakuanPendapatan from "./pages/keuangan/PengakuanPendapatan";
 import AsetTetap from "./pages/keuangan/AsetTetap";
@@ -68,6 +69,8 @@ import LaporanKomprehensif from "./pages/keuangan/LaporanKomprehensif";
 import LaporanPosisiKeuangan from "./pages/keuangan/LaporanPosisiKeuangan";
 import LaporanArusKasISAK35 from "./pages/keuangan/LaporanArusKasISAK35";
 import LaporanPerubahanAsetNeto from "./pages/keuangan/LaporanPerubahanAsetNeto";
+import CatatanLaporanKeuangan from "./pages/keuangan/CatatanLaporanKeuangan";
+import LaporanUnitUsaha from "./pages/keuangan/LaporanUnitUsaha";
 import ProfilYayasan from "./pages/pengaturan/ProfilYayasan";
 import ManajemenPengguna from "./pages/pengaturan/ManajemenPengguna";
 import ManajemenOrtu from "./pages/pengaturan/ManajemenOrtu";
@@ -92,6 +95,9 @@ import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 import BackupExport from "./pages/pengaturan/BackupExport";
 import MigrasiData from "./pages/pengaturan/MigrasiData";
 import CekKesehatan from "./pages/pengaturan/CekKesehatan";
+// Keuangan - Rekonsiliasi
+import RekonsiliasiAntarLembaga from "./pages/keuangan/RekonsiliasiAntarLembaga";
+import PiutangManajemen from "./pages/keuangan/PiutangManajemen";
 
 const queryClient = new QueryClient();
 
@@ -167,16 +173,21 @@ const App = () => (
                   <Route path="/keuangan/jurnal" element={<JurnalUmum />} />
                   <Route path="/keuangan/buku-besar" element={<BukuBesar />} />
                   <Route path="/keuangan/laporan-pengeluaran" element={<LaporanPengeluaran />} />
+                  <Route path="/keuangan/laporan-unit-usaha" element={<LaporanUnitUsaha />} />
                   <Route path="/keuangan/penerimaan-lain" element={<LaporanPenerimaanLain />} />
                   <Route path="/keuangan/online-payment" element={<OnlinePayment />} />
                   <Route path="/keuangan/audit-trail" element={<AuditTrail />} />
+                  <Route path="/keuangan/audit-perubahan" element={<AuditPerubahanData />} />
                   <Route path="/keuangan/pengakuan-pendapatan" element={<PengakuanPendapatan />} />
                   <Route path="/keuangan/aset-tetap" element={<AsetTetap />} />
+                  <Route path="/keuangan/rekon-antar-lembaga" element={<RekonsiliasiAntarLembaga />} />
+                  <Route path="/keuangan/piutang" element={<PiutangManajemen />} />
                   <Route path="/keuangan/isak35" element={<RingkasanISAK35 />} />
                   <Route path="/keuangan/isak35/komprehensif" element={<LaporanKomprehensif />} />
                   <Route path="/keuangan/isak35/posisi-keuangan" element={<LaporanPosisiKeuangan />} />
                   <Route path="/keuangan/isak35/arus-kas" element={<LaporanArusKasISAK35 />} />
                   <Route path="/keuangan/isak35/perubahan-aset-neto" element={<LaporanPerubahanAsetNeto />} />
+                  <Route path="/keuangan/isak35/calk" element={<CatatanLaporanKeuangan />} />
                 </Route>
                 {/* Kepegawaian */}
                 <Route path="/kepegawaian" element={<Kepegawaian />} />

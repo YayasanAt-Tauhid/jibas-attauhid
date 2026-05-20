@@ -12,10 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Info, Zap } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { formatRupiah, useAllJenisPembayaran, useTahunAjaran, useLembaga, namaBulan } from "@/hooks/useKeuangan";
+import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan } from "@/hooks/useKeuangan";
 import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useDeleteTarifTagihan } from "@/hooks/useTarifTagihan";
 import { useTagihanList, useGenerateTagihan } from "@/hooks/useTagihan";
-import { useKelas } from "@/hooks/useAkademikData";
+import { useKelas, useAngkatan } from "@/hooks/useAkademikData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -43,8 +43,9 @@ export default function TabTarifTagihan() {
   const { data: tarifList, isLoading } = useAllTarifTagihan();
   const { data: jenisList } = useAllJenisPembayaran();
   const { data: kelasList } = useKelas();
-  const { data: tahunList } = useTahunAjaran();
+  const { data: tahunList } = useTahunBuku();
   const { data: lembagaList } = useLembaga();
+  const { data: angkatanList } = useAngkatan();
 
   const createMut = useCreateTarifTagihan();
   const updateMut = useUpdateTarifTagihan();
@@ -61,6 +62,7 @@ export default function TabTarifTagihan() {
   const [siswaId, setSiswaId] = useState("");
   const [deptId, setDeptId] = useState("");
   const [kelasId, setKelasId] = useState("");
+  const [angkatanId, setAngkatanId] = useState("");
   const [tahunAjaranId, setTahunAjaranId] = useState("");
   const [nominal, setNominal] = useState("");
   const [keterangan, setKeterangan] = useState("");
@@ -86,11 +88,16 @@ export default function TabTarifTagihan() {
   const [filterTahunId, setFilterTahunId] = useState("");
   const [filterJenisId, setFilterJenisId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  // T5: filter siswa di daftar tagihan
+  const [filterSiswaSearch, setFilterSiswaSearch] = useState("");
+  const [filterSiswaId, setFilterSiswaId] = useState("");
+  const { data: filterSiswaResults } = useSiswaSearch(filterSiswaSearch);
 
   const { data: tagihanData, isLoading: loadingTagihan } = useTagihanList({
     tahun_ajaran_id: filterTahunId || undefined,
     jenis_id: filterJenisId || undefined,
     status: filterStatus || undefined,
+    siswa_id: filterSiswaId || undefined,
   });
 
   const filteredData = useMemo(() => {
@@ -109,13 +116,13 @@ export default function TabTarifTagihan() {
   };
 
   const openAdd = () => {
-    setEditItem(null); setJenisId(""); setSiswaId(""); setDeptId(""); setKelasId(""); setTahunAjaranId(""); setNominal(""); setKeterangan(""); setSiswaSearch("");
+    setEditItem(null); setJenisId(""); setSiswaId(""); setDeptId(""); setKelasId(""); setAngkatanId(""); setTahunAjaranId(""); setNominal(""); setKeterangan(""); setSiswaSearch("");
     setAutoGenerate(true); setGenBulanList([]); setGenDeptId("");
     setDialogOpen(true);
   };
 
   const openEdit = (item: any) => {
-    setEditItem(item); setJenisId(item.jenis_id); setSiswaId(item.siswa_id || ""); setDeptId(item.kelas?.departemen_id || ""); setKelasId(item.kelas_id || ""); setTahunAjaranId(item.tahun_ajaran_id || "");
+    setEditItem(item); setJenisId(item.jenis_id); setSiswaId(item.siswa_id || ""); setDeptId(item.kelas?.departemen_id || ""); setKelasId(item.kelas_id || ""); setAngkatanId(item.angkatan_id || ""); setTahunAjaranId(item.tahun_ajaran_id || "");
     setNominal(String(item.nominal || "")); setKeterangan(item.keterangan || ""); setSiswaSearch(item.siswa ? `${item.siswa.nama} (${item.siswa.nis || '-'})` : "");
     setAutoGenerate(false); setGenBulanList([]); setGenDeptId("");
     setDialogOpen(true);
@@ -126,7 +133,7 @@ export default function TabTarifTagihan() {
       if (editItem) {
         await updateMut.mutateAsync({ id: editItem.id, nominal: Number(nominal), keterangan: keterangan || undefined });
       } else {
-        await createMut.mutateAsync({ jenis_id: jenisId, siswa_id: siswaId || null, kelas_id: kelasId || null, tahun_ajaran_id: tahunAjaranId || null, nominal: Number(nominal), keterangan: keterangan || undefined });
+        await createMut.mutateAsync({ jenis_id: jenisId, siswa_id: siswaId || null, kelas_id: kelasId || null, angkatan_id: angkatanId || null, tahun_ajaran_id: tahunAjaranId || null, nominal: Number(nominal), keterangan: keterangan || undefined });
 
         // Auto-generate tagihan if checked
         if (autoGenerate && tahunAjaranId && jenisId) {
@@ -162,6 +169,7 @@ export default function TabTarifTagihan() {
     const parts: string[] = [];
     if (row.siswa_id) parts.push("Siswa");
     if (row.kelas_id) parts.push("Kelas");
+    if (row.angkatan_id) parts.push("Angkatan");
     if (row.tahun_ajaran_id) parts.push("Tahun");
     if (parts.length === 0) return <Badge variant="outline">Umum</Badge>;
     return <Badge variant="secondary">{parts.join(" + ")}</Badge>;
@@ -172,7 +180,8 @@ export default function TabTarifTagihan() {
     { key: "level", label: "Level Override", render: (_, r) => getLevelBadge(r) },
     { key: "siswa", label: "Siswa", render: (_, r) => { const s = (r as any).siswa; return s ? <span>{s.nama} <span className="text-muted-foreground text-xs">({s.nis || '-'})</span></span> : <span className="text-muted-foreground">—</span>; } },
     { key: "kelas", label: "Kelas", render: (_, r) => (r as any).kelas?.nama || <span className="text-muted-foreground">—</span> },
-    { key: "tahun_ajaran", label: "Tahun Ajaran", render: (_, r) => (r as any).tahun_ajaran?.nama || <span className="text-muted-foreground">—</span> },
+    { key: "angkatan", label: "Angkatan", render: (_, r) => (r as any).angkatan?.nama || <span className="text-muted-foreground">—</span> },
+    { key: "tahun_ajaran", label: "Tahun Buku", render: (_, r) => (r as any).tahun_ajaran?.nama || <span className="text-muted-foreground">—</span> },
     { key: "nominal_default", label: "Nominal Default", render: (_, r) => { const def = (r as any).jenis?.nominal; return def ? <span className="text-muted-foreground">{formatRupiah(Number(def))}</span> : "-"; } },
     { key: "nominal", label: "Nominal Override", render: (v) => <span className="font-semibold text-primary">{formatRupiah(Number(v))}</span> },
     { key: "keterangan", label: "Keterangan", render: (v) => (v as string) || "-" },
@@ -191,7 +200,7 @@ export default function TabTarifTagihan() {
     { key: "siswa", label: "Siswa", render: (_, r) => { const s = (r as any).siswa; return s ? <span>{s.nama} <span className="text-muted-foreground text-xs">({s.nis || '-'})</span></span> : "-"; }, sortable: true },
     { key: "jenis", label: "Jenis", render: (_, r) => (r as any).jenis?.nama || "-" },
     { key: "kelas", label: "Kelas", render: (_, r) => (r as any).kelas?.nama || "-" },
-    { key: "tahun_ajaran", label: "Tahun Ajaran", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
+    { key: "tahun_ajaran", label: "Tahun Buku", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
     { key: "bulan", label: "Bulan", render: (v) => v ? namaBulan(v as number) : <Badge variant="outline">Sekali</Badge> },
     { key: "nominal", label: "Nominal", render: (v) => <span className="font-semibold">{formatRupiah(Number(v))}</span> },
     {
@@ -210,7 +219,7 @@ export default function TabTarifTagihan() {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Tarif tagihan memungkinkan pengaturan nominal berbeda per <strong>siswa</strong>, <strong>kelas</strong>, dan/atau <strong>tahun ajaran</strong>.
+              Tarif tagihan memungkinkan pengaturan nominal berbeda per <strong>siswa</strong>, <strong>kelas</strong>, dan/atau <strong>tahun buku</strong>.
               Prioritas: Siswa+Kelas+Tahun → Siswa+Tahun → Siswa → Kelas+Tahun → Kelas → Tahun → Default.
             </AlertDescription>
           </Alert>
@@ -247,7 +256,7 @@ export default function TabTarifTagihan() {
 
           <div className="flex flex-wrap gap-2 items-end">
             <div className="w-48">
-              <Label className="text-xs">Tahun Ajaran</Label>
+              <Label className="text-xs">Tahun Buku</Label>
               <Select value={filterTahunId || "__all__"} onValueChange={(v) => setFilterTahunId(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -277,6 +286,28 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
+            {/* T5: filter siswa */}
+            <div className="w-52 relative">
+              <Label className="text-xs">Siswa</Label>
+              <Input
+                value={filterSiswaSearch}
+                onChange={(e) => { setFilterSiswaSearch(e.target.value); if (!e.target.value) setFilterSiswaId(""); }}
+                placeholder="Cari nama/NIS siswa..."
+                className="text-sm"
+              />
+              {filterSiswaSearch.length >= 2 && filterSiswaResults && filterSiswaResults.length > 0 && !filterSiswaId && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
+                  {filterSiswaResults.map((s: any) => (
+                    <button key={s.id} className="w-full text-left px-3 py-2 hover:bg-accent text-sm" onClick={() => { setFilterSiswaId(s.id); setFilterSiswaSearch(`${s.nama} (${s.nis || '-'})`); }}>
+                      {s.nama} <span className="text-muted-foreground">({s.nis || '-'})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {filterSiswaId && (
+                <button className="absolute right-2 top-7 text-muted-foreground hover:text-foreground text-xs" onClick={() => { setFilterSiswaId(""); setFilterSiswaSearch(""); }}>✕</button>
+              )}
+            </div>
           </div>
 
           <DataTable columns={tagihanColumns} data={tagihanData || []} loading={loadingTagihan} pageSize={20} />
@@ -294,6 +325,7 @@ export default function TabTarifTagihan() {
                 <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
                 <SelectContent>{jenisList?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
               </Select>
+              {!!editItem && <p className="text-xs text-muted-foreground mt-1">⚠ Jenis pembayaran tidak bisa diubah setelah disimpan. Hapus dan buat ulang jika perlu ganti jenis.</p>}
             </div>
             <div>
               <Label>Siswa (opsional)</Label>
@@ -310,6 +342,7 @@ export default function TabTarifTagihan() {
                 )}
               </div>
               {siswaId && <Button variant="ghost" size="sm" className="mt-1 text-xs" onClick={() => { setSiswaId(""); setSiswaSearch(""); }}>Hapus pilihan siswa</Button>}
+              {!!editItem && <p className="text-xs text-muted-foreground mt-1">⚠ Scope (siswa/kelas/tahun) tidak bisa diubah agar tagihan yang sudah ada tetap valid.</p>}
             </div>
             <div>
               <Label>Lembaga (opsional — pilih sebelum kelas)</Label>
@@ -332,11 +365,26 @@ export default function TabTarifTagihan() {
               </Select>
             </div>
             <div>
-              <Label>Tahun Ajaran {autoGenerate && !editItem ? "*" : "(opsional)"}</Label>
-              <Select value={tahunAjaranId || "__none__"} onValueChange={(v) => setTahunAjaranId(v === "__none__" ? "" : v)} disabled={!!editItem}>
-                <SelectTrigger><SelectValue placeholder="Semua tahun ajaran" /></SelectTrigger>
+              <Label>Angkatan (opsional)</Label>
+              <Select value={angkatanId || "__none__"} onValueChange={(v) => setAngkatanId(v === "__none__" ? "" : v)} disabled={!!editItem}>
+                <SelectTrigger><SelectValue placeholder="Semua angkatan" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">— Semua Tahun Ajaran —</SelectItem>
+                  <SelectItem value="__none__">— Semua Angkatan —</SelectItem>
+                  {angkatanList?.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.nama}{a.departemen ? ` — ${a.departemen.nama}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!!editItem && <p className="text-xs text-muted-foreground mt-1">⚠ Scope (siswa/kelas/angkatan/tahun) tidak bisa diubah agar tagihan yang sudah ada tetap valid.</p>}
+            </div>
+            <div>
+              <Label>Tahun Buku {autoGenerate && !editItem ? "*" : "(opsional)"}</Label>
+              <Select value={tahunAjaranId || "__none__"} onValueChange={(v) => setTahunAjaranId(v === "__none__" ? "" : v)} disabled={!!editItem}>
+                <SelectTrigger><SelectValue placeholder="Semua tahun buku" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Semua Tahun Buku —</SelectItem>
                   {tahunList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -376,13 +424,13 @@ export default function TabTarifTagihan() {
                               ? <strong>siswa di kelas {filteredKelasList.find((k: any) => k.id === kelasId)?.nama}</strong>
                               : (deptId || genDeptId)
                                 ? <strong>siswa di lembaga {lembagaList?.find((l: any) => l.id === (deptId || genDeptId))?.kode}</strong>
-                                : <strong>semua siswa aktif di tahun ajaran terpilih</strong>
+                                : <strong>semua siswa aktif di tahun buku terpilih</strong>
                           }. Siswa yang sudah punya tagihan akan di-skip.
                         </AlertDescription>
                       </Alert>
 
                       {!tahunAjaranId && (
-                        <p className="text-xs text-destructive">⚠ Pilih Tahun Ajaran di atas untuk mengaktifkan generate.</p>
+                        <p className="text-xs text-destructive">⚠ Pilih Tahun Buku di atas untuk mengaktifkan generate.</p>
                       )}
 
                       {jenisId && isSekali && (

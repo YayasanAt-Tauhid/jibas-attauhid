@@ -135,6 +135,13 @@ export default function PortalCheckout() {
         return;
       }
 
+      // Cek window.snap tersedia sebelum memanggil
+      if (!window.snap || typeof window.snap.pay !== "function") {
+        toast.error("Layanan pembayaran belum siap. Coba muat ulang halaman.");
+        setIsLoading(false);
+        return;
+      }
+
       // Open Midtrans Snap
       window.snap.pay(result.snap_token, {
         onSuccess: () => {
@@ -214,7 +221,9 @@ export default function PortalCheckout() {
                     {items.map((item, idx) => (
                       <TableRow key={idx}>
                         <TableCell>{item.jenis_nama}</TableCell>
-                        <TableCell>{NAMA_BULAN[item.bulan]}</TableCell>
+                        <TableCell>
+                          {item.bulan === 0 ? "Sekali Bayar" : NAMA_BULAN[item.bulan] || "-"}
+                        </TableCell>
                         <TableCell className="text-right">
                           {formatRupiah(item.jumlah)}
                         </TableCell>

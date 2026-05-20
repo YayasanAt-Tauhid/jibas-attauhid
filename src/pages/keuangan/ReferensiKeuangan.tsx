@@ -16,6 +16,7 @@ import {
   useAllJenisPembayaran, useCreateJenisPembayaran, useUpdateJenisPembayaran, useDeleteJenisPembayaran,
   useAllJenisPengeluaran, useCreateJenisPengeluaran, useUpdateJenisPengeluaran, useDeleteJenisPengeluaran,
   useTahunAjaran, useCreateTahunAjaran, useUpdateTahunAjaran, useDeleteTahunAjaran, useAktifkanTahunAjaran,
+  useTahunBuku, useCreateTahunBuku, useUpdateTahunBuku, useDeleteTahunBuku, useAktifkanTahunBuku,
   useLembaga, formatRupiah,
 } from "@/hooks/useKeuangan";
 import { useAllAkunRekening, useCreateAkunRekening, useUpdateAkunRekening, useDeleteAkunRekening, useAkunByJenis, usePengaturanAkun, useUpdatePengaturanAkun, useCreatePengaturanAkun, useDeletePengaturanAkun } from "@/hooks/useJurnal";
@@ -309,6 +310,8 @@ function TabPengaturanAkun() {
   const createMut = useCreatePengaturanAkun();
   const deleteMut = useDeletePengaturanAkun();
   const [values, setValues] = useState<Record<string, string>>({});
+  // Bug K3 fix: flag agar useEffect tidak overwrite nilai yang sudah diedit user
+  const [userEdited, setUserEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -317,12 +320,18 @@ function TabPengaturanAkun() {
   const [newKeterangan, setNewKeterangan] = useState("");
 
   useEffect(() => {
-    if (settings) {
+    // Bug K3 fix: hanya sync dari server jika user belum mengedit
+    if (settings && !userEdited) {
       const map: Record<string, string> = {};
       settings.forEach((s: any) => { map[s.kode_setting] = s.akun_id || ""; });
       setValues(map);
     }
-  }, [settings]);
+  }, [settings, userEdited]);
+
+  // Bug K1 fix: reset userEdited saat tab unmount → saat user kembali, data segar dari server di-sync
+  useEffect(() => {
+    return () => { setUserEdited(false); };
+  }, []);
 
   const activeAkun = allAkun?.filter((a: any) => a.aktif) || [];
 
@@ -349,6 +358,7 @@ function TabPengaturanAkun() {
         }
       }
       toast.success("Pengaturan akun berhasil disimpan");
+      setUserEdited(false); // Bug K3 fix: reset flag setelah save sukses → next refetch boleh sync
     } catch {
       // handled by mutation
     } finally {
@@ -401,7 +411,10 @@ function TabPengaturanAkun() {
                 <p className="text-sm text-muted-foreground">{getHint(setting)}</p>
                 <Select
                   value={values[setting.kode_setting] || "__none__"}
-                  onValueChange={(v) => setValues(prev => ({ ...prev, [setting.kode_setting]: v === "__none__" ? "" : v }))}
+                  onValueChange={(v) => {
+                    setUserEdited(true); // Bug K3 fix
+                    setValues(prev => ({ ...prev, [setting.kode_setting]: v === "__none__" ? "" : v }));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih akun..." />
@@ -514,10 +527,15 @@ function TabAkunRekening() {
   };
 
   const handleSave = async () => {
-    const values = { kode, nama, jenis, saldo_normal: saldoNormal, saldo_awal: saldoAwal ? Number(saldoAwal) : 0, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined };
-    if (editItem) await updateMut.mutateAsync({ id: editItem.id, ...values });
-    else await createMut.mutateAsync(values);
-    setDialogOpen(false);
+    // Bug K4 fix: wrap try/catch agar unhandled rejection tidak terjadi di React 18
+    try {
+      const values = { kode, nama, jenis, saldo_normal: saldoNormal, saldo_awal: saldoAwal ? Number(saldoAwal) : 0, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined };
+      if (editItem) await updateMut.mutateAsync({ id: editItem.id, ...values });
+      else await createMut.mutateAsync(values);
+      setDialogOpen(false);
+    } catch {
+      // Error sudah ditangani oleh onError di masing-masing mutation (toast ditampilkan)
+    }
   };
 
   const jenisLabel: Record<string, string> = { aset: "Aset", liabilitas: "Liabilitas", ekuitas: "Ekuitas", pendapatan: "Pendapatan", beban: "Beban" };
@@ -601,11 +619,11 @@ function TabAkunRekening() {
 }
 
 function TabTahunBuku() {
-  const { data, isLoading } = useTahunAjaran();
-  const createMut = useCreateTahunAjaran();
-  const updateMut = useUpdateTahunAjaran();
-  const deleteMut = useDeleteTahunAjaran();
-  const aktifkanMut = useAktifkanTahunAjaran();
+  const { data, isLoading } = useTahunBuku();
+  const createMut = useCreateTahunBuku();
+  const updateMut = useUpdateTahunBuku();
+  const deleteMut = useDeleteTahunBuku();
+  const aktifkanMut = useAktifkanTahunBuku();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -708,6 +726,8 @@ function TabTemplateNomor() {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
+  // Bug K3 fix: jangan overwrite editan user saat React Query refetch di background
+  const [userEdited, setUserEdited] = useState(false);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["pengaturan_template"],
@@ -722,12 +742,18 @@ function TabTemplateNomor() {
   });
 
   useEffect(() => {
-    if (templates) {
+    // Bug K3 fix: hanya sync dari server jika user belum mengedit
+    if (templates && !userEdited) {
       const map: Record<string, string> = {};
       templates.forEach((t: any) => { map[t.kode_template] = t.template; });
       setValues(map);
     }
-  }, [templates]);
+  }, [templates, userEdited]);
+
+  // Bug K1 fix: reset flag saat unmount → saat user kembali, data segar dari server di-sync
+  useEffect(() => {
+    return () => { setUserEdited(false); };
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -744,6 +770,7 @@ function TabTemplateNomor() {
       }
       qc.invalidateQueries({ queryKey: ["pengaturan_template"] });
       toast.success("Template berhasil disimpan");
+      setUserEdited(false); // Bug K3 fix: reset flag → next refetch boleh sync
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -773,7 +800,10 @@ function TabTemplateNomor() {
             {t.keterangan && <p className="text-sm text-muted-foreground">{t.keterangan}</p>}
             <Input
               value={values[t.kode_template] || ""}
-              onChange={(e) => setValues(prev => ({ ...prev, [t.kode_template]: e.target.value }))}
+              onChange={(e) => {
+                setUserEdited(true); // Bug K3 fix
+                setValues(prev => ({ ...prev, [t.kode_template]: e.target.value }));
+              }}
               placeholder={t.template}
               className="font-mono"
             />

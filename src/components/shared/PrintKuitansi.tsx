@@ -54,7 +54,9 @@ export function PrintKuitansi({ payment, kelasNama, lembagaNama }: PrintKuitansi
           <tr><td className="py-1">Kelas</td><td className="py-1">: {kelasNama}</td></tr>
           <tr><td className="py-1">Lembaga</td><td className="py-1">: {lembagaNama}</td></tr>
           <tr><td className="py-1">Jenis Pembayaran</td><td className="py-1">: {payment.jenisNama}</td></tr>
-          <tr><td className="py-1">Bulan</td><td className="py-1">: {namaBulan(payment.bulan)}</td></tr>
+          {payment.bulan ? (
+            <tr><td className="py-1">Bulan</td><td className="py-1">: {namaBulan(payment.bulan)}</td></tr>
+          ) : null}
           <tr><td className="py-1 font-bold">Jumlah</td><td className="py-1 font-bold">: {formatRupiah(payment.jumlah)}</td></tr>
           <tr><td className="py-1 italic">Terbilang</td><td className="py-1 italic">: {terbilang(payment.jumlah)}</td></tr>
           {payment.keterangan && (

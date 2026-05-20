@@ -15,20 +15,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { FileUpload } from "@/components/shared/FileUpload";
 import { FormSection } from "@/components/shared/FormSection";
-import { ArrowLeft, CalendarIcon, Save, Wand2, Pencil, Loader2 } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { ArrowLeft, Save, Wand2, Pencil, Loader2 } from "lucide-react";
 
 const siswaSchema = z.object({
   nis: z.string().optional(),
   nama: z.string().min(2, "Nama minimal 2 karakter"),
   jenis_kelamin: z.enum(["L", "P"], { required_error: "Pilih jenis kelamin" }),
   tempat_lahir: z.string().optional(),
-  tanggal_lahir: z.date().optional(),
+  tanggal_lahir: z.string().optional(),
   agama: z.string().optional(),
   alamat: z.string().optional(),
   telepon: z.string().optional(),
@@ -66,7 +62,7 @@ export default function FormSiswa() {
   const { data: departemenList = [] } = useDepartemen();
   const { data: tahunAjaranList = [] } = useTahunAjaran();
 
-  const [nisMode, setNisMode] = useState<"otomatis" | "manual">(isEdit ? "manual" : "otomatis");
+  const [nisMode, setNisMode] = useState<"otomatis" | "manual" | "ketik">(isEdit ? "manual" : "otomatis");
   const [savedSiswaId, setSavedSiswaId] = useState<string | null>(null);
   const [isGeneratingNis, setIsGeneratingNis] = useState(false);
 
@@ -96,7 +92,7 @@ export default function FormSiswa() {
         nama: siswa.nama,
         jenis_kelamin: (siswa.jenis_kelamin as "L" | "P") || undefined,
         tempat_lahir: siswa.tempat_lahir || "",
-        tanggal_lahir: siswa.tanggal_lahir ? new Date(siswa.tanggal_lahir) : undefined,
+        tanggal_lahir: siswa.tanggal_lahir || "",
         agama: siswa.agama || "",
         alamat: siswa.alamat || "",
         telepon: siswa.telepon || "",
@@ -152,7 +148,7 @@ export default function FormSiswa() {
       nis: values.nis || null,
       jenis_kelamin: values.jenis_kelamin,
       tempat_lahir: values.tempat_lahir || null,
-      tanggal_lahir: values.tanggal_lahir ? format(values.tanggal_lahir, "yyyy-MM-dd") : null,
+      tanggal_lahir: values.tanggal_lahir || null,
       agama: values.agama || null,
       alamat: values.alamat || null,
       telepon: values.telepon || null,
@@ -188,6 +184,8 @@ export default function FormSiswa() {
         } else {
           toast.warning("Siswa disimpan tanpa NIS. Lengkapi departemen, angkatan, dan kelas untuk generate NIS.");
         }
+      } else {
+        toast.success("Siswa berhasil disimpan.");
       }
 
       navigate(`/akademik/siswa/${id}`);
@@ -210,11 +208,14 @@ export default function FormSiswa() {
           toast.warning("Siswa disimpan tanpa NIS. Lengkapi departemen, angkatan, dan kelas untuk generate NIS.");
         }
         navigate("/akademik/siswa");
+      } else if (nisMode === "ketik") {
+        toast.success("Siswa berhasil disimpan.");
+        navigate("/akademik/siswa");
       } else {
-        // Manual mode: stay on page, let user click "Buat NIS"
+        // mode "manual" (generate setelah simpan)
         if (newSiswaId) {
           setSavedSiswaId(newSiswaId);
-          toast.success("Siswa disimpan! Klik 'Buat NIS' untuk generate NIS.");
+          toast.success("Siswa disimpan! Klik 'Generate NIS' untuk generate NIS.");
         } else {
           toast.success("Siswa disimpan.");
           navigate("/akademik/siswa");
@@ -267,7 +268,6 @@ export default function FormSiswa() {
 
                   <FormSection title="Identitas">
                     <div className="grid gap-4 sm:grid-cols-2">
-                      {/* Nama */}
                       <FormField control={form.control} name="nama" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Nama Lengkap *</FormLabel>
@@ -276,11 +276,10 @@ export default function FormSiswa() {
                         </FormItem>
                       )} />
 
-                      {/* NIS Mode Toggle + Field */}
                       <div className="space-y-2">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <span className="text-sm font-medium">Mode NIS</span>
-                          <div className="flex gap-1 ml-2">
+                          <div className="flex gap-1 ml-2 flex-wrap">
                             <Button
                               type="button"
                               size="sm"
@@ -298,8 +297,18 @@ export default function FormSiswa() {
                               onClick={() => setNisMode("manual")}
                               className="h-7 text-xs px-2"
                             >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              Generate
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={nisMode === "ketik" ? "default" : "outline"}
+                              onClick={() => setNisMode("ketik")}
+                              className="h-7 text-xs px-2"
+                            >
                               <Pencil className="h-3 w-3 mr-1" />
-                              Manual
+                              Ketik Manual
                             </Button>
                           </div>
                         </div>
@@ -310,11 +319,13 @@ export default function FormSiswa() {
                             <FormControl>
                               <Input
                                 {...field}
-                                disabled
+                                disabled={nisMode !== "ketik"}
                                 placeholder={
                                   nisMode === "otomatis"
                                     ? "NIS akan di-generate otomatis saat simpan"
-                                    : "Klik tombol untuk generate NIS"
+                                    : nisMode === "manual"
+                                    ? "Klik tombol Generate NIS di bawah"
+                                    : "Ketik NIS secara manual"
                                 }
                               />
                             </FormControl>
@@ -322,7 +333,6 @@ export default function FormSiswa() {
                           </FormItem>
                         )} />
 
-                        {/* Mode Otomatis + Edit: tombol Generate Ulang */}
                         {nisMode === "otomatis" && isEdit && (
                           <Button
                             type="button"
@@ -336,7 +346,6 @@ export default function FormSiswa() {
                           </Button>
                         )}
 
-                        {/* Mode Manual: tombol Buat NIS */}
                         {nisMode === "manual" && (
                           <>
                             <Button
@@ -347,7 +356,7 @@ export default function FormSiswa() {
                               onClick={handleGenerateNisClick}
                             >
                               {isGeneratingNis ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
-                              Buat NIS
+                              Generate NIS
                             </Button>
                             {!isEdit && !savedSiswaId && (
                               <p className="text-xs text-muted-foreground">Simpan siswa dulu sebelum generate NIS</p>
@@ -357,9 +366,14 @@ export default function FormSiswa() {
                             )}
                           </>
                         )}
+
+                        {nisMode === "ketik" && (
+                          <p className="text-xs text-muted-foreground">
+                            NIS yang Anda ketik akan langsung disimpan saat klik Simpan.
+                          </p>
+                        )}
                       </div>
 
-                      {/* Jenis Kelamin */}
                       <FormField control={form.control} name="jenis_kelamin" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Jenis Kelamin *</FormLabel>
@@ -393,28 +407,11 @@ export default function FormSiswa() {
                         </FormItem>
                       )} />
                       <FormField control={form.control} name="tanggal_lahir" render={({ field }) => (
-                        <FormItem className="flex flex-col">
+                        <FormItem>
                           <FormLabel>Tanggal Lahir</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button variant="outline" className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value ? format(field.value, "dd/MM/yyyy") : "Pilih tanggal"}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) => date > new Date()}
-                                initialFocus
-                                className="p-3 pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )} />
@@ -604,7 +601,6 @@ export default function FormSiswa() {
             </TabsContent>
           </Tabs>
 
-          {/* Sticky save button */}
           <div className="sticky bottom-0 bg-background border-t py-4 mt-6 flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={() => navigate(-1)}>Batal</Button>
             <Button type="submit" disabled={createSiswa.isPending || updateSiswa.isPending || isGeneratingNis}>

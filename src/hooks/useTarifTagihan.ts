@@ -3,9 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Get nominal for a specific siswa+jenis using DB function get_tarif_siswa
-export function useTarifSiswa(jenisId?: string, siswaId?: string, kelasId?: string, tahunAjaranId?: string) {
+export function useTarifSiswa(
+  jenisId?: string,
+  siswaId?: string,
+  kelasId?: string,
+  tahunAjaranId?: string,
+  angkatanId?: string,
+) {
   return useQuery({
-    queryKey: ["tarif_siswa", jenisId, siswaId, kelasId, tahunAjaranId],
+    queryKey: ["tarif_siswa", jenisId, siswaId, kelasId, tahunAjaranId, angkatanId],
     enabled: !!jenisId && !!siswaId,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_tarif_siswa", {
@@ -13,6 +19,7 @@ export function useTarifSiswa(jenisId?: string, siswaId?: string, kelasId?: stri
         p_siswa_id: siswaId!,
         p_kelas_id: kelasId || null,
         p_tahun_ajaran_id: tahunAjaranId || null,
+        p_angkatan_id: angkatanId || null,
       });
       if (error) throw error;
       return Number(data) || 0;
@@ -26,17 +33,17 @@ export async function getTarifBatch(
   siswaIds: string[],
   kelasId?: string | null,
   tahunAjaranId?: string | null,
+  angkatanMap?: Map<string, string>, // siswaId → angkatanId
 ): Promise<Map<string, number>> {
   const result = new Map<string, number>();
-  
+
   // Get all tarif_tagihan entries for this jenis
   const { data: tarifList } = await supabase
     .from("tarif_tagihan")
-    .select("siswa_id, kelas_id, tahun_ajaran_id, nominal")
+    .select("siswa_id, kelas_id, tahun_ajaran_id, angkatan_id, nominal")
     .eq("jenis_id", jenisId)
     .eq("aktif", true);
 
-  // No default fallback — explicit billing only
   const defaultNominal = 0;
 
   for (const siswaId of siswaIds) {
@@ -45,14 +52,23 @@ export async function getTarifBatch(
       continue;
     }
 
-    // Priority: siswa+kelas+tahun > siswa+tahun > siswa > kelas+tahun > kelas > tahun > default
+    const angkatanId = angkatanMap?.get(siswaId) ?? null;
+
+    // Priority: siswa+kelas+tahun > siswa+tahun > siswa > kelas+tahun > kelas
+    //         > angkatan+tahun > angkatan > tahun > default
     const match =
       tarifList.find(t => t.siswa_id === siswaId && t.kelas_id === kelasId && t.tahun_ajaran_id === tahunAjaranId) ||
       tarifList.find(t => t.siswa_id === siswaId && !t.kelas_id && t.tahun_ajaran_id === tahunAjaranId) ||
       tarifList.find(t => t.siswa_id === siswaId && !t.kelas_id && !t.tahun_ajaran_id) ||
       tarifList.find(t => !t.siswa_id && t.kelas_id === kelasId && t.tahun_ajaran_id === tahunAjaranId) ||
       tarifList.find(t => !t.siswa_id && t.kelas_id === kelasId && !t.tahun_ajaran_id) ||
-      tarifList.find(t => !t.siswa_id && !t.kelas_id && t.tahun_ajaran_id === tahunAjaranId);
+      (angkatanId
+        ? tarifList.find(t => !t.siswa_id && !t.kelas_id && t.angkatan_id === angkatanId && t.tahun_ajaran_id === tahunAjaranId)
+        : undefined) ||
+      (angkatanId
+        ? tarifList.find(t => !t.siswa_id && !t.kelas_id && t.angkatan_id === angkatanId && !t.tahun_ajaran_id)
+        : undefined) ||
+      tarifList.find(t => !t.siswa_id && !t.kelas_id && !t.angkatan_id && t.tahun_ajaran_id === tahunAjaranId);
 
     result.set(siswaId, match ? Number(match.nominal) : defaultNominal);
   }
@@ -66,7 +82,7 @@ export function useTarifTagihanList(jenisId?: string) {
     queryFn: async () => {
       let q = supabase
         .from("tarif_tagihan")
-        .select("*, jenis:jenis_id(id, nama), siswa:siswa_id(id, nama, nis), kelas:kelas_id(id, nama), tahun_ajaran:tahun_ajaran_id(id, nama)")
+        .select("*, jenis:jenis_id(id, nama), siswa:siswa_id(id, nama, nis), kelas:kelas_id(id, nama), tahun_ajaran:tahun_ajaran_id(id, nama), angkatan:angkatan_id(id, nama)")
         .eq("aktif", true)
         .order("created_at", { ascending: false });
       if (jenisId) q = q.eq("jenis_id", jenisId);
@@ -83,7 +99,8 @@ export function useAllTarifTagihan() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tarif_tagihan")
-        .select("*, jenis:jenis_id(id, nama, nominal), siswa:siswa_id(id, nama, nis), kelas:kelas_id(id, nama), tahun_ajaran:tahun_ajaran_id(id, nama)")
+        .select("*, jenis:jenis_id(id, nama, nominal), siswa:siswa_id(id, nama, nis), kelas:kelas_id(id, nama), tahun_ajaran:tahun_ajaran_id(id, nama), angkatan:angkatan_id(id, nama)")
+        .eq("aktif", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as any[];
@@ -99,6 +116,7 @@ export function useCreateTarifTagihan() {
       siswa_id?: string | null;
       kelas_id?: string | null;
       tahun_ajaran_id?: string | null;
+      angkatan_id?: string | null;
       nominal: number;
       keterangan?: string;
     }) => {
@@ -107,6 +125,7 @@ export function useCreateTarifTagihan() {
         siswa_id: values.siswa_id || null,
         kelas_id: values.kelas_id || null,
         tahun_ajaran_id: values.tahun_ajaran_id || null,
+        angkatan_id: values.angkatan_id || null,
       });
       if (error) throw error;
     },

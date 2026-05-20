@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   // GET: return list of active departemen + angkatan
   if (req.method === "GET") {
     const [deptRes, angkatanRes] = await Promise.all([
-      supabase.from("departemen").select("id, nama, kode").eq("aktif", true).order("nama"),
+      supabase.from("departemen").select("id, nama, kode").eq("aktif", true).eq("kategori", "unit_pendidikan").order("nama"),
       supabase.from("angkatan").select("id, nama, departemen_id").eq("aktif", true).order("nama", { ascending: false }),
     ]);
 
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
       // Validate departemen exists
       const { data: dept } = await supabase
-        .from("departemen").select("id").eq("id", departemen_id).eq("aktif", true).single();
+        .from("departemen").select("id").eq("id", departemen_id).eq("aktif", true).eq("kategori", "unit_pendidikan").single();
 
       if (!dept) {
         return new Response(

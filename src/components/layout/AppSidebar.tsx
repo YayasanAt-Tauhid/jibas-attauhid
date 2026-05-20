@@ -1,7 +1,11 @@
 import {
   LayoutDashboard, GraduationCap, Wallet, Users,
   MonitorPlay, BookOpen, Megaphone, Settings,
-  ChevronRight, Database, ShieldCheck,
+  ChevronRight, Receipt, BarChart3,
+  BookMarked, FileSpreadsheet, SlidersHorizontal,
+  UserPlus, CalendarDays, ClipboardCheck, FileText,
+  BarChart2, Database, UserCog, Bell, HardDrive,
+  Activity, ShieldCheck, Wrench,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
@@ -19,7 +23,13 @@ interface SubMenuItem {
   title: string;
   url: string;
   roles?: UserRole[];
-  isGroupLabel?: boolean;
+}
+
+interface SubGroup {
+  title: string;
+  icon: typeof LayoutDashboard;
+  roles?: UserRole[];
+  items: SubMenuItem[];
 }
 
 interface MenuItem {
@@ -28,6 +38,7 @@ interface MenuItem {
   icon: typeof LayoutDashboard;
   roles: UserRole[];
   children?: SubMenuItem[];
+  subGroups?: SubGroup[];
 }
 
 const menuItems: MenuItem[] = [
@@ -38,77 +49,140 @@ const menuItems: MenuItem[] = [
   {
     title: "Akademik", url: "/akademik", icon: GraduationCap,
     roles: ["admin", "kepala_sekolah", "guru"],
-    children: [
-      { title: "Data Pokok", url: "", isGroupLabel: true },
-      { title: "Ringkasan", url: "/akademik" },
-      { title: "Data Siswa", url: "/akademik/siswa" },
-      { title: "Data Alumni", url: "/akademik/alumni" },
-      { title: "Referensi", url: "/akademik/referensi" },
-      { title: "KBM & Jadwal", url: "", isGroupLabel: true },
-      { title: "Jadwal", url: "/akademik/jadwal" },
-      { title: "Kalender", url: "/akademik/kalender" },
-      { title: "RPP", url: "/akademik/rpp" },
-      { title: "Administrasi Siswa", url: "", isGroupLabel: true },
-      { title: "PSB", url: "/akademik/psb" },
-      { title: "Mutasi", url: "/akademik/mutasi" },
-      { title: "Kehadiran", url: "", isGroupLabel: true },
-      { title: "Presensi", url: "/akademik/presensi" },
-      { title: "Presensi KBM", url: "/akademik/presensi-kbm" },
-      { title: "Penilaian", url: "", isGroupLabel: true },
-      { title: "Penilaian", url: "/akademik/penilaian" },
-      { title: "Cetak Rapor", url: "/akademik/rapor" },
-      { title: "Komentar Rapor", url: "/akademik/komentar-rapor" },
-      { title: "Legger Nilai", url: "/akademik/legger" },
-      { title: "Statistik Siswa", url: "/akademik/statistik" },
+    subGroups: [
+      {
+        title: "Data Siswa",
+        icon: Users,
+        items: [
+          { title: "Daftar Siswa", url: "/akademik/siswa" },
+          { title: "Data Alumni", url: "/akademik/alumni" },
+          { title: "PSB", url: "/akademik/psb" },
+          { title: "Mutasi Siswa", url: "/akademik/mutasi" },
+          { title: "Statistik Siswa", url: "/akademik/statistik" },
+        ],
+      },
+      {
+        title: "Kegiatan Belajar",
+        icon: CalendarDays,
+        items: [
+          { title: "Jadwal Pelajaran", url: "/akademik/jadwal" },
+          { title: "Kalender Akademik", url: "/akademik/kalender" },
+          { title: "Presensi Siswa", url: "/akademik/presensi" },
+          { title: "Presensi KBM", url: "/akademik/presensi-kbm" },
+          { title: "RPP", url: "/akademik/rpp" },
+        ],
+      },
+      {
+        title: "Penilaian & Rapor",
+        icon: ClipboardCheck,
+        items: [
+          { title: "Penilaian", url: "/akademik/penilaian" },
+          { title: "Legger Nilai", url: "/akademik/legger" },
+          { title: "Komentar Rapor", url: "/akademik/komentar-rapor" },
+          { title: "Cetak Rapor", url: "/akademik/rapor" },
+        ],
+      },
+      {
+        title: "Referensi",
+        icon: Database,
+        items: [
+          { title: "Referensi Akademik", url: "/akademik/referensi" },
+        ],
+      },
     ],
   },
   {
     title: "Keuangan", url: "/keuangan", icon: Wallet,
     roles: ["admin", "kepala_sekolah", "keuangan", "kasir"],
-    children: [
-      { title: "Transaksi Harian", url: "", isGroupLabel: true },
-      { title: "Pembayaran SPP", url: "/keuangan/pembayaran", roles: ["admin", "kepala_sekolah", "keuangan", "kasir"] },
-      { title: "Pembayaran PSB", url: "/keuangan/pembayaran-psb", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Penerimaan Lain", url: "/keuangan/penerimaan-lain", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Pengeluaran", url: "/keuangan/pengeluaran", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Online Payment", url: "/keuangan/online-payment", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Tabungan", url: "", isGroupLabel: true },
-      { title: "Tabungan Siswa", url: "/keuangan/tabungan", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Tabungan Pegawai", url: "/keuangan/tabungan-pegawai", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Laporan & Rekap", url: "", isGroupLabel: true },
-      { title: "Tunggakan", url: "/keuangan/tunggakan", roles: ["admin", "kepala_sekolah", "keuangan", "kasir"] },
-      { title: "Laporan Per Siswa", url: "/keuangan/laporan-siswa", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Laporan Per Kelas", url: "/keuangan/laporan-kelas", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Rekap Harian", url: "/keuangan/rekap-harian", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Lap. Pengeluaran", url: "/keuangan/laporan-pengeluaran", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Laporan Keuangan", url: "/keuangan/laporan", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Akuntansi", url: "", isGroupLabel: true },
-      { title: "Jurnal Umum", url: "/keuangan/jurnal", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Buku Besar", url: "/keuangan/buku-besar", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Laporan ISAK 35", url: "", isGroupLabel: true },
-      { title: "Ringkasan ISAK 35", url: "/keuangan/isak35", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Penghasilan Komprehensif", url: "/keuangan/isak35/komprehensif", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Posisi Keuangan", url: "/keuangan/isak35/posisi-keuangan", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Arus Kas", url: "/keuangan/isak35/arus-kas", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Perubahan Aset Neto", url: "/keuangan/isak35/perubahan-aset-neto", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Aset Tetap", url: "/keuangan/aset-tetap", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Tutup Buku", url: "/keuangan/tutup-buku", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Pengakuan Pendapatan", url: "/keuangan/pengakuan-pendapatan", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Pengaturan", url: "", isGroupLabel: true },
-      { title: "Audit Trail", url: "/keuangan/audit-trail", roles: ["admin", "kepala_sekolah", "keuangan"] },
-      { title: "Referensi", url: "/keuangan/referensi", roles: ["admin", "kepala_sekolah", "keuangan"] },
+    subGroups: [
+      {
+        title: "Transaksi Harian",
+        icon: Receipt,
+        roles: ["admin", "kepala_sekolah", "keuangan", "kasir"],
+        items: [
+          { title: "Input Pembayaran", url: "/keuangan/pembayaran", roles: ["admin", "kepala_sekolah", "keuangan", "kasir"] },
+          { title: "Pembayaran PSB", url: "/keuangan/pembayaran-psb", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Penerimaan Lain", url: "/keuangan/penerimaan-lain", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Pengeluaran", url: "/keuangan/pengeluaran", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Online Payment", url: "/keuangan/online-payment", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Tabungan Siswa", url: "/keuangan/tabungan", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Tabungan Pegawai", url: "/keuangan/tabungan-pegawai", roles: ["admin", "kepala_sekolah", "keuangan"] },
+        ],
+      },
+      {
+        title: "Laporan & Rekap",
+        icon: BarChart3,
+        roles: ["admin", "kepala_sekolah", "keuangan", "kasir"],
+        items: [
+          { title: "Tunggakan", url: "/keuangan/tunggakan", roles: ["admin", "kepala_sekolah", "keuangan", "kasir"] },
+          { title: "Laporan Per Siswa", url: "/keuangan/laporan-siswa", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Laporan Per Kelas", url: "/keuangan/laporan-kelas", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Rekap Harian", url: "/keuangan/rekap-harian", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Lap. Pengeluaran", url: "/keuangan/laporan-pengeluaran", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Lap. Unit Pendidikan", url: "/keuangan/laporan", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Lap. Unit Usaha & Dana", url: "/keuangan/laporan-unit-usaha", roles: ["admin", "kepala_sekolah", "keuangan"] },
+        ],
+      },
+      {
+        title: "Akuntansi",
+        icon: BookMarked,
+        roles: ["admin", "kepala_sekolah", "keuangan"],
+        items: [
+          { title: "Jurnal Umum", url: "/keuangan/jurnal" },
+          { title: "Buku Besar", url: "/keuangan/buku-besar" },
+          { title: "Rekon Antar Lembaga", url: "/keuangan/rekon-antar-lembaga" },
+          { title: "Manajemen Piutang", url: "/keuangan/piutang" },
+          { title: "Aset Tetap", url: "/keuangan/aset-tetap" },
+          { title: "Tutup Buku", url: "/keuangan/tutup-buku" },
+          { title: "Pengakuan Pendapatan", url: "/keuangan/pengakuan-pendapatan" },
+        ],
+      },
+      {
+        title: "Laporan ISAK 35",
+        icon: FileSpreadsheet,
+        roles: ["admin", "kepala_sekolah", "keuangan"],
+        items: [
+          { title: "Ringkasan", url: "/keuangan/isak35" },
+          { title: "Penghasilan Komprehensif", url: "/keuangan/isak35/komprehensif" },
+          { title: "Posisi Keuangan", url: "/keuangan/isak35/posisi-keuangan" },
+          { title: "Arus Kas", url: "/keuangan/isak35/arus-kas" },
+          { title: "Perubahan Aset Neto", url: "/keuangan/isak35/perubahan-aset-neto" },
+        ],
+      },
+      {
+        title: "Pengaturan",
+        icon: SlidersHorizontal,
+        roles: ["admin", "kepala_sekolah", "keuangan"],
+        items: [
+          { title: "Audit Trail", url: "/keuangan/audit-trail" },
+          { title: "Audit Perubahan Data", url: "/keuangan/audit-perubahan" },
+          { title: "Referensi", url: "/keuangan/referensi" },
+        ],
+      },
     ],
   },
   {
     title: "Kepegawaian", url: "/kepegawaian", icon: Users,
     roles: ["admin", "kepala_sekolah"],
-    children: [
-      { title: "Data Pegawai", url: "/kepegawaian/pegawai" },
-      { title: "Presensi Pegawai", url: "/kepegawaian/presensi" },
-      { title: "Jadwal Pegawai", url: "/kepegawaian/jadwal" },
-      { title: "DUK", url: "/kepegawaian/duk" },
-      { title: "Statistik", url: "/kepegawaian/statistik" },
-      { title: "Struktur Organisasi", url: "/kepegawaian/struktur" },
+    subGroups: [
+      {
+        title: "Data & Informasi",
+        icon: UserCog,
+        items: [
+          { title: "Data Pegawai", url: "/kepegawaian/pegawai" },
+          { title: "Struktur Organisasi", url: "/kepegawaian/struktur" },
+          { title: "DUK", url: "/kepegawaian/duk" },
+          { title: "Statistik Pegawai", url: "/kepegawaian/statistik" },
+        ],
+      },
+      {
+        title: "Kehadiran & Jadwal",
+        icon: CalendarDays,
+        items: [
+          { title: "Presensi Pegawai", url: "/kepegawaian/presensi" },
+          { title: "Jadwal Pegawai", url: "/kepegawaian/jadwal" },
+        ],
+      },
     ],
   },
   {
@@ -126,17 +200,92 @@ const menuItems: MenuItem[] = [
   {
     title: "Pengaturan", url: "/pengaturan", icon: Settings,
     roles: ["admin"],
-    children: [
-      { title: "Identitas Sekolah", url: "/pengaturan/sekolah" },
-      { title: "Manajemen Pengguna", url: "/pengaturan/pengguna" },
-      { title: "Manajemen Ortu", url: "/pengaturan/ortu" },
-      { title: "Notifikasi Gateway", url: "/pengaturan/notifikasi" },
-      { title: "Backup & Export", url: "/pengaturan/backup" },
-      { title: "Migrasi Data", url: "/pengaturan/migrasi-data" },
-      { title: "Cek Kesehatan Data", url: "/pengaturan/cek-kesehatan" },
+    subGroups: [
+      {
+        title: "Sistem & Identitas",
+        icon: Wrench,
+        items: [
+          { title: "Identitas Sekolah", url: "/pengaturan/sekolah" },
+          { title: "Notifikasi Gateway", url: "/pengaturan/notifikasi" },
+        ],
+      },
+      {
+        title: "Pengguna & Akses",
+        icon: ShieldCheck,
+        items: [
+          { title: "Manajemen Pengguna", url: "/pengaturan/pengguna" },
+          { title: "Manajemen Ortu", url: "/pengaturan/ortu" },
+        ],
+      },
+      {
+        title: "Data & Pemeliharaan",
+        icon: HardDrive,
+        items: [
+          { title: "Backup & Export", url: "/pengaturan/backup" },
+          { title: "Migrasi Data", url: "/pengaturan/migrasi-data" },
+          { title: "Cek Kesehatan Data", url: "/pengaturan/cek-kesehatan" },
+        ],
+      },
     ],
   },
 ];
+
+// ── SubGroupCollapsible: nested collapsible untuk grup menu ─────────────────
+function SubGroupCollapsible({
+  title,
+  icon: Icon,
+  items,
+  isActive,
+  pathname,
+}: {
+  title: string;
+  icon: typeof LayoutDashboard;
+  items: SubMenuItem[];
+  isActive: boolean;
+  pathname: string;
+}) {
+  return (
+    <Collapsible defaultOpen={isActive} className="group/subgroup">
+      <SidebarMenuSubItem>
+        <CollapsibleTrigger asChild>
+          <button
+            className={cn(
+              "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+              "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/40",
+              isActive && "text-sidebar-foreground"
+            )}
+          >
+            <span className="flex items-center gap-1.5">
+              <Icon className="h-3.5 w-3.5" />
+              {title}
+            </span>
+            <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]/subgroup:rotate-90" />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="ml-3 border-l border-sidebar-border pl-2 mt-0.5 mb-1 space-y-0.5">
+            {items.map((sub) => {
+              const subActive = pathname === sub.url || pathname.startsWith(sub.url + "/");
+              return (
+                <SidebarMenuSubItem key={sub.url}>
+                  <SidebarMenuSubButton asChild isActive={subActive} className="h-7 text-xs">
+                    <NavLink
+                      to={sub.url}
+                      className="hover:bg-sidebar-accent/50"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    >
+                      {sub.title}
+                    </NavLink>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
+      </SidebarMenuSubItem>
+    </Collapsible>
+  );
+}
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -175,16 +324,13 @@ export function AppSidebar() {
                     ? location.pathname === "/"
                     : location.pathname.startsWith(item.url);
 
-                if (item.children && !collapsed) {
+                // ── Menu dengan subGroups (Keuangan, Akademik, Kepegawaian, Pengaturan) ──
+                if (item.subGroups && !collapsed) {
                   return (
                     <Collapsible key={item.title} defaultOpen={isActive} className="group/collapsible">
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            isActive={isActive}
-                            tooltip={item.title}
-                            className="justify-between"
-                          >
+                          <SidebarMenuButton isActive={isActive} tooltip={item.title} className="justify-between">
                             <div className="flex items-center gap-2">
                               <item.icon className="h-4 w-4" />
                               <span>{item.title}</span>
@@ -193,30 +339,30 @@ export function AppSidebar() {
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
-                        <SidebarMenuSub>
-                            {item.children.filter((sub) => !sub.roles || !role || sub.roles.includes(role)).map((sub, idx) => {
-                              if (sub.isGroupLabel) {
-                                return (
-                                  <div key={sub.title} className={cn("px-3 py-1.5 text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider", idx > 0 && "mt-2")}>
-                                    {sub.title}
-                                  </div>
+                          <SidebarMenuSub>
+                            {item.subGroups
+                              .filter((sg) => !sg.roles || !role || sg.roles.includes(role))
+                              .map((sg) => {
+                                const filteredItems = sg.items.filter(
+                                  (s) => !s.roles || !role || s.roles.includes(role)
                                 );
-                              }
-                              const subActive = location.pathname === sub.url;
-                              return (
-                                <SidebarMenuSubItem key={sub.url}>
-                                  <SidebarMenuSubButton asChild isActive={subActive}>
-                                    <NavLink
-                                      to={sub.url}
-                                      className="hover:bg-sidebar-accent/50"
-                                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                                    >
-                                      {sub.title}
-                                    </NavLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              );
-                            })}
+                                if (filteredItems.length === 0) return null;
+
+                                const sgActive = filteredItems.some(
+                                  (s) => location.pathname === s.url || location.pathname.startsWith(s.url + "/")
+                                );
+
+                                return (
+                                  <SubGroupCollapsible
+                                    key={sg.title}
+                                    title={sg.title}
+                                    icon={sg.icon}
+                                    items={filteredItems}
+                                    isActive={sgActive}
+                                    pathname={location.pathname}
+                                  />
+                                );
+                              })}
                           </SidebarMenuSub>
                         </CollapsibleContent>
                       </SidebarMenuItem>
@@ -224,6 +370,7 @@ export function AppSidebar() {
                   );
                 }
 
+                // ── Menu tanpa children (CBE, SIMTAKA, Buletin) ───────────
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>

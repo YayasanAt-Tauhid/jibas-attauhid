@@ -83,9 +83,9 @@ export default function PortalTagihan() {
       
       const items = (data || []) as TagihanItem[];
       
-      // Get unique jenis_id+tahun_ajaran_id combos and apply per-student tarif
+      // Get unique jenis_id+tahun_ajaran_id combos dan apply tarif secara paralel
       const combos = [...new Set(items.map(t => `${t.jenis_id}|${t.tahun_ajaran_id}`))];
-      for (const combo of combos) {
+      await Promise.all(combos.map(async (combo) => {
         const [jId, taId] = combo.split("|");
         const relevantItems = items.filter(t => t.jenis_id === jId && t.tahun_ajaran_id === taId);
         const siswaIds = [...new Set(relevantItems.map(t => t.siswa_id))];
@@ -94,7 +94,7 @@ export default function PortalTagihan() {
           const tarif = tarifMap.get(t.siswa_id);
           if (tarif != null) t.nominal = tarif;
         });
-      }
+      }));
       
       // Filter out items with no configured tarif (nominal === 0)
       return items.filter(t => t.nominal > 0);
@@ -114,7 +114,7 @@ export default function PortalTagihan() {
   }, [tagihan]);
 
   const getKey = (t: TagihanItem) =>
-    `${t.siswa_id}-${t.jenis_id}-${t.bulan}`;
+    `${t.siswa_id}-${t.jenis_id}-${t.tahun_ajaran_id}-${t.bulan}`;
 
   const toggleItem = (key: string) => {
     setSelected((prev) => {

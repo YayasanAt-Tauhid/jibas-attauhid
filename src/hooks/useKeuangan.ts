@@ -2,17 +2,55 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// ─── Period Lock Check ───
-async function checkPeriodeLocked(tanggal: string): Promise<void> {
-  const { data } = await supabase
-    .from("tahun_ajaran")
+// ─── Period Lock Check (unit-aware) ───
+//
+// Logika tutup buku dipisah per unit:
+//   - Unit Pendidikan  → kolom tahun_ajaran.ditutup = true, SEKALIGUS ada log_tutup_buku dengan unit='unit_pendidikan'
+//   - Unit Usaha & Dana → HANYA cek log_tutup_buku dengan unit='unit_usaha_dana'
+//
+// Kategori departemen:
+//   unit_pendidikan   → ['unit_pendidikan']
+//   unit_usaha_dana   → ['unit_usaha', 'unit_dana_terikat', 'unit_yayasan']
+//
+// Jika departemen_id tidak diberikan (atau null), anggap unit_pendidikan (lebih ketat).
+async function checkPeriodeLocked(tanggal: string, departemenId?: string | null): Promise<void> {
+  // 1. Cari tahun_buku yang mencakup tanggal ini
+  const { data: tbList } = await supabase
+    .from("tahun_buku" as any)
     .select("id, nama, ditutup, tanggal_mulai, tanggal_selesai")
     .lte("tanggal_mulai", tanggal)
     .gte("tanggal_selesai", tanggal)
     .limit(1);
-  const locked = (data || []).find((d: any) => d.ditutup === true);
-  if (locked) {
-    throw new Error(`Transaksi ditolak: periode "${(locked as any).nama}" sudah ditutup buku.`);
+  const tb = ((tbList as any[]) || [])[0];
+  if (!tb) return; // tidak ada tahun buku untuk tanggal ini → bebas
+
+  // 2. Tentukan kategori unit dari departemen_id
+  let unitDept: string = "unit_pendidikan"; // default → lebih ketat
+  if (departemenId) {
+    const { data: dept } = await supabase
+      .from("departemen")
+      .select("kategori")
+      .eq("id", departemenId)
+      .maybeSingle();
+    const kat = (dept as any)?.kategori as string | null;
+    if (kat && ["unit_usaha", "unit_dana_terikat", "unit_yayasan"].includes(kat)) {
+      unitDept = "unit_usaha_dana";
+    }
+  }
+
+  // 3. Cek apakah log_tutup_buku untuk unit + tahun_buku ini sudah ada
+  const { data: logRows } = await supabase
+    .from("log_tutup_buku" as any)
+    .select("id")
+    .eq("tahun_ajaran_id", tb.id)
+    .eq("unit", unitDept)
+    .limit(1);
+
+  if (logRows && (logRows as any[]).length > 0) {
+    const unitLabel = unitDept === "unit_pendidikan" ? "Unit Pendidikan" : "Unit Usaha & Dana";
+    throw new Error(
+      `Transaksi ditolak: periode "${tb.nama}" untuk ${unitLabel} sudah ditutup buku.`
+    );
   }
 }
 
@@ -130,8 +168,8 @@ export function useCreatePembayaran() {
       keterangan?: string;
       departemen_id?: string;
     }) => {
-      // Check period lock
-      await checkPeriodeLocked(values.tanggal_bayar);
+      // Check period lock — pembayaran selalu unit_pendidikan
+      await checkPeriodeLocked(values.tanggal_bayar, values.departemen_id ?? null);
       const { data, error } = await supabase
         .from("pembayaran")
         .insert(values)
@@ -179,8 +217,9 @@ export function useCreatePengeluaran() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (values: { jenis_id: string; jumlah: number; tanggal: string; keterangan?: string; departemen_id?: string }) => {
-      // Check period lock
-      await checkPeriodeLocked(values.tanggal);
+      // Check period lock — teruskan departemenId agar pengeluaran Unit Usaha & Dana
+      // tidak diblokir hanya karena Unit Pendidikan sudah tutup buku.
+      await checkPeriodeLocked(values.tanggal, values.departemen_id ?? null);
       const { data, error } = await supabase
         .from("pengeluaran")
         .insert(values)
@@ -788,6 +827,115 @@ export function useAktifkanTahunAjaran() {
     onSuccess: (nama) => {
       qc.invalidateQueries({ queryKey: ["tahun_ajaran"] });
       toast.success(`Tahun Ajaran ${nama} sekarang aktif`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ─── Tahun Buku (Keuangan) ───
+export function useTahunBuku() {
+  return useQuery({
+    queryKey: ["tahun_buku"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tahun_buku" as any)
+        .select("*")
+        .order("tanggal_mulai", { ascending: false });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+}
+
+export function useTahunBukuAktif() {
+  return useQuery({
+    queryKey: ["tahun_buku", "aktif"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tahun_buku" as any)
+        .select("*")
+        .eq("aktif", true)
+        .order("nama", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+}
+
+export function useCreateTahunBuku() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (values: { nama: string; tanggal_mulai: string; tanggal_selesai: string; keterangan?: string; aktif?: boolean }) => {
+      if (values.aktif) {
+        await (supabase.from("tahun_buku" as any) as any).update({ aktif: false }).neq("id", "00000000-0000-0000-0000-000000000000");
+      }
+      const { error } = await (supabase.from("tahun_buku" as any) as any).insert(values);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tahun_buku"] });
+      toast.success("Tahun buku berhasil ditambahkan");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUpdateTahunBuku() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...values }: { id: string; nama?: string; tanggal_mulai?: string; tanggal_selesai?: string; keterangan?: string; aktif?: boolean; ditutup?: boolean }) => {
+      if (values.aktif) {
+        await (supabase.from("tahun_buku" as any) as any).update({ aktif: false }).neq("id", id);
+      }
+      const { error } = await (supabase.from("tahun_buku" as any) as any).update(values).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tahun_buku"] });
+      toast.success("Tahun buku berhasil diperbarui");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useDeleteTahunBuku() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Cek apakah sudah ada transaksi yang menggunakan tahun buku ini
+      const { data: payments } = await supabase
+        .from("pembayaran")
+        .select("id")
+        .eq("tahun_ajaran_id", id)
+        .limit(1);
+      if (payments && payments.length > 0) {
+        throw new Error("Tahun buku ini tidak bisa dihapus karena sudah memiliki data pembayaran.");
+      }
+      const { error } = await (supabase.from("tahun_buku" as any) as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tahun_buku"] });
+      toast.success("Tahun buku berhasil dihapus");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useAktifkanTahunBuku() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, nama }: { id: string; nama: string }) => {
+      await (supabase.from("tahun_buku" as any) as any).update({ aktif: false }).neq("id", id);
+      const { error } = await (supabase.from("tahun_buku" as any) as any).update({ aktif: true }).eq("id", id);
+      if (error) throw error;
+      return nama;
+    },
+    onSuccess: (nama) => {
+      qc.invalidateQueries({ queryKey: ["tahun_buku"] });
+      toast.success(`Tahun Buku ${nama} sekarang aktif`);
     },
     onError: (e: any) => toast.error(e.message),
   });

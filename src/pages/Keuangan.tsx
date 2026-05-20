@@ -18,7 +18,9 @@ const links = [
   { label: "Tabungan Siswa", url: "/keuangan/tabungan" },
   { label: "Jurnal Umum", url: "/keuangan/jurnal" },
   { label: "Buku Besar", url: "/keuangan/buku-besar" },
-  { label: "Laporan Keuangan", url: "/keuangan/laporan" },
+  { label: "Lap. Unit Pendidikan", url: "/keuangan/laporan" },
+  { label: "Lap. Unit Usaha & Dana", url: "/keuangan/laporan-unit-usaha" },
+  { label: "ISAK 35", url: "/keuangan/isak35" },
   { label: "Laporan Per Siswa", url: "/keuangan/laporan-siswa" },
   { label: "Laporan Per Kelas", url: "/keuangan/laporan-kelas" },
   { label: "Lap. Pengeluaran", url: "/keuangan/laporan-pengeluaran" },
@@ -26,9 +28,11 @@ const links = [
   { label: "Rekap Harian", url: "/keuangan/rekap-harian" },
   { label: "Online Payment", url: "/keuangan/online-payment" },
   { label: "Audit Trail", url: "/keuangan/audit-trail" },
+  { label: "Audit Perubahan Data", url: "/keuangan/audit-perubahan" },
   { label: "Pembayaran PSB", url: "/keuangan/pembayaran-psb" },
   { label: "Referensi", url: "/keuangan/referensi" },
   { label: "Tutup Buku", url: "/keuangan/tutup-buku" },
+  { label: "Rekon Antar Lembaga", url: "/keuangan/rekon-antar-lembaga" },
 ];
 
 export default function Keuangan() {

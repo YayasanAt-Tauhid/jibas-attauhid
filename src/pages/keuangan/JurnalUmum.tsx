@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,13 +8,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
 import { Badge } from "@/components/ui/badge";
-import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDeleteJurnal, usePostJurnal, useAkunRekening } from "@/hooks/useJurnal";
+import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDeleteJurnal, usePostJurnal, useAkunRekening, useKoreksiJurnal } from "@/hooks/useJurnal";
+import { AkunCombobox } from "@/components/shared/AkunCombobox";
 import { formatRupiah, BULAN_NAMES, BULAN_ORDER_AKADEMIK, namaBulan, useLembaga } from "@/hooks/useKeuangan";
-import { Plus, Eye, Pencil, Trash2, Lock, Send } from "lucide-react";
+import { StatsCard } from "@/components/shared/StatsCard";
+import { Plus, Eye, Pencil, Trash2, Lock, Send, Search, BookOpen, CheckCircle, FileEdit, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
@@ -30,6 +35,11 @@ export default function JurnalUmum() {
   const [bulan, setBulan] = useState(currentMonth);
   const [tahun, setTahun] = useState(currentYear);
   const [departemenId, setDepartemenId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"semua" | "draft" | "posted">("semua");
+  const [akunFilter, setAkunFilter] = useState("");
+  const [tanggalDari, setTanggalDari] = useState("");
+  const [tanggalSampai, setTanggalSampai] = useState("");
   const { data: lembagaList } = useLembaga();
   const { data: jurnalList, isLoading } = useJurnalList(bulan, tahun, departemenId || undefined);
   const { data: akunList } = useAkunRekening();
@@ -44,6 +54,69 @@ export default function JurnalUmum() {
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [postId, setPostId] = useState<string | null>(null);
+
+  // Jurnal Koreksi state
+  const [koreksiOpen, setKoreksiOpen] = useState(false);
+  const [koreksiTarget, setKoreksiTarget] = useState<any>(null);
+  const [tanggalKoreksi, setTanggalKoreksi] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [alasanKoreksi, setAlasanKoreksi] = useState("");
+  const [buatPengganti, setBuatPengganti] = useState(false);
+  const [penggantiKeterangan, setPenggantiKeterangan] = useState("");
+  const [penggantiReferensi, setPenggantiReferensi] = useState("");
+  const [penggantiDetails, setPenggantiDetails] = useState<DetailRow[]>([
+    { akun_id: "", keterangan: "", debit: 0, kredit: 0 },
+    { akun_id: "", keterangan: "", debit: 0, kredit: 0 },
+  ]);
+  const koreksiMut = useKoreksiJurnal();
+  const { data: koreksiTargetDetail } = useJurnalDetail(koreksiTarget?.id);
+
+  const openKoreksi = (item: any) => {
+    setKoreksiTarget(item);
+    setTanggalKoreksi(format(new Date(), "yyyy-MM-dd"));
+    setAlasanKoreksi("");
+    setBuatPengganti(false);
+    setPenggantiKeterangan(`KOREKSI ${item.keterangan}`);
+    setPenggantiReferensi(item.nomor || "");
+    setPenggantiDetails([
+      { akun_id: "", keterangan: "", debit: 0, kredit: 0 },
+      { akun_id: "", keterangan: "", debit: 0, kredit: 0 },
+    ]);
+    setKoreksiOpen(true);
+  };
+
+  const totalPenggantiDebit = penggantiDetails.reduce((s, d) => s + (d.debit || 0), 0);
+  const totalPenggantiKredit = penggantiDetails.reduce((s, d) => s + (d.kredit || 0), 0);
+  const isPenggantiBalanced = Math.abs(totalPenggantiDebit - totalPenggantiKredit) < 0.01 && totalPenggantiDebit > 0;
+
+  const handleKoreksi = async () => {
+    if (!koreksiTarget || !alasanKoreksi.trim()) return;
+    await koreksiMut.mutateAsync({
+      jurnal_asal_id: koreksiTarget.id,
+      tanggal_koreksi: tanggalKoreksi,
+      alasan: alasanKoreksi,
+      ...(buatPengganti && isPenggantiBalanced ? {
+        pengganti: {
+          keterangan: penggantiKeterangan,
+          referensi: penggantiReferensi,
+          details: penggantiDetails.filter(d => d.akun_id).map((d, i) => ({ ...d, urutan: i + 1 })),
+        },
+      } : {}),
+    });
+    setKoreksiOpen(false);
+    setKoreksiTarget(null);
+  };
+
+  const addPenggantiRow = () =>
+    setPenggantiDetails([...penggantiDetails, { akun_id: "", keterangan: "", debit: 0, kredit: 0 }]);
+  const removePenggantiRow = (i: number) => {
+    if (penggantiDetails.length > 2)
+      setPenggantiDetails(penggantiDetails.filter((_, idx) => idx !== i));
+  };
+  const updatePenggantiRow = (i: number, field: keyof DetailRow, value: any) => {
+    const next = [...penggantiDetails];
+    (next[i] as any)[field] = value;
+    setPenggantiDetails(next);
+  };
 
   const [tanggal, setTanggal] = useState(format(new Date(), "yyyy-MM-dd"));
   const [keterangan, setKeterangan] = useState("");
@@ -79,10 +152,15 @@ export default function JurnalUmum() {
     setKeterangan(item.keterangan);
     setReferensi(item.referensi || "");
     setFormDepartemenId(item.departemen_id || "");
+    // Reset detail ke placeholder dulu — useEffect akan mengisi saat viewData siap
+    setDetails([
+      { akun_id: "", keterangan: "", debit: 0, kredit: 0 },
+      { akun_id: "", keterangan: "", debit: 0, kredit: 0 },
+    ]);
     setFormOpen(true);
   };
 
-  useMemo(() => {
+  useEffect(() => {
     if (editId && viewData?.details) {
       setDetails(
         viewData.details.map((d: any) => ({
@@ -121,10 +199,63 @@ export default function JurnalUmum() {
 
   const lembagaNama = lembagaList?.find((l: any) => l.id === departemenId);
 
+  // Query jurnal IDs that contain a specific akun (when akunFilter is set)
+  const { data: jurnalIdsByAkun } = useQuery({
+    queryKey: ["jurnal_by_akun", akunFilter],
+    enabled: !!akunFilter,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jurnal_detail")
+        .select("jurnal_id")
+        .eq("akun_id", akunFilter);
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.jurnal_id));
+    },
+  });
+
+  const filteredJurnal = useMemo(() => {
+    let list = (jurnalList as any[]) || [];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((j: any) =>
+        j.nomor?.toLowerCase().includes(q) ||
+        j.keterangan?.toLowerCase().includes(q) ||
+        j.referensi?.toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter !== "semua") {
+      list = list.filter((j: any) => j.status === statusFilter);
+    }
+    if (tanggalDari) list = list.filter((j: any) => j.tanggal >= tanggalDari);
+    if (tanggalSampai) list = list.filter((j: any) => j.tanggal <= tanggalSampai);
+    if (akunFilter && jurnalIdsByAkun) {
+      list = list.filter((j: any) => jurnalIdsByAkun.has(j.id));
+    }
+    return list;
+  }, [jurnalList, searchQuery, statusFilter, tanggalDari, tanggalSampai, akunFilter, jurnalIdsByAkun]);
+
+  const totalJurnal = filteredJurnal.length;
+  const jurnalPosted = filteredJurnal.filter((j: any) => j.status === "posted").length;
+  const jurnalDraft = filteredJurnal.filter((j: any) => j.status === "draft").length;
+
   const activeFilters: ActiveFilter[] = [
     ...(departemenId ? [{
       key: "lembaga", label: "Lembaga", value: lembagaNama?.kode || lembagaNama?.nama || "",
       onClear: () => setDepartemenId(""),
+    }] : []),
+    ...(statusFilter !== "semua" ? [{
+      key: "status", label: "Status", value: statusFilter === "posted" ? "Posted" : "Draft",
+      onClear: () => setStatusFilter("semua"),
+    }] : []),
+    ...(akunFilter ? [{
+      key: "akun", label: "Akun",
+      value: akunList?.find((a: any) => a.id === akunFilter)?.kode || "—",
+      onClear: () => setAkunFilter(""),
+    }] : []),
+    ...(tanggalDari || tanggalSampai ? [{
+      key: "rentang", label: "Rentang",
+      value: `${tanggalDari || "…"} → ${tanggalSampai || "…"}`,
+      onClear: () => { setTanggalDari(""); setTanggalSampai(""); },
     }] : []),
     {
       key: "periode", label: "Periode", value: `${BULAN_NAMES[bulan - 1]} ${tahun}`,
@@ -151,26 +282,83 @@ export default function JurnalUmum() {
       ),
     },
     {
+      key: "tipe", label: "Tipe",
+      render: (v) => {
+        if (!v || v === "normal") return null;
+        const cfg: Record<string, { label: string; color: string }> = {
+          pembalik:  { label: "Pembalik",  color: "bg-destructive/15 text-destructive border-destructive/30" },
+          pengganti: { label: "Pengganti", color: "bg-info/15 text-info border-info/30" },
+        };
+        const c = cfg[v as string];
+        return c ? (
+          <Badge variant="outline" className={c.color}>{c.label}</Badge>
+        ) : null;
+      },
+    },
+    {
       key: "aksi", label: "Aksi",
       render: (_, r: any) => (
         <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setViewId(r.id); setViewOpen(true); }}>
-            <Eye className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setViewId(r.id); setViewOpen(true); }}>
+                <Eye className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Lihat detail</TooltipContent>
+          </Tooltip>
+
           {r.status === "draft" ? (
             <>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setPostId(r.id)}>
-                <Send className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit jurnal</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(r.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Hapus jurnal</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary" onClick={() => setPostId(r.id)}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Posting jurnal</TooltipContent>
+              </Tooltip>
             </>
           ) : (
-            <Lock className="h-4 w-4 text-muted-foreground ml-2 mt-2" />
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex h-8 w-8 items-center justify-center">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Jurnal sudah diposting — tidak bisa diedit</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-warning hover:text-warning"
+                    onClick={() => openKoreksi(r)}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Buat jurnal koreksi / pembalik</TooltipContent>
+              </Tooltip>
+            </div>
           )}
         </div>
       ),
@@ -186,11 +374,33 @@ export default function JurnalUmum() {
         </div>
       </div>
 
+      {/* Stats */}
+      <div className="grid gap-3 sm:grid-cols-3 mb-4">
+        <StatsCard title="Total Jurnal" value={totalJurnal} icon={BookOpen} color="info" />
+        <StatsCard title="Sudah Diposting" value={jurnalPosted} icon={CheckCircle} color="success" />
+        <StatsCard title="Masih Draft" value={jurnalDraft} icon={FileEdit} color="warning" />
+      </div>
+
       {/* Filter toolbar */}
       <div className="border-b border-border pb-3 mb-4">
         <FilterToolbar
           activeFilters={activeFilters}
-          actions={<Button size="sm" className="h-8 text-xs" onClick={openCreate}><Plus className="h-3.5 w-3.5 mr-1.5" />Buat Jurnal</Button>}
+          actions={
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Cari nomor / keterangan / referensi..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 text-xs w-72 pl-7"
+                />
+              </div>
+              <Button size="sm" className="h-8 text-xs" onClick={openCreate}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" />Buat Jurnal
+              </Button>
+            </div>
+          }
         >
           <div className="space-y-3">
             <div className="space-y-1">
@@ -201,6 +411,29 @@ export default function JurnalUmum() {
                   <SelectItem value="__all__">Semua Lembaga</SelectItem>
                   {lembagaList?.map((l: any) => (
                     <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Status</Label>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="semua">Semua Status</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="posted">Posted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Akun</Label>
+              <Select value={akunFilter || "__all__"} onValueChange={(v) => setAkunFilter(v === "__all__" ? "" : v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Semua akun" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="__all__">Semua Akun</SelectItem>
+                  {akunList?.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>{a.kode} — {a.nama}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -218,6 +451,14 @@ export default function JurnalUmum() {
               <Label className="text-xs">Tahun</Label>
               <Input type="number" className="h-8 text-xs" value={tahun} onChange={e => setTahun(Number(e.target.value))} />
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Dari Tanggal</Label>
+              <Input type="date" className="h-8 text-xs" value={tanggalDari} onChange={(e) => setTanggalDari(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Sampai Tanggal</Label>
+              <Input type="date" className="h-8 text-xs" value={tanggalSampai} onChange={(e) => setTanggalSampai(e.target.value)} />
+            </div>
           </div>
         </FilterToolbar>
       </div>
@@ -225,15 +466,30 @@ export default function JurnalUmum() {
       {/* Table — no Card wrapper */}
       <DataTable
         columns={columns}
-        data={jurnalList || []}
+        data={filteredJurnal}
         loading={isLoading}
         pageSize={20}
+        searchable={false}
+        exportable
+        exportFilename={`jurnal-${BULAN_NAMES[bulan - 1]}-${tahun}`}
       />
 
       {/* Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editId ? "Edit" : "Buat"} Jurnal</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editId ? (
+                <>
+                  Edit Jurnal
+                  {viewData?.nomor && (
+                    <Badge variant="outline" className="font-mono">{viewData.nomor}</Badge>
+                  )}
+                  <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Draft</Badge>
+                </>
+              ) : "Buat Jurnal Baru"}
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div><Label>Tanggal</Label><Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} /></div>
@@ -270,14 +526,11 @@ export default function JurnalUmum() {
                     <tr key={i} className="border-t">
                       <td className="p-2">{i + 1}</td>
                       <td className="p-2">
-                        <Select value={row.akun_id} onValueChange={v => updateRow(i, "akun_id", v)}>
-                          <SelectTrigger><SelectValue placeholder="Pilih akun" /></SelectTrigger>
-                          <SelectContent>
-                            {akunList?.map((a: any) => (
-                              <SelectItem key={a.id} value={a.id}>{a.kode} - {a.nama}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <AkunCombobox
+                          value={row.akun_id}
+                          onChange={(v) => updateRow(i, "akun_id", v)}
+                          akunList={akunList || []}
+                        />
                       </td>
                       <td className="p-2"><Input value={row.keterangan} onChange={e => updateRow(i, "keterangan", e.target.value)} placeholder="Ket. baris" /></td>
                       <td className="p-2"><Input type="number" className="text-right" value={row.debit || ""} onChange={e => updateRow(i, "debit", Number(e.target.value) || 0)} /></td>
@@ -368,6 +621,187 @@ export default function JurnalUmum() {
 
       <ConfirmDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)} title="Hapus Jurnal" description="Yakin ingin menghapus jurnal ini?" onConfirm={() => { if (deleteId) deleteMut.mutate(deleteId); setDeleteId(null); }} />
       <ConfirmDialog open={!!postId} onOpenChange={() => setPostId(null)} title="Posting Jurnal" description="Jurnal yang sudah diposting tidak bisa diedit lagi. Lanjutkan?" onConfirm={() => { if (postId) postMut.mutate(postId); setPostId(null); }} />
+
+      {/* Dialog Jurnal Koreksi */}
+      <Dialog open={koreksiOpen} onOpenChange={(v) => { setKoreksiOpen(v); if (!v) setKoreksiTarget(null); }}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-warning" />
+              Buat Jurnal Koreksi
+              {koreksiTarget?.nomor && (
+                <Badge variant="outline" className="font-mono">{koreksiTarget.nomor}</Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Info jurnal asli */}
+            <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-2">
+              <p className="text-sm font-semibold text-warning">⚠ Jurnal Asli yang Akan Dikoreksi</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div><span className="text-muted-foreground">Nomor:</span> <span className="font-medium">{koreksiTarget?.nomor}</span></div>
+                <div><span className="text-muted-foreground">Tanggal:</span> <span className="font-medium">{koreksiTarget?.tanggal ? format(new Date(koreksiTarget.tanggal), "d MMM yyyy", { locale: idLocale }) : "-"}</span></div>
+                <div><span className="text-muted-foreground">Total:</span> <span className="font-medium">{formatRupiah(Number(koreksiTarget?.total_debit) || 0)}</span></div>
+                <div><span className="text-muted-foreground">Lembaga:</span> <span className="font-medium">{koreksiTarget?.departemen?.kode || "-"}</span></div>
+              </div>
+              <p className="text-xs"><span className="text-muted-foreground">Keterangan:</span> <span className="font-medium">{koreksiTarget?.keterangan}</span></p>
+            </div>
+
+            {/* Preview detail jurnal asli */}
+            {koreksiTargetDetail?.details && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Detail Jurnal Asli (akan dibalik debit↔kredit):</p>
+                <div className="border rounded-md overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-2 text-left">Akun</th>
+                        <th className="p-2 text-right">Debit Asli → Kredit Baru</th>
+                        <th className="p-2 text-right">Kredit Asli → Debit Baru</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {koreksiTargetDetail.details.map((d: any, i: number) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-2">{d.akun_rekening?.kode} - {d.akun_rekening?.nama}</td>
+                          <td className="p-2 text-right">{Number(d.debit) > 0 ? formatRupiah(Number(d.debit)) : "-"}</td>
+                          <td className="p-2 text-right">{Number(d.kredit) > 0 ? formatRupiah(Number(d.kredit)) : "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Form koreksi */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Tanggal Koreksi *</Label>
+                <Input type="date" value={tanggalKoreksi} onChange={(e) => setTanggalKoreksi(e.target.value)} />
+              </div>
+              <div>
+                <Label>Alasan Koreksi *</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Jelaskan alasan koreksi..."
+                  value={alasanKoreksi}
+                  onChange={(e) => setAlasanKoreksi(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Toggle jurnal pengganti */}
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={buatPengganti}
+                onChange={(e) => setBuatPengganti(e.target.checked)}
+                className="h-4 w-4 rounded mt-0.5"
+              />
+              <span className="text-sm">
+                Sekaligus buat jurnal pengganti yang benar
+                <span className="text-muted-foreground ml-1">(opsional — bisa dibuat manual nanti)</span>
+              </span>
+            </label>
+
+            {/* Form jurnal pengganti */}
+            {buatPengganti && (
+              <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+                <p className="text-sm font-semibold">Jurnal Pengganti (akan disimpan sebagai Draft)</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Keterangan Jurnal Pengganti *</Label>
+                    <Input value={penggantiKeterangan} onChange={(e) => setPenggantiKeterangan(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Referensi</Label>
+                    <Input value={penggantiReferensi} onChange={(e) => setPenggantiReferensi(e.target.value)} />
+                  </div>
+                </div>
+                <div className="border rounded-md overflow-x-auto bg-background">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-2 text-left w-10">No</th>
+                        <th className="p-2 text-left min-w-[200px]">Akun</th>
+                        <th className="p-2 text-left min-w-[150px]">Keterangan</th>
+                        <th className="p-2 text-right w-32">Debit (Rp)</th>
+                        <th className="p-2 text-right w-32">Kredit (Rp)</th>
+                        <th className="p-2 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {penggantiDetails.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-2">{i + 1}</td>
+                          <td className="p-2">
+                            <AkunCombobox
+                              value={row.akun_id}
+                              onChange={(v) => updatePenggantiRow(i, "akun_id", v)}
+                              akunList={akunList || []}
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input value={row.keterangan} onChange={(e) => updatePenggantiRow(i, "keterangan", e.target.value)} placeholder="Ket. baris" />
+                          </td>
+                          <td className="p-2">
+                            <Input type="number" className="text-right" value={row.debit || ""} onChange={(e) => updatePenggantiRow(i, "debit", Number(e.target.value) || 0)} />
+                          </td>
+                          <td className="p-2">
+                            <Input type="number" className="text-right" value={row.kredit || ""} onChange={(e) => updatePenggantiRow(i, "kredit", Number(e.target.value) || 0)} />
+                          </td>
+                          <td className="p-2">
+                            {penggantiDetails.length > 2 && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removePenggantiRow(i)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t bg-muted/30 font-semibold">
+                      <tr>
+                        <td colSpan={3} className="p-2 text-right">Total</td>
+                        <td className="p-2 text-right">{formatRupiah(totalPenggantiDebit)}</td>
+                        <td className="p-2 text-right">{formatRupiah(totalPenggantiKredit)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                {!isPenggantiBalanced && totalPenggantiDebit > 0 && (
+                  <p className="text-sm text-destructive font-medium">
+                    ⚠ Total Debit dan Kredit harus sama (selisih: {formatRupiah(Math.abs(totalPenggantiDebit - totalPenggantiKredit))})
+                  </p>
+                )}
+                <Button variant="outline" size="sm" onClick={addPenggantiRow}>
+                  <Plus className="h-4 w-4 mr-2" />Tambah Baris
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setKoreksiOpen(false); setKoreksiTarget(null); }}>
+              Batal
+            </Button>
+            <Button
+              onClick={handleKoreksi}
+              disabled={
+                !alasanKoreksi.trim() ||
+                koreksiMut.isPending ||
+                (buatPengganti && !isPenggantiBalanced)
+              }
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              {koreksiMut.isPending ? "Memproses..." : "Buat Jurnal Koreksi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

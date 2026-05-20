@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -48,8 +49,13 @@ export default function PortalDashboard() {
     enabled: !!user,
   });
 
-  // Count tagihan belum bayar (same logic as PortalTagihan with tarif filtering)
-  const siswaIds = anakList.map((a: any) => a.siswa_id);
+  // Bug 7 fix: useMemo agar siswaIds tidak recreated setiap render
+  // (array reference stabil → queryKey tidak berubah → tidak refetch terus)
+  const siswaIds = useMemo(
+    () => anakList.map((a: any) => a.siswa_id),
+    [anakList]
+  );
+
   const { data: tagihanCount = 0 } = useQuery({
     queryKey: ["portal-tagihan-count", siswaIds],
     queryFn: async () => {
@@ -59,12 +65,12 @@ export default function PortalDashboard() {
         .select("*")
         .in("siswa_id", siswaIds)
         .eq("sudah_bayar", false);
-      
+
       const items = (data || []) as any[];
-      
-      // Apply tarif filtering (same as PortalTagihan)
+
+      // Bug 1 fix: parallel fetch tarif (sama dengan PortalTagihan)
       const combos = [...new Set(items.map(t => `${t.jenis_id}|${t.tahun_ajaran_id}`))];
-      for (const combo of combos) {
+      await Promise.all(combos.map(async (combo) => {
         const [jId, taId] = combo.split("|");
         const relevantItems = items.filter(t => t.jenis_id === jId && t.tahun_ajaran_id === taId);
         const sIds = [...new Set(relevantItems.map(t => t.siswa_id))];
@@ -73,8 +79,8 @@ export default function PortalDashboard() {
           const tarif = tarifMap.get(t.siswa_id);
           if (tarif != null) t.nominal = tarif;
         });
-      }
-      
+      }));
+
       return items.filter(t => t.nominal > 0).length;
     },
     enabled: siswaIds.length > 0,

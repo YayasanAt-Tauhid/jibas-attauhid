@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,9 +66,47 @@ export default function PortalRiwayat() {
     }
   }, [highlightOrder, transaksi]);
 
+  // Bug 5 fix: buka popup terpisah untuk cetak, bukan window.print() seluruh halaman
+  const printBukti = (tx: any) => {
+    const items = tx.transaksi_midtrans_item || [];
+    const w = window.open("", "_blank", "width=620,height=650");
+    if (!w) { toast.error("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    w.document.write(`
+      <html><head><title>Bukti Pembayaran ${tx.order_id}</title>
+      <style>
+        body{font-family:sans-serif;padding:24px;color:#111}
+        h2{margin-bottom:4px}
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th,td{border:1px solid #ccc;padding:8px;text-align:left}
+        th{background:#f0f0f0}
+        .total{font-weight:bold}
+        .footer{margin-top:24px;font-size:12px;color:#666}
+        @media print{button{display:none}}
+      </style>
+      </head><body>
+      <h2>Bukti Pembayaran</h2>
+      <p><b>Order ID:</b> ${tx.order_id}</p>
+      <p><b>Tanggal:</b> ${tx.created_at ? new Date(tx.created_at).toLocaleString("id-ID") : "-"}</p>
+      <p><b>Metode:</b> ${tx.payment_type || "-"}</p>
+      <table>
+        <thead><tr><th>Item</th><th style="text-align:right">Jumlah</th></tr></thead>
+        <tbody>${items.map((i: any) => `<tr><td>${i.nama_item}</td><td style="text-align:right">${Number(i.jumlah).toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr>`).join("")}</tbody>
+        <tfoot><tr class="total"><td>TOTAL</td><td style="text-align:right">${Number(tx.total_amount).toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr></tfoot>
+      </table>
+      <p class="footer">Terima kasih telah melakukan pembayaran.</p>
+      <br/><button onclick="window.print()">Cetak</button>
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
+  // Bug 5b fix: copyOrderId function selesai (sesi lalu terpotong)
   const copyOrderId = (orderId: string) => {
-    navigator.clipboard.writeText(orderId);
-    toast.info("Order ID disalin");
+    navigator.clipboard.writeText(orderId).then(
+      () => toast.success("Order ID disalin"),
+      () => toast.error("Gagal menyalin Order ID")
+    );
   };
 
   if (isLoading) {
@@ -182,10 +220,11 @@ export default function PortalRiwayat() {
                       </TableBody>
                     </Table>
                     <div className="mt-3 flex justify-end">
+                      {/* Bug 5 fix: pakai printBukti(tx) bukan window.print() */}
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.print()}
+                        onClick={() => printBukti(tx)}
                       >
                         <Printer className="h-4 w-4 mr-1.5" />
                         Cetak Bukti

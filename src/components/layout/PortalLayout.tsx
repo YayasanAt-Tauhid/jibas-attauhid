@@ -29,7 +29,7 @@ export default function PortalLayout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Unread notification count
+  // Bug 6 fix: unread count refetch tiap 30 detik
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notif-unread-count"],
     queryFn: async () => {
@@ -44,7 +44,7 @@ export default function PortalLayout() {
     refetchInterval: 30000,
   });
 
-  // Recent notifications
+  // Bug 6 fix: notifications juga refetch tiap 30 detik agar dropdown tidak stale
   const { data: notifications = [] } = useQuery({
     queryKey: ["notif-recent"],
     queryFn: async () => {
@@ -57,6 +57,7 @@ export default function PortalLayout() {
       return data || [];
     },
     enabled: !!user,
+    refetchInterval: 30000,
   });
 
   const markAsRead = useMutation({

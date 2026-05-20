@@ -63,6 +63,8 @@ export function useGenerateTagihan() {
       bulan?: number;
       bulan_list?: number[];
       departemen_id?: string;
+      siswa_id?: string;   // T1 fix: expose ke type — edge function sudah support ini
+      kelas_id?: string;   // T1 fix: expose ke type — edge function sudah support ini
     }) => {
       const { data, error } = await supabase.functions.invoke("generate-tagihan", {
         body: params,

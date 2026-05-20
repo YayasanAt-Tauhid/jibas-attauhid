@@ -4,16 +4,17 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
-import { useJenisPembayaran, useLembaga, useTahunAjaranAktif, useTahunAjaran, formatRupiah, namaBulan, BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
+import { useJenisPembayaran, useLembaga, useTahunBukuAktif, useTahunBuku, formatRupiah, namaBulan, BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
 import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { useKelas } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Users, X } from "lucide-react";
+import { AlertTriangle, Users, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function TunggakanPembayaran() {
@@ -27,11 +28,12 @@ export default function TunggakanPembayaran() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirm, setShowConfirm] = useState(false);
   const [isBulkPaying, setIsBulkPaying] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [tahunAjaranId, setTahunAjaranId] = useState<string>("");
 
   const { data: lembagaList } = useLembaga();
-  const { data: tahunAjaranList } = useTahunAjaran();
-  const { data: tahunAjaranAktif } = useTahunAjaranAktif();
+  const { data: tahunAjaranList } = useTahunBuku();
+  const { data: tahunAjaranAktif } = useTahunBukuAktif();
 
   // Auto-select active tahun ajaran
   useEffect(() => {
@@ -186,37 +188,66 @@ export default function TunggakanPembayaran() {
   };
 
   const handleBulkPay = async () => {
-    if (!selectedRows.length || !jenisId) return;
+    if (!selectedRows.length || !jenisId || !tahunAjaranId) return;
     setIsBulkPaying(true);
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const rows: any[] = [];
-      selectedRows.forEach((sr) => {
-        sr.bulan_tunggak_arr.forEach((b: number) => {
-          rows.push({
-            siswa_id: sr.id,
+
+    // Hitung total transaksi (bisa lebih dari jumlah siswa karena multi-bulan)
+    const allTx = selectedRows.flatMap((sr) =>
+      sr.bulan_tunggak_arr.map((b: number) => ({ siswaId: sr.id, bulan: b, nominal: sr.nominal }))
+    );
+    setBulkProgress({ done: 0, total: allTx.length });
+
+    const today = new Date().toISOString().split("T")[0];
+    let berhasil = 0;
+    const gagalList: string[] = [];
+
+    for (let i = 0; i < allTx.length; i++) {
+      const tx = allTx[i];
+      try {
+        const { data, error } = await supabase.functions.invoke("proses-pembayaran", {
+          body: {
+            siswa_id: tx.siswaId,
             jenis_id: jenisId,
-            bulan: b,
-            jumlah: sr.nominal,
+            bulan: tx.bulan,
+            jumlah: tx.nominal,
             tanggal_bayar: today,
             departemen_id: departemenId || undefined,
-          });
+            tahun_ajaran_id: tahunAjaranId,
+            is_bayar_dimuka: false,
+          },
         });
-      });
-
-      const { error } = await supabase.from("pembayaran").insert(rows);
-      if (error) throw error;
-
-      toast.success(`Pembayaran berhasil dicatat untuk ${selectedRows.length} siswa`);
-      setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ["tunggakan"] });
-      queryClient.invalidateQueries({ queryKey: ["pembayaran"] });
-    } catch (e: any) {
-      toast.error(e.message || "Gagal menyimpan pembayaran");
-    } finally {
-      setIsBulkPaying(false);
-      setShowConfirm(false);
+        if (error || !data?.success) {
+          const namaRow = selectedRows.find((r) => r.id === tx.siswaId)?.nama ?? tx.siswaId;
+          gagalList.push(`${namaRow} (${tx.bulan ? namaBulan(tx.bulan) : "sekali"}): ${data?.error ?? error?.message ?? "gagal"}`);
+        } else {
+          berhasil++;
+        }
+      } catch (e: any) {
+        const namaRow = selectedRows.find((r) => r.id === tx.siswaId)?.nama ?? tx.siswaId;
+        gagalList.push(`${namaRow}: ${e.message}`);
+      }
+      setBulkProgress({ done: i + 1, total: allTx.length });
     }
+
+    // Invalidate semua cache yang relevan
+    queryClient.invalidateQueries({ queryKey: ["tunggakan"] });
+    queryClient.invalidateQueries({ queryKey: ["pembayaran"] });
+    queryClient.invalidateQueries({ queryKey: ["tagihan"] });
+    queryClient.invalidateQueries({ queryKey: ["jurnal"] });
+
+    if (berhasil > 0 && gagalList.length === 0) {
+      toast.success(`${berhasil} pembayaran berhasil — jurnal & tagihan terupdate otomatis`);
+    } else if (berhasil > 0) {
+      toast.success(`${berhasil} berhasil`);
+      toast.error(`${gagalList.length} gagal:\n${gagalList.slice(0, 3).join("\n")}${gagalList.length > 3 ? `\n…dan ${gagalList.length - 3} lainnya` : ""}`);
+    } else {
+      toast.error(`Semua pembayaran gagal. Cek koneksi atau konfigurasi akun.`);
+    }
+
+    setSelectedIds(new Set());
+    setBulkProgress(null);
+    setIsBulkPaying(false);
+    setShowConfirm(false);
   };
 
   // Build active filters for badge display
@@ -392,13 +423,27 @@ export default function TunggakanPembayaran() {
 
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-xl rounded-xl px-6 py-3 flex items-center gap-4 animate-fade-in">
-          <span className="text-sm font-medium">
-            {selectedIds.size} siswa dipilih — Total: <span className="text-primary font-bold">{formatRupiah(selectedTotal)}</span>
-          </span>
-          <Button size="sm" onClick={() => setShowConfirm(true)}>Bayar Sekarang</Button>
-          <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())}>
-            <X className="h-4 w-4 mr-1" />Batal
-          </Button>
+          {isBulkPaying && bulkProgress ? (
+            <div className="flex items-center gap-3 min-w-[280px]">
+              <span className="text-sm font-medium shrink-0">
+                Memproses {bulkProgress.done}/{bulkProgress.total}…
+              </span>
+              <Progress value={Math.round((bulkProgress.done / bulkProgress.total) * 100)} className="flex-1 h-2" />
+            </div>
+          ) : (
+            <>
+              <span className="text-sm font-medium">
+                {selectedIds.size} siswa dipilih — Total: <span className="text-primary font-bold">{formatRupiah(selectedTotal)}</span>
+              </span>
+              <Button size="sm" onClick={() => setShowConfirm(true)} disabled={isBulkPaying}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                Bayar Sekarang
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())} disabled={isBulkPaying}>
+                <X className="h-4 w-4 mr-1" />Batal
+              </Button>
+            </>
+          )}
         </div>
       )}
 
@@ -406,8 +451,8 @@ export default function TunggakanPembayaran() {
         open={showConfirm}
         onOpenChange={setShowConfirm}
         title="Konfirmasi Pembayaran Massal"
-        description={`Akan mencatat pembayaran untuk ${selectedRows.length} siswa.\nTotal yang akan dibayar: ${formatRupiah(selectedTotal)}`}
-        confirmLabel="Konfirmasi & Simpan"
+        description={`Akan memproses pembayaran untuk ${selectedRows.length} siswa (${selectedRows.reduce((s, r) => s + r.bulan_tunggak_arr.length, 0)} transaksi).\nTotal: ${formatRupiah(selectedTotal)}\n\nJurnal otomatis akan dibuat dan tagihan diupdate via Edge Function.`}
+        confirmLabel="Konfirmasi & Proses"
         onConfirm={handleBulkPay}
         loading={isBulkPaying}
         variant="default"

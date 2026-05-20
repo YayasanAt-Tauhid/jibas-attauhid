@@ -84,22 +84,64 @@ export default function InputPengeluaran() {
   };
 
   const handleSave = async () => {
+    const nominalBaru = Number(jumlah);
     const values = {
       jenis_id: jenisId,
-      jumlah: Number(jumlah),
+      jumlah: nominalBaru,
       tanggal,
       keterangan: keterangan || undefined,
       departemen_id: formDepartemenId || undefined,
     };
 
+    // ── EDIT: update baris + patch jurnal yang sudah ada ──────────────────
     if (editItem) {
       await updateMut.mutateAsync({ id: editItem.id, ...values });
+
+      // Kalau ada jurnal tertaut, update nominal & detail-nya
+      if (editItem.jurnal?.id) {
+        const jurnalId = editItem.jurnal.id;
+        try {
+          const kasAkunId  = pengaturanAkun?.find((p: any) => p.kode_setting === "kas_pengeluaran")?.akun?.id;
+          // Ambil akun_beban_id: coba dari jenisList lokal, fallback query DB
+          let bebanAkunId = selectedJenis?.akun_beban_id
+            ?? jenisList?.find((j: any) => j.id === jenisId)?.akun_beban_id;
+          if (!bebanAkunId && jenisId) {
+            const { data: jenisDb } = await supabase
+              .from("jenis_pengeluaran")
+              .select("akun_beban_id")
+              .eq("id", jenisId)
+              .maybeSingle();
+            bebanAkunId = (jenisDb as any)?.akun_beban_id;
+          }
+
+          // Update header jurnal
+          await supabase.from("jurnal").update({
+            jumlah: nominalBaru,
+            total_debit: nominalBaru,
+            total_kredit: nominalBaru,
+            tanggal,
+            keterangan: `Pengeluaran ${selectedJenis?.nama || ""}${keterangan ? " - " + keterangan : ""}`,
+          }).eq("id", jurnalId);
+
+          // Re-patch detail jika akun tersedia
+          if (kasAkunId && bebanAkunId) {
+            await supabase.from("jurnal_detail").delete().eq("jurnal_id", jurnalId);
+            await supabase.from("jurnal_detail").insert([
+              { jurnal_id: jurnalId, akun_id: bebanAkunId, keterangan: `Beban ${selectedJenis?.nama || ""}`, debit: nominalBaru, kredit: 0, urutan: 1 },
+              { jurnal_id: jurnalId, akun_id: kasAkunId, keterangan: `Kas pengeluaran ${selectedJenis?.nama || ""}`, debit: 0, kredit: nominalBaru, urutan: 2 },
+            ]);
+          }
+        } catch (e: any) {
+          toast.warning("Pengeluaran diperbarui, tapi jurnal gagal disinkronkan: " + e.message);
+        }
+      }
+
       setDialogOpen(false);
       return;
     }
 
-    // A. Validasi akun untuk auto-jurnal
-    const kasAkunId = pengaturanAkun?.find((p: any) => p.kode_setting === "kas_pengeluaran")?.akun?.id;
+    // ── CREATE: simpan pengeluaran + auto-jurnal ───────────────────────────
+    const kasAkunId   = pengaturanAkun?.find((p: any) => p.kode_setting === "kas_pengeluaran")?.akun?.id;
     const bebanAkunId = selectedJenis?.akun_beban_id;
     const bisaAutoJurnal = kasAkunId && bebanAkunId;
 
@@ -107,10 +149,8 @@ export default function InputPengeluaran() {
       toast.warning("Akun jurnal belum dikonfigurasi. Pengeluaran tersimpan tanpa jurnal otomatis.");
     }
 
-    // B. Simpan pengeluaran
     const result = await createMut.mutateAsync(values);
 
-    // C. Auto-jurnal
     if (bisaAutoJurnal && result?.id) {
       try {
         const tahunPengeluaran = new Date(tanggal).getFullYear();
@@ -130,8 +170,8 @@ export default function InputPengeluaran() {
             keterangan: `Pengeluaran ${jenisNama}${keterangan ? " - " + keterangan : ""}`,
             referensi: result.id,
             departemen_id: formDepartemenId || null,
-            total_debit: Number(jumlah),
-            total_kredit: Number(jumlah),
+            total_debit: nominalBaru,
+            total_kredit: nominalBaru,
             status: "posted",
           })
           .select()
@@ -139,28 +179,10 @@ export default function InputPengeluaran() {
 
         if (!jErr && jurnal) {
           await supabase.from("jurnal_detail").insert([
-            {
-              jurnal_id: jurnal.id,
-              akun_id: bebanAkunId,
-              keterangan: `Beban ${jenisNama}`,
-              debit: Number(jumlah),
-              kredit: 0,
-              urutan: 1,
-            },
-            {
-              jurnal_id: jurnal.id,
-              akun_id: kasAkunId,
-              keterangan: `Kas pengeluaran ${jenisNama}`,
-              debit: 0,
-              kredit: Number(jumlah),
-              urutan: 2,
-            },
+            { jurnal_id: jurnal.id, akun_id: bebanAkunId, keterangan: `Beban ${jenisNama}`, debit: nominalBaru, kredit: 0, urutan: 1 },
+            { jurnal_id: jurnal.id, akun_id: kasAkunId, keterangan: `Kas pengeluaran ${jenisNama}`, debit: 0, kredit: nominalBaru, urutan: 2 },
           ]);
-
-          await supabase
-            .from("pengeluaran")
-            .update({ jurnal_id: jurnal.id })
-            .eq("id", result.id);
+          await supabase.from("pengeluaran").update({ jurnal_id: jurnal.id }).eq("id", result.id);
         }
       } catch (jurnalError: any) {
         console.error("Auto-jurnal gagal:", jurnalError);

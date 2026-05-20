@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      pengumuman: {
+        Row: {
+          id: string
+          judul: string
+          konten: string | null
+          aktif: boolean
+          tanggal_mulai: string | null
+          tanggal_kadaluarsa: string | null
+          dibuat_oleh: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          judul: string
+          konten?: string | null
+          aktif?: boolean
+          tanggal_mulai?: string | null
+          tanggal_kadaluarsa?: string | null
+          dibuat_oleh?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          judul?: string
+          konten?: string | null
+          aktif?: boolean
+          tanggal_mulai?: string | null
+          tanggal_kadaluarsa?: string | null
+          dibuat_oleh?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       _keep_alive_log: {
         Row: {
           id: number
@@ -97,6 +133,20 @@ export type Database = {
             foreignKeyName: "akun_rekening_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "akun_rekening_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "akun_rekening_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -137,6 +187,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "angkatan_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "angkatan_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -202,6 +266,98 @@ export type Database = {
           },
           {
             foreignKeyName: "aset_tetap_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "aset_tetap_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "aset_tetap_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_tagihan_belum_bayar"
+            referencedColumns: ["departemen_id"]
+          },
+        ]
+      }
+      audit_keuangan: {
+        Row: {
+          aksi: string
+          created_at: string
+          data_baru: Json | null
+          data_lama: Json | null
+          departemen_id: string | null
+          dibuat_oleh: string | null
+          id: string
+          keterangan: string | null
+          nama_pengguna: string | null
+          record_id: string
+          tabel_sumber: string
+        }
+        Insert: {
+          aksi: string
+          created_at?: string
+          data_baru?: Json | null
+          data_lama?: Json | null
+          departemen_id?: string | null
+          dibuat_oleh?: string | null
+          id?: string
+          keterangan?: string | null
+          nama_pengguna?: string | null
+          record_id: string
+          tabel_sumber: string
+        }
+        Update: {
+          aksi?: string
+          created_at?: string
+          data_baru?: Json | null
+          data_lama?: Json | null
+          departemen_id?: string | null
+          dibuat_oleh?: string | null
+          id?: string
+          keterangan?: string | null
+          nama_pengguna?: string | null
+          record_id?: string
+          tabel_sumber?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_keuangan_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "departemen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_keuangan_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "audit_keuangan_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "audit_keuangan_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "audit_keuangan_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
@@ -382,6 +538,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jenis_pembayaran_akun_pendapatan_id_fkey"
+            columns: ["akun_pendapatan_id"]
+            isOneToOne: false
+            referencedRelation: "v_saldo_akun_konsolidasi"
+            referencedColumns: ["akun_id"]
+          },
+          {
             foreignKeyName: "jenis_pembayaran_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
@@ -393,6 +556,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "jenis_pembayaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "jenis_pembayaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -441,6 +618,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jenis_pengeluaran_akun_beban_id_fkey"
+            columns: ["akun_beban_id"]
+            isOneToOne: false
+            referencedRelation: "v_saldo_akun_konsolidasi"
+            referencedColumns: ["akun_id"]
+          },
+          {
             foreignKeyName: "jenis_pengeluaran_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
@@ -458,6 +642,20 @@ export type Database = {
             foreignKeyName: "jenis_pengeluaran_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "jenis_pengeluaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "jenis_pengeluaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -469,12 +667,14 @@ export type Database = {
           departemen_id: string | null
           dibuat_oleh: string | null
           id: string
+          jurnal_asal_id: string | null
           keterangan: string
           nomor: string | null
           program_dana_id: string | null
           referensi: string | null
           status: string | null
           tanggal: string
+          tipe: string | null
           total_debit: number | null
           total_kredit: number | null
         }
@@ -483,12 +683,14 @@ export type Database = {
           departemen_id?: string | null
           dibuat_oleh?: string | null
           id?: string
+          jurnal_asal_id?: string | null
           keterangan: string
           nomor?: string | null
           program_dana_id?: string | null
           referensi?: string | null
           status?: string | null
           tanggal: string
+          tipe?: string | null
           total_debit?: number | null
           total_kredit?: number | null
         }
@@ -497,12 +699,14 @@ export type Database = {
           departemen_id?: string | null
           dibuat_oleh?: string | null
           id?: string
+          jurnal_asal_id?: string | null
           keterangan?: string
           nomor?: string | null
           program_dana_id?: string | null
           referensi?: string | null
           status?: string | null
           tanggal?: string
+          tipe?: string | null
           total_debit?: number | null
           total_kredit?: number | null
         }
@@ -525,6 +729,20 @@ export type Database = {
             foreignKeyName: "jurnal_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "jurnal_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "jurnal_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -534,6 +752,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pegawai"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_jurnal_asal_id_fkey"
+            columns: ["jurnal_asal_id"]
+            isOneToOne: false
+            referencedRelation: "jurnal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_jurnal_asal_id_fkey"
+            columns: ["jurnal_asal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
           },
           {
             foreignKeyName: "jurnal_program_dana_id_fkey"
@@ -581,11 +813,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jurnal_detail_akun_id_fkey"
+            columns: ["akun_id"]
+            isOneToOne: false
+            referencedRelation: "v_saldo_akun_konsolidasi"
+            referencedColumns: ["akun_id"]
+          },
+          {
             foreignKeyName: "jurnal_detail_jurnal_id_fkey"
             columns: ["jurnal_id"]
             isOneToOne: false
             referencedRelation: "jurnal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_detail_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
+          },
+        ]
+      }
+      jurnal_pasangan: {
+        Row: {
+          akun_kode: string
+          created_at: string | null
+          dibuat_oleh: string | null
+          id: string
+          jumlah: number
+          jurnal_id_a: string
+          jurnal_id_b: string
+          keterangan: string | null
+        }
+        Insert: {
+          akun_kode: string
+          created_at?: string | null
+          dibuat_oleh?: string | null
+          id?: string
+          jumlah: number
+          jurnal_id_a: string
+          jurnal_id_b: string
+          keterangan?: string | null
+        }
+        Update: {
+          akun_kode?: string
+          created_at?: string | null
+          dibuat_oleh?: string | null
+          id?: string
+          jumlah?: number
+          jurnal_id_a?: string
+          jurnal_id_b?: string
+          keterangan?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jurnal_pasangan_jurnal_id_a_fkey"
+            columns: ["jurnal_id_a"]
+            isOneToOne: false
+            referencedRelation: "jurnal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_pasangan_jurnal_id_a_fkey"
+            columns: ["jurnal_id_a"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
+          },
+          {
+            foreignKeyName: "jurnal_pasangan_jurnal_id_b_fkey"
+            columns: ["jurnal_id_b"]
+            isOneToOne: false
+            referencedRelation: "jurnal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jurnal_pasangan_jurnal_id_b_fkey"
+            columns: ["jurnal_id_b"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
           },
         ]
       }
@@ -639,6 +947,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "kalender_akademik_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "kalender_akademik_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -712,6 +1034,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "kelas_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "kelas_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -1109,6 +1445,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "log_tutup_buku_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
+          },
+          {
             foreignKeyName: "log_tutup_buku_tahun_ajaran_id_fkey"
             columns: ["tahun_ajaran_id"]
             isOneToOne: false
@@ -1165,6 +1508,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "mata_pelajaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "mata_pelajaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -1453,6 +1810,20 @@ export type Database = {
             foreignKeyName: "pegawai_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pegawai_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pegawai_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -1550,6 +1921,20 @@ export type Database = {
             foreignKeyName: "pembayaran_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pembayaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pembayaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -1573,6 +1958,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jurnal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pembayaran_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
           },
           {
             foreignKeyName: "pembayaran_petugas_id_fkey"
@@ -1736,6 +2128,20 @@ export type Database = {
             foreignKeyName: "pendapatan_dimuka_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pendapatan_dimuka_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pendapatan_dimuka_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -1759,6 +2165,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jurnal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pendapatan_dimuka_jurnal_pengakuan_id_fkey"
+            columns: ["jurnal_pengakuan_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
           },
           {
             foreignKeyName: "pendapatan_dimuka_pembayaran_id_fkey"
@@ -1851,6 +2264,13 @@ export type Database = {
             referencedRelation: "akun_rekening"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pengaturan_akun_akun_id_fkey"
+            columns: ["akun_id"]
+            isOneToOne: false
+            referencedRelation: "v_saldo_akun_konsolidasi"
+            referencedColumns: ["akun_id"]
+          },
         ]
       }
       pengaturan_template: {
@@ -1933,6 +2353,20 @@ export type Database = {
             foreignKeyName: "pengeluaran_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pengeluaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pengeluaran_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -1949,6 +2383,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jurnal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pengeluaran_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
           },
           {
             foreignKeyName: "pengeluaran_petugas_id_fkey"
@@ -2024,6 +2465,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pengumuman_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "pengumuman_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -2277,6 +2732,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "presensi_pegawai_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "presensi_pegawai_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -2873,6 +3342,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "saldo_awal_isak35_akun_id_fkey"
+            columns: ["akun_id"]
+            isOneToOne: false
+            referencedRelation: "v_saldo_akun_konsolidasi"
+            referencedColumns: ["akun_id"]
+          },
+          {
             foreignKeyName: "saldo_awal_isak35_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
@@ -2884,6 +3360,20 @@ export type Database = {
             columns: ["departemen_id"]
             isOneToOne: false
             referencedRelation: "v_rekap_keuangan_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "saldo_awal_isak35_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "saldo_awal_isak35_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
             referencedColumns: ["departemen_id"]
           },
           {
@@ -3098,6 +3588,20 @@ export type Database = {
             foreignKeyName: "siswa_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "siswa_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "siswa_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -3292,6 +3796,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jurnal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tagihan_jurnal_piutang_id_fkey"
+            columns: ["jurnal_piutang_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
           },
           {
             foreignKeyName: "tagihan_kelas_id_fkey"
@@ -3504,6 +4015,20 @@ export type Database = {
             foreignKeyName: "tingkat_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "tingkat_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "tingkat_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -3630,6 +4155,20 @@ export type Database = {
             foreignKeyName: "transaksi_midtrans_item_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "transaksi_midtrans_item_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "transaksi_midtrans_item_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -3744,6 +4283,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transaksi_tabungan_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
+          },
+          {
             foreignKeyName: "transaksi_tabungan_petugas_id_fkey"
             columns: ["petugas_id"]
             isOneToOne: false
@@ -3812,6 +4358,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transaksi_tabungan_pegawai_jurnal_id_fkey"
+            columns: ["jurnal_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["jurnal_id"]
+          },
+          {
             foreignKeyName: "transaksi_tabungan_pegawai_pegawai_id_fkey"
             columns: ["pegawai_id"]
             isOneToOne: false
@@ -3877,6 +4430,20 @@ export type Database = {
             foreignKeyName: "users_profile_departemen_id_fkey"
             columns: ["departemen_id"]
             isOneToOne: false
+            referencedRelation: "v_rekon_antar_lembaga"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "users_profile_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
+            referencedRelation: "v_rekon_belum_match"
+            referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "users_profile_departemen_id_fkey"
+            columns: ["departemen_id"]
+            isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
           },
@@ -3915,6 +4482,48 @@ export type Database = {
         }
         Relationships: []
       }
+      v_rekon_antar_lembaga: {
+        Row: {
+          akun_nama: string | null
+          departemen: string | null
+          departemen_id: string | null
+          kode: string | null
+          saldo_neto: number | null
+          total_debit: number | null
+          total_kredit: number | null
+        }
+        Relationships: []
+      }
+      v_rekon_belum_match: {
+        Row: {
+          akun_kode: string | null
+          debit: number | null
+          departemen: string | null
+          departemen_id: string | null
+          jurnal_id: string | null
+          keterangan: string | null
+          kredit: number | null
+          net: number | null
+          nomor: string | null
+          tanggal: string | null
+        }
+        Relationships: []
+      }
+      v_saldo_akun_konsolidasi: {
+        Row: {
+          akun_id: string | null
+          jenis: string | null
+          kode: string | null
+          nama: string | null
+          saldo_awal: number | null
+          saldo_konsolidasi: number | null
+          saldo_normal: string | null
+          saldo_sebelum_eliminasi: number | null
+          total_debit_jurnal: number | null
+          total_kredit_jurnal: number | null
+        }
+        Relationships: []
+      }
       v_tagihan_belum_bayar: {
         Row: {
           bulan: number | null
@@ -3939,6 +4548,33 @@ export type Database = {
       }
     }
     Functions: {
+      fn_cari_kandidat_pasangan: {
+        Args: {
+          p_akun_kode?: string
+          p_hari_toleransi?: number
+          p_jurnal_id: string
+        }
+        Returns: {
+          debit: number
+          departemen: string
+          jurnal_id: string
+          keterangan: string
+          kredit: number
+          net: number
+          nomor: string
+          skor_kecocokan: number
+          tanggal: string
+        }[]
+      }
+      fn_match_jurnal_pasangan: {
+        Args: {
+          p_akun_kode?: string
+          p_hari_toleransi?: number
+          p_jurnal_id: string
+          p_user_id?: string
+        }
+        Returns: Json
+      }
       generate_nomor_jurnal: {
         Args: { p_prefix: string; p_tahun: number }
         Returns: string
@@ -3978,6 +4614,8 @@ export type Database = {
         Returns: boolean
       }
       is_periode_ditutup: { Args: { p_tanggal: string }; Returns: boolean }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never

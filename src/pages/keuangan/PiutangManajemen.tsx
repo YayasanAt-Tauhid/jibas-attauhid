@@ -1,0 +1,600 @@
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { StatsCard } from "@/components/shared/StatsCard";
+import { useLembaga, formatRupiah, BULAN_ORDER_AKADEMIK, namaBulan } from "@/hooks/useKeuangan";
+import { usePengaturanAkun, logAuditKeuangan } from "@/hooks/useJurnal";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+import { Plus, Trash2, AlertTriangle, ShieldAlert, BookOpen, TrendingDown } from "lucide-react";
+
+const now = new Date();
+const currentYear = now.getFullYear();
+const currentMonth = now.getMonth() + 1;
+
+// ─── Hooks ──────────────────────────────────────────────────────────────────
+
+function usePenyisihanList(tahun?: number, departemenId?: string) {
+  return useQuery({
+    queryKey: ["penyisihan_piutang", tahun, departemenId],
+    queryFn: async () => {
+      let q = supabase
+        .from("penyisihan_piutang" as any)
+        .select("*, departemen:departemen_id(kode, nama), jurnal:jurnal_id(nomor, status)")
+        .order("tanggal", { ascending: false });
+      if (tahun) {
+        q = (q as any).gte("tanggal", `${tahun}-01-01`).lte("tanggal", `${tahun}-12-31`);
+      }
+      if (departemenId) q = (q as any).eq("departemen_id", departemenId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+}
+
+function useWriteOffList(tahun?: number, departemenId?: string) {
+  return useQuery({
+    queryKey: ["write_off_piutang", tahun, departemenId],
+    queryFn: async () => {
+      let q = supabase
+        .from("write_off_piutang" as any)
+        .select(`
+          *,
+          siswa:siswa_id(nis, nama),
+          departemen:departemen_id(kode, nama),
+          jurnal:jurnal_id(nomor, status),
+          tagihan:tagihan_id(nominal, bulan, jenis:jenis_id(nama))
+        `)
+        .order("tanggal", { ascending: false });
+      if (tahun) {
+        q = (q as any).gte("tanggal", `${tahun}-01-01`).lte("tanggal", `${tahun}-12-31`);
+      }
+      if (departemenId) q = (q as any).eq("departemen_id", departemenId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+}
+
+// Tagihan belum lunas yang bisa di-write-off
+function useTagihanBelumLunas(departemenId?: string) {
+  return useQuery({
+    queryKey: ["tagihan_belum_lunas_writeoff", departemenId],
+    queryFn: async () => {
+      let q = supabase
+        .from("tagihan")
+        .select(`
+          id, nominal, bulan, status,
+          siswa:siswa_id(id, nis, nama, departemen_id),
+          jenis:jenis_id(nama),
+          tahun_ajaran:tahun_ajaran_id(nama)
+        `)
+        .in("status", ["belum_bayar", "sebagian"])
+        .is("write_off_id", null)
+        .order("created_at", { ascending: true });
+      if (departemenId) {
+        // Filter lewat siswa.departemen_id tidak bisa langsung — ambil semua lalu filter client-side
+      }
+      const { data, error } = await q.limit(500);
+      if (error) throw error;
+      let rows = (data || []) as any[];
+      if (departemenId) {
+        rows = rows.filter((r: any) => r.siswa?.departemen_id === departemenId);
+      }
+      return rows;
+    },
+  });
+}
+
+async function generateNomorJurnal(prefix: string, tahun: number) {
+  const { data, error } = await supabase.rpc("generate_nomor_jurnal", { p_prefix: prefix, p_tahun: tahun });
+  if (error) throw error;
+  if (!data) throw new Error("Gagal mendapatkan nomor jurnal");
+  return data as string;
+}
+
+// ─── Komponen Utama ─────────────────────────────────────────────────────────
+
+export default function PiutangManajemen() {
+  const qc = useQueryClient();
+  const [tahun, setTahun] = useState(currentYear);
+  const [departemenId, setDepartemenId] = useState("");
+  const [activeTab, setActiveTab] = useState("penyisihan");
+
+  // Penyisihan state
+  const [penyisihanOpen, setPenyisihanOpen] = useState(false);
+  const [deletePs, setDeletePs] = useState<string | null>(null);
+  const [psMetode, setPsMetode] = useState<"persentase" | "individual" | "aging">("persentase");
+  const [psTanggal, setPsTanggal] = useState(format(now, "yyyy-MM-dd"));
+  const [psPersentase, setPsPersentase] = useState("");
+  const [psNominal, setPsNominal] = useState("");
+  const [psKeterangan, setPsKeterangan] = useState("");
+  const [psFormDept, setPsFormDept] = useState("");
+
+  // Write-off state
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [woTagihanId, setWoTagihanId] = useState("");
+  const [woTanggal, setWoTanggal] = useState(format(now, "yyyy-MM-dd"));
+  const [woAlasan, setWoAlasan] = useState("");
+  const [woFormDept, setWoFormDept] = useState("");
+  const [woSearch, setWoSearch] = useState("");
+
+  const { data: lembagaList } = useLembaga();
+  const { data: pengaturanAkun } = usePengaturanAkun();
+  const { data: penyisihanList, isLoading: loadPs } = usePenyisihanList(tahun, departemenId || undefined);
+  const { data: writeOffList, isLoading: loadWo } = useWriteOffList(tahun, departemenId || undefined);
+  const { data: tagihanList } = useTagihanBelumLunas(woFormDept || departemenId || undefined);
+
+  // Tagihan yang difilter untuk autocomplete write-off
+  const tagihanFiltered = useMemo(() => {
+    if (!tagihanList) return [];
+    if (!woSearch.trim()) return tagihanList.slice(0, 50);
+    const q = woSearch.toLowerCase();
+    return tagihanList.filter((t: any) =>
+      t.siswa?.nis?.toLowerCase().includes(q) ||
+      t.siswa?.nama?.toLowerCase().includes(q) ||
+      t.jenis?.nama?.toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [tagihanList, woSearch]);
+
+  const selectedTagihan = tagihanList?.find((t: any) => t.id === woTagihanId);
+
+  // Stats
+  const totalPenyisihan = (penyisihanList || []).reduce((s: number, r: any) => s + Number(r.nominal || 0), 0);
+  const totalWriteOff = (writeOffList || []).reduce((s: number, r: any) => s + Number(r.nominal || 0), 0);
+  const jumlahWriteOff = (writeOffList || []).length;
+
+  // ─── Mutation: Buat Penyisihan ───────────────────────────────────────────
+  const createPenyisihan = useMutation({
+    mutationFn: async () => {
+      const akunBeban = pengaturanAkun?.find((p: any) => p.kode_setting === "beban_piutang_macet")?.akun?.id;
+      const akunPenyisihan = pengaturanAkun?.find((p: any) => p.kode_setting === "penyisihan_piutang")?.akun?.id;
+      const nominal = Number(psNominal);
+      if (!nominal || nominal <= 0) throw new Error("Nominal harus lebih dari 0");
+
+      let jurnalId: string | null = null;
+      if (akunBeban && akunPenyisihan) {
+        const tahunPs = new Date(psTanggal).getFullYear();
+        const nomor = await generateNomorJurnal("PS", tahunPs);
+        const ket = psKeterangan || `Penyisihan piutang tak tertagih ${psMetode}`;
+        const { data: jrn, error: jErr } = await supabase.from("jurnal").insert({
+          nomor, tanggal: psTanggal,
+          keterangan: ket,
+          departemen_id: psFormDept || null,
+          total_debit: nominal, total_kredit: nominal,
+          status: "posted",
+        }).select().single();
+        if (jErr) throw jErr;
+        await supabase.from("jurnal_detail").insert([
+          { jurnal_id: (jrn as any).id, akun_id: akunBeban,      debit: nominal, kredit: 0,       keterangan: "Beban kerugian piutang",      urutan: 1 },
+          { jurnal_id: (jrn as any).id, akun_id: akunPenyisihan, debit: 0,       kredit: nominal, keterangan: "Penyisihan piutang tak tertagih", urutan: 2 },
+        ]);
+        jurnalId = (jrn as any).id;
+      }
+
+      const { data, error } = await (supabase.from("penyisihan_piutang" as any).insert({
+        tanggal: psTanggal, metode: psMetode,
+        persentase: psMetode === "persentase" ? Number(psPersentase) : null,
+        nominal, keterangan: psKeterangan || null,
+        departemen_id: psFormDept || null,
+        jurnal_id: jurnalId,
+      }) as any).select().single();
+      if (error) throw error;
+
+      await logAuditKeuangan({ tabel_sumber: "penyisihan_piutang", record_id: (data as any).id,
+        aksi: "CREATE", data_baru: { nominal, metode: psMetode },
+        keterangan: `Penyisihan piutang ${formatRupiah(nominal)}`, departemen_id: psFormDept || undefined });
+
+      if (!akunBeban || !akunPenyisihan) {
+        toast.warning("Penyisihan tersimpan, tapi jurnal tidak dibuat — konfigurasikan akun di Referensi Keuangan.");
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["penyisihan_piutang"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      toast.success("Penyisihan piutang berhasil dicatat");
+      setPenyisihanOpen(false);
+      setPsNominal(""); setPsPersentase(""); setPsKeterangan("");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // ─── Mutation: Hapus Penyisihan ──────────────────────────────────────────
+  const deletePenyisihan = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase.from("penyisihan_piutang" as any).delete().eq("id", id) as any);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["penyisihan_piutang"] }); toast.success("Penyisihan dihapus"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // ─── Mutation: Write-Off Piutang ─────────────────────────────────────────
+  const createWriteOff = useMutation({
+    mutationFn: async () => {
+      if (!woTagihanId) throw new Error("Pilih tagihan yang akan dihapusbukukan");
+      if (!woAlasan.trim()) throw new Error("Alasan wajib diisi");
+      const tagihan = tagihanList?.find((t: any) => t.id === woTagihanId);
+      if (!tagihan) throw new Error("Tagihan tidak ditemukan");
+      const nominal = Number(tagihan.nominal);
+
+      const akunBeban = pengaturanAkun?.find((p: any) => p.kode_setting === "beban_piutang_macet")?.akun?.id;
+      const akunPiutang = pengaturanAkun?.find((p: any) => p.kode_setting === "piutang_siswa")?.akun?.id;
+      const akunPenyisihan = pengaturanAkun?.find((p: any) => p.kode_setting === "penyisihan_piutang")?.akun?.id;
+
+      let jurnalId: string | null = null;
+      if (akunPiutang) {
+        const tahunWo = new Date(woTanggal).getFullYear();
+        const nomor = await generateNomorJurnal("WO", tahunWo);
+        const keterangan = `Write-off piutang: ${tagihan.siswa?.nama || ""} — ${tagihan.jenis?.nama || ""}`;
+
+        // Jika ada akun penyisihan, gunakan itu (hapus buku lewat penyisihan)
+        // Jika tidak, langsung ke beban kerugian
+        const akunLawan = akunPenyisihan || akunBeban;
+        if (!akunLawan) throw new Error("Akun penyisihan / beban kerugian piutang belum dikonfigurasi di Referensi Keuangan");
+
+        const { data: jrn, error: jErr } = await supabase.from("jurnal").insert({
+          nomor, tanggal: woTanggal, keterangan,
+          departemen_id: tagihan.siswa?.departemen_id || null,
+          total_debit: nominal, total_kredit: nominal,
+          status: "posted",
+        }).select().single();
+        if (jErr) throw jErr;
+
+        await supabase.from("jurnal_detail").insert([
+          { jurnal_id: (jrn as any).id, akun_id: akunLawan,  debit: nominal, kredit: 0,       keterangan: akunPenyisihan ? "Penyisihan piutang digunakan" : "Beban kerugian piutang", urutan: 1 },
+          { jurnal_id: (jrn as any).id, akun_id: akunPiutang, debit: 0,       kredit: nominal, keterangan: "Hapus buku piutang siswa", urutan: 2 },
+        ]);
+        jurnalId = (jrn as any).id;
+      }
+
+      // Insert write_off_piutang
+      const { data: wo, error: woErr } = await (supabase.from("write_off_piutang" as any).insert({
+        tagihan_id: woTagihanId,
+        siswa_id: tagihan.siswa_id || tagihan.siswa?.id,
+        departemen_id: tagihan.siswa?.departemen_id || null,
+        tanggal: woTanggal,
+        nominal,
+        alasan: woAlasan,
+        jurnal_id: jurnalId,
+      }) as any).select().single();
+      if (woErr) throw woErr;
+
+      // Update tagihan: status → dihapusbuku, write_off_id
+      await supabase.from("tagihan")
+        .update({ status: "dihapusbuku", write_off_id: (wo as any).id })
+        .eq("id", woTagihanId);
+
+      await logAuditKeuangan({ tabel_sumber: "write_off_piutang", record_id: (wo as any).id,
+        aksi: "CREATE", data_baru: { tagihan_id: woTagihanId, nominal, alasan: woAlasan },
+        keterangan: `Write-off piutang ${tagihan.siswa?.nama} ${formatRupiah(nominal)}` });
+
+      if (!akunPiutang) {
+        toast.warning("Write-off tersimpan, tapi jurnal tidak dibuat — konfigurasikan akun piutang siswa di Referensi Keuangan.");
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["write_off_piutang"] });
+      qc.invalidateQueries({ queryKey: ["tagihan_belum_lunas_writeoff"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      qc.invalidateQueries({ queryKey: ["tunggakan"] });
+      toast.success("Piutang berhasil dihapusbukukan");
+      setWriteOffOpen(false);
+      setWoTagihanId(""); setWoAlasan(""); setWoSearch("");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // ─── Kolom Tabel Penyisihan ───────────────────────────────────────────────
+  const colsPenyisihan: DataTableColumn<any>[] = [
+    { key: "tanggal", label: "Tanggal", sortable: true,
+      render: (v) => v ? format(new Date(v as string), "d MMM yyyy", { locale: idLocale }) : "-" },
+    { key: "metode", label: "Metode",
+      render: (v) => {
+        const map: Record<string, string> = { persentase: "Persentase", individual: "Individual", aging: "Aging" };
+        return <Badge variant="outline">{map[v as string] || (v as string)}</Badge>;
+      }},
+    { key: "persentase", label: "%", render: (v) => v ? `${v}%` : "-" },
+    { key: "nominal", label: "Nominal", render: (v) => formatRupiah(Number(v)) },
+    { key: "departemen", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "-" },
+    { key: "keterangan", label: "Keterangan", render: (v) => (v as string) || "-" },
+    { key: "jurnal", label: "Jurnal",
+      render: (_, r) => {
+        const j = (r as any).jurnal;
+        return j?.nomor
+          ? <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">{j.nomor}</Badge>
+          : <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Belum dijurnal</Badge>;
+      }},
+    { key: "aksi", label: "Aksi",
+      render: (_, r) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletePs((r as any).id)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      )},
+  ];
+
+  // ─── Kolom Tabel Write-Off ─────────────────────────────────────────────────
+  const colsWriteOff: DataTableColumn<any>[] = [
+    { key: "tanggal", label: "Tanggal", sortable: true,
+      render: (v) => v ? format(new Date(v as string), "d MMM yyyy", { locale: idLocale }) : "-" },
+    { key: "siswa", label: "Siswa",
+      render: (_, r) => {
+        const s = (r as any).siswa;
+        return s ? <span>{s.nis} — {s.nama}</span> : "-";
+      }},
+    { key: "tagihan", label: "Tagihan",
+      render: (_, r) => {
+        const t = (r as any).tagihan;
+        if (!t) return "-";
+        const bln = t.bulan ? namaBulan(t.bulan) : "";
+        return <span className="text-xs">{t.jenis?.nama || "-"}{bln ? ` (${bln})` : ""}</span>;
+      }},
+    { key: "nominal", label: "Nominal", render: (v) => formatRupiah(Number(v)) },
+    { key: "departemen", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "-" },
+    { key: "alasan", label: "Alasan", render: (v) => (v as string) || "-" },
+    { key: "jurnal", label: "Jurnal",
+      render: (_, r) => {
+        const j = (r as any).jurnal;
+        return j?.nomor
+          ? <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">{j.nomor}</Badge>
+          : <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Belum dijurnal</Badge>;
+      }},
+  ];
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-4 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Manajemen Piutang</h1>
+          <p className="text-xs text-muted-foreground">Penyisihan piutang tak tertagih &amp; write-off piutang siswa</p>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-3 items-end flex-wrap">
+        <div>
+          <Label className="text-xs">Lembaga</Label>
+          <Select value={departemenId || "__all__"} onValueChange={(v) => setDepartemenId(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="h-8 text-xs w-44"><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Semua Lembaga</SelectItem>
+              {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Tahun</Label>
+          <Input type="number" className="h-8 text-xs w-24" value={tahun} onChange={(e) => setTahun(Number(e.target.value))} />
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatsCard title="Total Penyisihan" value={formatRupiah(totalPenyisihan)} icon={ShieldAlert} color="warning" />
+        <StatsCard title="Total Write-Off" value={formatRupiah(totalWriteOff)} icon={TrendingDown} color="destructive" />
+        <StatsCard title="Transaksi Write-Off" value={jumlahWriteOff} icon={BookOpen} color="info" />
+      </div>
+
+      {/* Peringatan akun belum dikonfigurasi */}
+      {!pengaturanAkun?.find((p: any) => p.kode_setting === "penyisihan_piutang")?.akun?.id && (
+        <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span>
+            Akun <strong>Penyisihan Piutang</strong> dan <strong>Beban Kerugian Piutang</strong> belum dikonfigurasi.
+            Jurnal otomatis tidak akan dibuat. Silakan atur di <strong>Referensi Keuangan → Pengaturan Akun</strong>.
+          </span>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="penyisihan">Penyisihan Piutang</TabsTrigger>
+          <TabsTrigger value="writeoff">Write-Off Piutang</TabsTrigger>
+        </TabsList>
+
+        {/* ── Tab Penyisihan ── */}
+        <TabsContent value="penyisihan" className="space-y-3 mt-3">
+          <div className="flex justify-end">
+            <Button size="sm" className="h-8 text-xs" onClick={() => { setPsFormDept(departemenId || ""); setPenyisihanOpen(true); }}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />Catat Penyisihan
+            </Button>
+          </div>
+          <DataTable columns={colsPenyisihan} data={penyisihanList || []} loading={loadPs}
+            pageSize={20} exportable exportFilename={`penyisihan-piutang-${tahun}`} />
+        </TabsContent>
+
+        {/* ── Tab Write-Off ── */}
+        <TabsContent value="writeoff" className="space-y-3 mt-3">
+          <div className="flex justify-end">
+            <Button size="sm" className="h-8 text-xs" variant="destructive"
+              onClick={() => { setWoFormDept(departemenId || ""); setWriteOffOpen(true); }}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />Hapusbuku Piutang
+            </Button>
+          </div>
+          <DataTable columns={colsWriteOff} data={writeOffList || []} loading={loadWo}
+            pageSize={20} exportable exportFilename={`writeoff-piutang-${tahun}`} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Dialog Penyisihan */}
+      <Dialog open={penyisihanOpen} onOpenChange={setPenyisihanOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-warning" />
+              Catat Penyisihan Piutang Tak Tertagih
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tanggal *</Label>
+                <Input type="date" value={psTanggal} onChange={(e) => setPsTanggal(e.target.value)} />
+              </div>
+              <div>
+                <Label>Lembaga</Label>
+                <Select value={psFormDept || "__all__"} onValueChange={(v) => setPsFormDept(v === "__all__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Semua" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Semua Lembaga</SelectItem>
+                    {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Metode Perhitungan *</Label>
+              <Select value={psMetode} onValueChange={(v) => setPsMetode(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="persentase">Persentase dari total piutang</SelectItem>
+                  <SelectItem value="individual">Individual (per siswa)</SelectItem>
+                  <SelectItem value="aging">Aging schedule (umur piutang)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {psMetode === "persentase" && (
+              <div>
+                <Label>Persentase (%)</Label>
+                <Input type="number" step="0.01" placeholder="mis. 5" value={psPersentase}
+                  onChange={(e) => setPsPersentase(e.target.value)} />
+              </div>
+            )}
+            <div>
+              <Label>Nominal Penyisihan (Rp) *</Label>
+              <Input type="number" placeholder="0" value={psNominal}
+                onChange={(e) => setPsNominal(e.target.value)} />
+              {psNominal && <p className="text-xs text-muted-foreground mt-1">{formatRupiah(Number(psNominal))}</p>}
+            </div>
+            <div>
+              <Label>Keterangan</Label>
+              <Textarea rows={2} placeholder="Dasar pertimbangan penyisihan..." value={psKeterangan}
+                onChange={(e) => setPsKeterangan(e.target.value)} />
+            </div>
+            <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">Jurnal yang akan dibuat (otomatis, status: Posted):</p>
+              <p>Dr. Beban Kerugian Piutang &nbsp;&nbsp;&nbsp;Rp {formatRupiah(Number(psNominal) || 0)}</p>
+              <p>Cr. Penyisihan Piutang Tak Tertagih &nbsp;Rp {formatRupiah(Number(psNominal) || 0)}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPenyisihanOpen(false)}>Batal</Button>
+            <Button onClick={() => createPenyisihan.mutate()} disabled={!psNominal || createPenyisihan.isPending}>
+              {createPenyisihan.isPending ? "Menyimpan..." : "Simpan & Buat Jurnal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Write-Off */}
+      <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              Hapusbuku Piutang Siswa (Write-Off)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs text-destructive">
+              ⚠ Tindakan ini <strong>tidak dapat dibatalkan</strong>. Piutang akan ditandai "dihapusbuku" dan jurnal pembalik akan dibuat.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tanggal Write-Off *</Label>
+                <Input type="date" value={woTanggal} onChange={(e) => setWoTanggal(e.target.value)} />
+              </div>
+              <div>
+                <Label>Filter Lembaga</Label>
+                <Select value={woFormDept || "__all__"} onValueChange={(v) => setWoFormDept(v === "__all__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Semua" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Semua Lembaga</SelectItem>
+                    {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Cari & Pilih Tagihan *</Label>
+              <Input placeholder="Ketik NIS atau nama siswa..." value={woSearch}
+                onChange={(e) => { setWoSearch(e.target.value); setWoTagihanId(""); }}
+                className="mb-1" />
+              <div className="border rounded-md max-h-40 overflow-y-auto text-xs">
+                {tagihanFiltered.length === 0
+                  ? <p className="p-2 text-muted-foreground">Tidak ada tagihan belum lunas</p>
+                  : tagihanFiltered.map((t: any) => (
+                    <button key={t.id}
+                      className={`w-full text-left px-3 py-2 border-b last:border-0 hover:bg-muted/60 transition-colors ${woTagihanId === t.id ? "bg-primary/10 font-semibold" : ""}`}
+                      onClick={() => { setWoTagihanId(t.id); setWoSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
+                      <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
+                      <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                      <span className="float-right font-semibold text-destructive">{formatRupiah(Number(t.nominal))}</span>
+                    </button>
+                  ))
+                }
+              </div>
+            </div>
+
+            {selectedTagihan && (
+              <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">
+                <p className="font-semibold">Detail Tagihan Dipilih:</p>
+                <p>Siswa: <span className="font-medium">{selectedTagihan.siswa?.nama}</span></p>
+                <p>Jenis: <span className="font-medium">{selectedTagihan.jenis?.nama}</span></p>
+                <p>Nominal: <span className="font-semibold text-destructive">{formatRupiah(Number(selectedTagihan.nominal))}</span></p>
+                <p>Tahun Ajaran: <span className="font-medium">{selectedTagihan.tahun_ajaran?.nama}</span></p>
+                <div className="border-t pt-1 mt-1">
+                  <p className="font-medium text-foreground">Jurnal yang akan dibuat:</p>
+                  <p>Dr. Penyisihan Piutang / Beban Kerugian &nbsp;{formatRupiah(Number(selectedTagihan.nominal))}</p>
+                  <p>Cr. Piutang Siswa &nbsp;{formatRupiah(Number(selectedTagihan.nominal))}</p>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label>Alasan Write-Off *</Label>
+              <Textarea rows={2} placeholder="mis. Siswa pindah sekolah, tidak bisa dihubungi..." value={woAlasan}
+                onChange={(e) => setWoAlasan(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setWriteOffOpen(false); setWoTagihanId(""); setWoSearch(""); setWoAlasan(""); }}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={() => createWriteOff.mutate()}
+              disabled={!woTagihanId || !woAlasan.trim() || createWriteOff.isPending}>
+              {createWriteOff.isPending ? "Memproses..." : "Hapusbuku & Buat Jurnal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Hapus Penyisihan */}
+      <ConfirmDialog open={!!deletePs} onOpenChange={() => setDeletePs(null)}
+        title="Hapus Catatan Penyisihan"
+        description="Jurnal terkait tidak akan otomatis dibatalkan. Hapus catatan penyisihan ini?"
+        onConfirm={() => { if (deletePs) deletePenyisihan.mutate(deletePs); setDeletePs(null); }}
+        loading={deletePenyisihan.isPending} />
+    </div>
+  );
+}
