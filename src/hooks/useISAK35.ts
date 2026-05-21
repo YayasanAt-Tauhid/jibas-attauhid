@@ -64,9 +64,13 @@ async function hitungSaldoAkun(tahun: number, departemenIds?: string[]): Promise
   const saldoAwalMap: Record<string, number> = {};
   for (const s of (saldoAwalData as any[]) || []) saldoAwalMap[s.akun_id] = Number(s.saldo || 0);
 
+  // Jika saldo_awal_isak35 kosong untuk tahun ini, gunakan 0 — bukan
+  // akun.saldo_awal. Nilai akun.saldo_awal = saldo akhir tahun sebelumnya
+  // (diset sebagai pembuka tahun berikutnya), bukan saldo awal tahun ini.
+  // Saldo awal tahun ini sudah dicatat lewat jurnal pembuka.
   return (akunList || []).map((akun: any) => {
     const m = mutasi[akun.id] || { debit: 0, kredit: 0 };
-    const saldoAwal = saldoAwalMap[akun.id] ?? Number(akun.saldo_awal || 0);
+    const saldoAwal = saldoAwalMap[akun.id] ?? 0;
     const saldo = akun.saldo_normal === "D"
       ? saldoAwal + m.debit - m.kredit
       : saldoAwal + m.kredit - m.debit;
