@@ -248,25 +248,22 @@ export function useLaporanArusKas(tahun: number, departemenIds?: string[]) {
         }
       }
 
+      const kasIdsArr = Array.from(akunKasIds);
+
+      // kasAwal hanya dari saldo_awal_isak35 (per-tahun, manual).
+      // Tidak fallback ke akun.saldo_awal karena saldo awal kas sudah
+      // dicatat lewat jurnal pembuka — fallback ke akun.saldo_awal
+      // akan double-count nilai yang sama.
       const saldoAwalQ = supabase
         .from("saldo_awal_isak35" as any)
         .select("akun_id, saldo")
-        .eq("tahun", tahun);
+        .eq("tahun", tahun)
+        .in("akun_id", kasIdsArr.length > 0 ? kasIdsArr : ["00000000-0000-0000-0000-000000000000"]);
       if (departemenIds && departemenIds.length > 0) (saldoAwalQ as any).in("departemen_id", departemenIds);
       const { data: saldoAwalRows } = await saldoAwalQ;
-      const saldoAwalMap: Record<string, number> = {};
-      for (const r of (saldoAwalRows as any[]) || []) saldoAwalMap[r.akun_id] = Number(r.saldo || 0);
-
-      const { data: akunSaldoAwal } = await supabase
-        .from("akun_rekening")
-        .select("id, saldo_awal")
-        .in("id", Array.from(akunKasIds).length > 0 ? Array.from(akunKasIds) : ["00000000-0000-0000-0000-000000000000"]);
       let kasAwal = 0;
-      for (const a of (akunSaldoAwal as any[]) || []) {
-        kasAwal += saldoAwalMap[a.id] ?? Number(a.saldo_awal || 0);
-      }
+      for (const r of (saldoAwalRows as any[]) || []) kasAwal += Number(r.saldo || 0);
 
-      const kasIdsArr = Array.from(akunKasIds);
       let allDetails: any[] = [];
       if (kasIdsArr.length > 0) {
         const rpcArusKas: any = { p_tahun: tahun, p_akun_kas_ids: kasIdsArr };

@@ -86,7 +86,7 @@ export default function CatatanLaporanKeuangan() {
             <p>Pendapatan diakui pada saat hak untuk menerima sumber daya telah terpenuhi. Pendapatan diterima di muka (mis. SPP yang dibayar lebih awal) dicatat sebagai <strong>liabilitas</strong> dan diakui sebagai pendapatan secara proporsional pada periode jasa diberikan.</p>
 
             <h4 className="font-semibold mt-2">3.3 Aset Tetap dan Depresiasi</h4>
-            <p>Aset tetap dicatat sebesar harga perolehan dan disusutkan dengan metode <strong>garis lurus</strong> selama umur ekonomis. Beban depresiasi tahun {tahun} sebesar <strong>{formatRupiah(Math.round(posisi?.dep?.totalBeban || 0))}</strong>.</p>
+            <p>Aset tetap dicatat sebesar harga perolehan dan disusutkan dengan metode <strong>garis lurus</strong> selama umur ekonomis. Beban depresiasi tahun {tahun} sebesar <strong>{formatRupiah(Math.round((kompr?.beban || []).filter(a => a.nama.toLowerCase().includes('penyusutan')).reduce((s, a) => s + a.saldo, 0)))}</strong>.</p>
 
             <h4 className="font-semibold mt-2">3.4 Kas dan Setara Kas</h4>
             <p>Kas dan setara kas mencakup kas di tangan dan saldo bank yang dapat segera digunakan. Laporan arus kas disusun dengan <strong>metode langsung</strong>.</p>
