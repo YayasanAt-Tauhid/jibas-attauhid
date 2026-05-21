@@ -20,7 +20,7 @@ export default function LaporanArusKasISAK35() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
   const { data: taList = [] } = useTahunAjaran();
-  const { data, isLoading } = useLaporanArusKas(tahun);
+  const { data, isLoading, isError, error } = useLaporanArusKas(tahun);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
@@ -53,7 +53,7 @@ export default function LaporanArusKasISAK35() {
           <p className="text-xs text-muted-foreground">(Metode Langsung)</p>
         </CardHeader>
         <CardContent>
-          {isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
+          {isError ? <p className="text-destructive text-sm">Gagal memuat data: {(error as any)?.message}</p> : isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
             <div className="space-y-6 max-w-2xl mx-auto">
               <div>
                 <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-2">Arus Kas dari Aktivitas Operasi</h3>

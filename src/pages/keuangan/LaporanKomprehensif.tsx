@@ -15,7 +15,7 @@ export default function LaporanKomprehensif() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
   const { data: taList = [] } = useTahunAjaran();
-  const { data, isLoading } = useLaporanKomprehensif(tahun);
+  const { data, isLoading, isError, error } = useLaporanKomprehensif(tahun);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/);
@@ -41,7 +41,7 @@ export default function LaporanKomprehensif() {
           <p className="text-sm text-muted-foreground">Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
         </CardHeader>
         <CardContent>
-          {isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
+          {isError ? <p className="text-destructive text-sm">Gagal memuat data: {(error as any)?.message}</p> : isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
             <div className="space-y-6 max-w-2xl mx-auto">
               {/* Tanpa Pembatasan */}
               <div>

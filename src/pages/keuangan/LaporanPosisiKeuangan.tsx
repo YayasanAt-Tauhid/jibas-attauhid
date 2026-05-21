@@ -7,11 +7,13 @@ import { useLaporanPosisiKeuangan } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { Printer, AlertTriangle } from "lucide-react";
 
-function Row({ label, value, bold, indent }: { label: string; value: number; bold?: boolean; indent?: boolean }) {
+function Row({ label, value, bold, indent, contraAsset }: { label: string; value: number; bold?: boolean; indent?: boolean; contraAsset?: boolean }) {
   const neg = value < 0;
   const display = neg ? `(${formatRupiah(Math.abs(Math.round(value)))})` : formatRupiah(Math.round(value));
+  // contraAsset: nilai negatif adalah wajar (contra-asset = pengurang), tidak perlu warna merah
+  const colorClass = neg && !contraAsset ? "text-destructive" : "";
   return (
-    <div className={`flex justify-between text-sm ${bold ? "font-bold" : ""} ${indent ? "pl-4" : ""} ${neg ? "text-destructive" : ""}`}>
+    <div className={`flex justify-between text-sm ${bold ? "font-bold" : ""} ${indent ? "pl-4" : ""} ${colorClass}`}>
       <span>{label}</span><span>{display}</span>
     </div>
   );
@@ -24,7 +26,7 @@ export default function LaporanPosisiKeuangan() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
   const { data: taList = [] } = useTahunAjaran();
-  const { data, isLoading } = useLaporanPosisiKeuangan(tahun);
+  const { data, isLoading, isError, error } = useLaporanPosisiKeuangan(tahun);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
@@ -46,7 +48,7 @@ export default function LaporanPosisiKeuangan() {
           <p className="text-sm text-muted-foreground">Per 31 Desember {tahun}</p>
         </CardHeader>
         <CardContent>
-          {isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
+          {isError ? <p className="text-destructive text-sm">Gagal memuat data: {(error as any)?.message}</p> : isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
             <div className="space-y-4 max-w-2xl mx-auto">
               {/* ASET */}
               <h3 className="font-bold text-sm uppercase tracking-wider">ASET</h3>
@@ -60,11 +62,14 @@ export default function LaporanPosisiKeuangan() {
               </div>
               <div className="space-y-1">
                 <p className="font-medium text-sm">Aset Tidak Lancar:</p>
-                {data.asetTidakLancarItems.filter(a => a.saldo !== 0).map(a => (
+                {data.asetTidakLancarItems.filter(a => a.saldo > 0).map(a => (
                   <Row key={a.akun_id} label={a.nama} value={a.saldo} indent />
                 ))}
+                {data.asetTidakLancarItems.filter(a => a.saldo < 0).map(a => (
+                  <Row key={a.akun_id} label={`Dikurangi: ${a.nama}`} value={a.saldo} indent contraAsset />
+                ))}
                 <Divider />
-                <Row label="Total Aset Tidak Lancar" value={data.totalATL} bold />
+                <Row label="Total Aset Tidak Lancar (Nilai Buku)" value={data.totalATL} bold />
               </div>
               <DoubleDivider />
               <Row label="TOTAL ASET" value={data.totalAset} bold />
