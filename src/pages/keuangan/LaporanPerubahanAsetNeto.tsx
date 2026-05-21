@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useLaporanKomprehensif, useLaporanPosisiKeuangan } from "@/hooks/useISAK35";
+import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { Printer } from "lucide-react";
+
+type FilterUnit = "semua" | "pendidikan" | "usaha";
 
 function Rp({ value }: { value: number }) {
   return <span className={value < 0 ? "text-destructive" : ""}>{formatRupiah(Math.round(value))}</span>;
@@ -14,25 +16,32 @@ function Rp({ value }: { value: number }) {
 export default function LaporanPerubahanAsetNeto() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
+  const [filterUnit, setFilterUnit] = useState<FilterUnit>("semua");
   const { data: taList = [] } = useTahunAjaran();
-  const { data: komprehensif, isLoading: l1 } = useLaporanKomprehensif(tahun);
+  const { data: deptGroups } = useDepartemenGroups();
+
+  const departemenIds =
+    filterUnit === "pendidikan" ? deptGroups?.pendidikanIds :
+    filterUnit === "usaha" ? deptGroups?.usahaIds :
+    undefined;
+
+  const { data: komprehensif, isLoading: l1 } = useLaporanKomprehensif(tahun, departemenIds);
   // Saldo awal = saldo akhir tahun sebelumnya (ISAK 35: harus dari periode sebelumnya)
-  const { data: posisiTahunLalu, isLoading: l2 } = useLaporanPosisiKeuangan(tahun - 1);
+  const { data: posisiTahunLalu, isLoading: l2 } = useLaporanPosisiKeuangan(tahun - 1, departemenIds);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
   }).filter(Boolean)])).sort((a: any, b: any) => b - a);
 
   const isLoading = l1 || l2;
-  // Saldo awal aset neto = saldo akhir tahun (tahun - 1)
-  // Memisahkan tidak terikat vs terikat dari saldo akun aset neto tahun sebelumnya
+  const labelUnit = filterUnit === "pendidikan" ? "Unit Pendidikan" : filterUnit === "usaha" ? "Unit Usaha & Dana" : "Semua Unit";
+
   const saldoTPTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
     .filter(a => a.pos_isak35 === "aset_neto_tidak_terikat")
     .reduce((s, a) => s + a.saldo, 0);
   const saldoTBTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
     .filter(a => a.pos_isak35 === "aset_neto_terikat_temporer" || a.pos_isak35 === "aset_neto_terikat_permanen")
     .reduce((s, a) => s + a.saldo, 0);
-  // Tambah surplus berjalan tahun lalu (jika belum ditutup buku)
   const saldoAwalTP = saldoTPTahunLalu + (posisiTahunLalu?.surplusBerjalan || 0);
   const saldoAwalTB = saldoTBTahunLalu + (posisiTahunLalu?.surplusTerbatasBerjalan || 0);
   const surplusTP = komprehensif?.surplusDefisit ?? 0;
@@ -46,6 +55,14 @@ export default function LaporanPerubahanAsetNeto() {
       <div className="flex items-center justify-between print:hidden">
         <h1 className="text-2xl font-bold text-foreground">Laporan Perubahan Aset Neto</h1>
         <div className="flex items-center gap-3">
+          <Select value={filterUnit} onValueChange={v => setFilterUnit(v as FilterUnit)}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Unit</SelectItem>
+              <SelectItem value="pendidikan">Unit Pendidikan</SelectItem>
+              <SelectItem value="usaha">Unit Usaha & Dana</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" /> Cetak</Button>
         </div>
@@ -54,7 +71,7 @@ export default function LaporanPerubahanAsetNeto() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN PERUBAHAN ASET NETO</CardTitle>
-          <p className="text-sm text-muted-foreground">Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
+          <p className="text-sm text-muted-foreground">{labelUnit} — Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-muted-foreground">Memuat...</p> : (

@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useLaporanKomprehensif } from "@/hooks/useISAK35";
+import { useLaporanKomprehensif, useDepartemenGroups } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { Printer } from "lucide-react";
+
+type FilterUnit = "semua" | "pendidikan" | "usaha";
 
 function Nominal({ value, bold }: { value: number; bold?: boolean }) {
   const cls = `text-right ${value < 0 ? "text-destructive" : ""} ${bold ? "font-bold text-base" : ""}`;
@@ -14,19 +16,37 @@ function Nominal({ value, bold }: { value: number; bold?: boolean }) {
 export default function LaporanKomprehensif() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
+  const [filterUnit, setFilterUnit] = useState<FilterUnit>("semua");
   const { data: taList = [] } = useTahunAjaran();
-  const { data, isLoading, isError, error } = useLaporanKomprehensif(tahun);
+  const { data: deptGroups } = useDepartemenGroups();
+
+  const departemenIds =
+    filterUnit === "pendidikan" ? deptGroups?.pendidikanIds :
+    filterUnit === "usaha" ? deptGroups?.usahaIds :
+    undefined;
+
+  const { data, isLoading, isError, error } = useLaporanKomprehensif(tahun, departemenIds);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/);
     return m ? parseInt(m[1]) : null;
   }).filter(Boolean)])).sort((a: any, b: any) => b - a);
 
+  const labelUnit = filterUnit === "pendidikan" ? "Unit Pendidikan" : filterUnit === "usaha" ? "Unit Usaha & Dana" : "Semua Unit";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between print:hidden">
         <h1 className="text-2xl font-bold text-foreground">Laporan Penghasilan Komprehensif</h1>
         <div className="flex items-center gap-3">
+          <Select value={filterUnit} onValueChange={v => setFilterUnit(v as FilterUnit)}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Unit</SelectItem>
+              <SelectItem value="pendidikan">Unit Pendidikan</SelectItem>
+              <SelectItem value="usaha">Unit Usaha & Dana</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
             <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
             <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
@@ -38,7 +58,7 @@ export default function LaporanKomprehensif() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN PENGHASILAN KOMPREHENSIF</CardTitle>
-          <p className="text-sm text-muted-foreground">Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
+          <p className="text-sm text-muted-foreground">{labelUnit} — Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
         </CardHeader>
         <CardContent>
           {isError ? <p className="text-destructive text-sm">Gagal memuat data: {(error as any)?.message}</p> : isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (

@@ -2,18 +2,28 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useLaporanKomprehensif, useLaporanPosisiKeuangan } from "@/hooks/useISAK35";
+import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { useNavigate } from "react-router-dom";
 import { TrendingUp, TrendingDown, DollarSign, Building, FileBarChart, ArrowLeft } from "lucide-react";
 
+type FilterUnit = "semua" | "pendidikan" | "usaha";
+
 export default function RingkasanISAK35() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
+  const [filterUnit, setFilterUnit] = useState<FilterUnit>("semua");
   const { data: taList = [] } = useTahunAjaran();
-  const { data: komprehensif } = useLaporanKomprehensif(tahun);
-  const { data: posisi } = useLaporanPosisiKeuangan(tahun);
+  const { data: deptGroups } = useDepartemenGroups();
   const navigate = useNavigate();
+
+  const departemenIds =
+    filterUnit === "pendidikan" ? deptGroups?.pendidikanIds :
+    filterUnit === "usaha" ? deptGroups?.usahaIds :
+    undefined;
+
+  const { data: komprehensif } = useLaporanKomprehensif(tahun, departemenIds);
+  const { data: posisi } = useLaporanPosisiKeuangan(tahun, departemenIds);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
@@ -34,6 +44,8 @@ export default function RingkasanISAK35() {
     { label: "Catatan atas Lap. Keuangan (CaLK)", url: "/keuangan/isak35/calk" },
   ];
 
+  const labelUnit = filterUnit === "pendidikan" ? "Unit Pendidikan" : filterUnit === "usaha" ? "Unit Usaha & Dana" : "Semua Unit";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -49,13 +61,23 @@ export default function RingkasanISAK35() {
               </Button>
             </div>
             <h1 className="text-2xl font-bold text-foreground">Ringkasan Laporan ISAK 35</h1>
-            <p className="text-sm text-muted-foreground">Laporan keuangan entitas nirlaba — Unit Pendidikan</p>
+            <p className="text-sm text-muted-foreground">Laporan keuangan entitas nirlaba — {labelUnit}</p>
           </div>
         </div>
-        <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-          <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={filterUnit} onValueChange={v => setFilterUnit(v as FilterUnit)}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Unit</SelectItem>
+              <SelectItem value="pendidikan">Unit Pendidikan</SelectItem>
+              <SelectItem value="usaha">Unit Usaha & Dana</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
