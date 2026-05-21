@@ -55,11 +55,11 @@ async function hitungSaldoAkun(tahun: number, departemenIds?: string[]): Promise
     };
   }
 
-  const saldoAwalQuery = supabase
+  let saldoAwalQuery = supabase
     .from("saldo_awal_isak35" as any)
     .select("akun_id, saldo")
     .eq("tahun", tahun);
-  if (departemenIds && departemenIds.length > 0) (saldoAwalQuery as any).in("departemen_id", departemenIds);
+  if (departemenIds && departemenIds.length > 0) saldoAwalQuery = (saldoAwalQuery as any).in("departemen_id", departemenIds);
   const { data: saldoAwalData } = await saldoAwalQuery;
   const saldoAwalMap: Record<string, number> = {};
   for (const s of (saldoAwalData as any[]) || []) saldoAwalMap[s.akun_id] = Number(s.saldo || 0);
@@ -139,23 +139,13 @@ export function useLaporanKomprehensif(tahun: number, departemenIds?: string[]) 
   return useQuery({
     queryKey: ["isak35_komprehensif", tahun, departemenIds],
     queryFn: async () => {
-      const [saldo, dep] = await Promise.all([hitungSaldoAkun(tahun, departemenIds), totalDepresiasi(tahun, departemenIds)]);
+      const saldo = await hitungSaldoAkun(tahun, departemenIds);
 
       const pendapatan = byPos(saldo, "pendapatan_tidak_terikat");
       const totalPendapatan = sumSaldo(pendapatan);
 
-      const bebanAkun = byPos(saldo, "beban_program", "beban_penunjang")
+      const beban = byPos(saldo, "beban_program", "beban_penunjang")
         .filter(a => !EXCLUDE_BEBAN_TRANSFER.includes(a.kode));
-      const bebanDepresiasiItem: SaldoAkun | null = dep.totalBeban > 0 ? {
-        akun_id: "__depresiasi__",
-        kode: "DEP",
-        nama: "Beban Depresiasi Aset Tetap",
-        pos_isak35: "beban_penunjang",
-        saldo_normal: "D",
-        urutan_isak35: 9999,
-        saldo: dep.totalBeban,
-      } : null;
-      const beban = bebanDepresiasiItem ? [...bebanAkun, bebanDepresiasiItem] : bebanAkun;
       const totalBeban = sumSaldo(beban);
 
       const surplusDefisit = totalPendapatan - totalBeban;
@@ -180,7 +170,6 @@ export function useLaporanKomprehensif(tahun: number, departemenIds?: string[]) 
         surplusTerbatas,
         pkl,
         totalKomprehensif: surplusDefisit + surplusTerbatas + pkl,
-        dep,
       };
     },
   });
@@ -190,7 +179,7 @@ export function useLaporanPosisiKeuangan(tahun: number, departemenIds?: string[]
   return useQuery({
     queryKey: ["isak35_posisi", tahun, departemenIds],
     queryFn: async () => {
-      const [saldo, dep] = await Promise.all([hitungSaldoAkun(tahun, departemenIds), totalDepresiasi(tahun, departemenIds)]);
+      const saldo = await hitungSaldoAkun(tahun, departemenIds);
 
       const asetLancarItems = byPos(saldo, "aset_lancar");
       const totalAL = sumSaldo(asetLancarItems);
@@ -216,7 +205,7 @@ export function useLaporanPosisiKeuangan(tahun: number, departemenIds?: string[]
       const bebanTT = sumSaldo(
         byPos(saldo, "beban_program", "beban_penunjang")
           .filter(a => !EXCLUDE_BEBAN_TRANSFER.includes(a.kode))
-      ) + dep.totalBeban;
+      );
       const surplusBerjalan = pendapatanTT - bebanTT;
 
       const pendapatanTerbatas = sumSaldo(byPos(saldo, "pendapatan_terikat_temporer", "pendapatan_terikat_permanen"));
@@ -238,7 +227,6 @@ export function useLaporanPosisiKeuangan(tahun: number, departemenIds?: string[]
         surplusBerjalan, surplusTerbatasBerjalan,
         totalAsetNeto,
         selisih,
-        dep,
       };
     },
   });
