@@ -2,6 +2,30 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// ============================================================
+// TIPE FILTER PERIODE — bisa per tahun atau rentang tanggal
+// ============================================================
+export type PeriodeFilter =
+  | { type: "tahun"; tahun: number }
+  | { type: "range"; tglAwal: string; tglAkhir: string };
+
+/** Ambil tahun dari filter (digunakan untuk lookup saldo_awal_isak35) */
+function filterTahunSaldoAwal(filter: PeriodeFilter): number {
+  return filter.type === "tahun" ? filter.tahun : parseInt(filter.tglAwal.substring(0, 4));
+}
+
+/** Label periode untuk judul laporan */
+export function periodeLabel(filter: PeriodeFilter): string {
+  if (filter.type === "tahun") return `Untuk Tahun yang Berakhir pada 31 Desember ${filter.tahun}`;
+  return `Untuk Periode ${filter.tglAwal} s.d. ${filter.tglAkhir}`;
+}
+
+/** Label singkat posisi keuangan ("Per 31 Des 2025" atau "Per {tglAkhir}") */
+export function posisiLabel(filter: PeriodeFilter): string {
+  if (filter.type === "tahun") return `Per 31 Desember ${filter.tahun}`;
+  return `Per ${filter.tglAkhir}`;
+}
+
 // Kode departemen yang termasuk Unit Pendidikan
 export const UNIT_PENDIDIKAN_KODE = ["TK", "SD", "SMP", "SMA", "MTA", "PDK", "UM"];
 
@@ -38,7 +62,7 @@ interface SaldoAkun {
   saldo: number;
 }
 
-async function hitungSaldoAkun(tahun: number, departemenIds?: string[]): Promise<SaldoAkun[]> {
+async function hitungSaldoAkun(filter: PeriodeFilter, departemenIds?: string[]): Promise<SaldoAkun[]> {
   const { data: akunList, error: akunErr } = await supabase
     .from("akun_rekening")
     .select("id, kode, nama, pos_isak35, saldo_normal, urutan_isak35, saldo_awal")
@@ -47,40 +71,55 @@ async function hitungSaldoAkun(tahun: number, departemenIds?: string[]): Promise
     .order("urutan_isak35");
   if (akunErr) throw akunErr;
 
-  const rpcParams: { p_tahun: number; p_departemen_ids?: string[] } = { p_tahun: tahun };
-  if (departemenIds && departemenIds.length > 0) rpcParams.p_departemen_ids = departemenIds;
-  const { data: mutasiRows, error: mutasiErr } = await (supabase as any)
-    .rpc("hitung_mutasi_akun", rpcParams);
-  if (mutasiErr) throw mutasiErr;
+  // ── Hitung mutasi sesuai mode filter ─────────────────────────
+  let mutasiRows: any[];
+  if (filter.type === "tahun") {
+    const rpcParams: any = { p_tahun: filter.tahun };
+    if (departemenIds && departemenIds.length > 0) rpcParams.p_departemen_ids = departemenIds;
+    const { data, error } = await (supabase as any).rpc("hitung_mutasi_akun", rpcParams);
+    if (error) throw error;
+    mutasiRows = data || [];
+  } else {
+    const rpcParams: any = { p_tgl_awal: filter.tglAwal, p_tgl_akhir: filter.tglAkhir };
+    if (departemenIds && departemenIds.length > 0) rpcParams.p_departemen_ids = departemenIds;
+    const { data, error } = await (supabase as any).rpc("hitung_mutasi_akun_range", rpcParams);
+    if (error) throw error;
+    mutasiRows = data || [];
+  }
 
   const mutasi: Record<string, { debit: number; kredit: number }> = {};
-  for (const d of (mutasiRows as any[]) || []) {
+  for (const d of mutasiRows) {
     mutasi[d.akun_id] = {
       debit:  Number(d.total_debit  || 0),
       kredit: Number(d.total_kredit || 0),
     };
   }
 
+  // ── Saldo awal — selalu diambil berdasarkan tahun awal periode ─
+  // (Untuk range, gunakan tahun dari tglAwal)
+  const tahunSaldoAwal = filterTahunSaldoAwal(filter);
   let saldoAwalQuery = supabase
     .from("saldo_awal_isak35" as any)
     .select("akun_id, saldo")
-    .eq("tahun", tahun);
-  if (departemenIds && departemenIds.length > 0) saldoAwalQuery = (saldoAwalQuery as any).in("departemen_id", departemenIds);
+    .eq("tahun", tahunSaldoAwal);
+  if (departemenIds && departemenIds.length > 0)
+    saldoAwalQuery = (saldoAwalQuery as any).in("departemen_id", departemenIds);
   const { data: saldoAwalData } = await saldoAwalQuery;
   const saldoAwalMap: Record<string, number> = {};
   for (const s of (saldoAwalData as any[]) || []) saldoAwalMap[s.akun_id] = Number(s.saldo || 0);
 
-  // Jika saldo_awal_isak35 kosong untuk tahun ini, gunakan 0 — bukan
-  // akun.saldo_awal. Nilai akun.saldo_awal = saldo akhir tahun sebelumnya
-  // (diset sebagai pembuka tahun berikutnya), bukan saldo awal tahun ini.
-  // Saldo awal tahun ini sudah dicatat lewat jurnal pembuka.
+  // Jika saldo_awal_isak35 kosong untuk tahun ini, gunakan 0 — bukan akun.saldo_awal.
   return (akunList || []).map((akun: any) => {
     const m = mutasi[akun.id] || { debit: 0, kredit: 0 };
     const saldoAwal = saldoAwalMap[akun.id] ?? 0;
     const saldo = akun.saldo_normal === "D"
       ? saldoAwal + m.debit - m.kredit
       : saldoAwal + m.kredit - m.debit;
-    return { akun_id: akun.id, kode: akun.kode, nama: akun.nama, pos_isak35: akun.pos_isak35, saldo_normal: akun.saldo_normal, urutan_isak35: akun.urutan_isak35, saldo };
+    return {
+      akun_id: akun.id, kode: akun.kode, nama: akun.nama,
+      pos_isak35: akun.pos_isak35, saldo_normal: akun.saldo_normal,
+      urutan_isak35: akun.urutan_isak35, saldo,
+    };
   });
 }
 
@@ -114,8 +153,6 @@ async function totalDepresiasi(tahun: number, departemenIds?: string[]) {
 
 // ============================================================
 // Akun yang di-EXCLUDE dari laporan ISAK 35
-// - 1901: Rekening Antar Lembaga → rekening internal, bukan aset riil
-// - 1902: Rekening Antar Bagian  → rekening internal, bukan aset riil
 // ============================================================
 const EXCLUDE_BEBAN_TRANSFER: string[] = [];
 const EXCLUDE_ASET_INTERNAL  = ["1901", "1902"];
@@ -145,11 +182,11 @@ async function getAkunMeta(): Promise<Record<string, AkunMeta>> {
   return map;
 }
 
-export function useLaporanKomprehensif(tahun: number, departemenIds?: string[]) {
+export function useLaporanKomprehensif(filter: PeriodeFilter, departemenIds?: string[]) {
   return useQuery({
-    queryKey: ["isak35_komprehensif", tahun, departemenIds],
+    queryKey: ["isak35_komprehensif", filter, departemenIds],
     queryFn: async () => {
-      const saldo = await hitungSaldoAkun(tahun, departemenIds);
+      const saldo = await hitungSaldoAkun(filter, departemenIds);
 
       const pendapatan = byPos(saldo, "pendapatan_tidak_terikat");
       const totalPendapatan = sumSaldo(pendapatan);
@@ -185,11 +222,19 @@ export function useLaporanKomprehensif(tahun: number, departemenIds?: string[]) 
   });
 }
 
-export function useLaporanPosisiKeuangan(tahun: number, departemenIds?: string[]) {
+export function useLaporanPosisiKeuangan(filter: PeriodeFilter, departemenIds?: string[]) {
+  // Untuk mode range: laporan posisi keuangan (neraca) menyajikan saldo KUMULATIF
+  // s.d. tglAkhir. Agar hasilnya benar, mutasi dihitung dari 1 Jan tahun tglAkhir
+  // hingga tglAkhir (bukan dari tglAwal yang mungkin di tengah tahun).
+  const normalizedFilter: PeriodeFilter =
+    filter.type === "range"
+      ? { type: "range", tglAwal: `${filter.tglAkhir.substring(0, 4)}-01-01`, tglAkhir: filter.tglAkhir }
+      : filter;
+
   return useQuery({
-    queryKey: ["isak35_posisi", tahun, departemenIds],
+    queryKey: ["isak35_posisi", filter, departemenIds],
     queryFn: async () => {
-      const saldo = await hitungSaldoAkun(tahun, departemenIds);
+      const saldo = await hitungSaldoAkun(normalizedFilter, departemenIds);
 
       const asetLancarItems = byPos(saldo, "aset_lancar");
       const totalAL = sumSaldo(asetLancarItems);
@@ -245,9 +290,9 @@ export function useLaporanPosisiKeuangan(tahun: number, departemenIds?: string[]
 // ============================================================
 // LAPORAN ARUS KAS — METODE LANGSUNG (ISAK 35)
 // ============================================================
-export function useLaporanArusKas(tahun: number, departemenIds?: string[]) {
+export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[]) {
   return useQuery({
-    queryKey: ["isak35_arus_kas_direct", tahun, departemenIds],
+    queryKey: ["isak35_arus_kas_direct", filter, departemenIds],
     queryFn: async () => {
       const akunMeta = await getAkunMeta();
 
@@ -259,15 +304,13 @@ export function useLaporanArusKas(tahun: number, departemenIds?: string[]) {
       }
 
       const kasIdsArr = Array.from(akunKasIds);
+      const tahunSaldoAwal = filterTahunSaldoAwal(filter);
 
-      // kasAwal hanya dari saldo_awal_isak35 (per-tahun, manual).
-      // Tidak fallback ke akun.saldo_awal karena saldo awal kas sudah
-      // dicatat lewat jurnal pembuka — fallback ke akun.saldo_awal
-      // akan double-count nilai yang sama.
+      // kasAwal dari saldo_awal_isak35 (tahun awal periode)
       const saldoAwalQ = supabase
         .from("saldo_awal_isak35" as any)
         .select("akun_id, saldo")
-        .eq("tahun", tahun)
+        .eq("tahun", tahunSaldoAwal)
         .in("akun_id", kasIdsArr.length > 0 ? kasIdsArr : ["00000000-0000-0000-0000-000000000000"]);
       if (departemenIds && departemenIds.length > 0) (saldoAwalQ as any).in("departemen_id", departemenIds);
       const { data: saldoAwalRows } = await saldoAwalQ;
@@ -276,12 +319,18 @@ export function useLaporanArusKas(tahun: number, departemenIds?: string[]) {
 
       let allDetails: any[] = [];
       if (kasIdsArr.length > 0) {
-        const rpcArusKas: any = { p_tahun: tahun, p_akun_kas_ids: kasIdsArr };
-        if (departemenIds && departemenIds.length > 0) rpcArusKas.p_departemen_ids = departemenIds;
-        const { data: detailRows, error: detErr } = await (supabase as any)
-          .rpc("get_detail_jurnal_kas", rpcArusKas);
+        let detailRows: any[], detErr: any;
+        if (filter.type === "tahun") {
+          const rpc: any = { p_tahun: filter.tahun, p_akun_kas_ids: kasIdsArr };
+          if (departemenIds && departemenIds.length > 0) rpc.p_departemen_ids = departemenIds;
+          ({ data: detailRows, error: detErr } = await (supabase as any).rpc("get_detail_jurnal_kas", rpc));
+        } else {
+          const rpc: any = { p_tgl_awal: filter.tglAwal, p_tgl_akhir: filter.tglAkhir, p_akun_kas_ids: kasIdsArr };
+          if (departemenIds && departemenIds.length > 0) rpc.p_departemen_ids = departemenIds;
+          ({ data: detailRows, error: detErr } = await (supabase as any).rpc("get_detail_jurnal_kas_range", rpc));
+        }
         if (detErr) throw detErr;
-        allDetails = (detailRows as any[]) || [];
+        allDetails = detailRows || [];
       }
 
       const perJurnal: Record<string, any[]> = {};
@@ -326,9 +375,9 @@ export function useLaporanArusKas(tahun: number, departemenIds?: string[]) {
         if (sisiKas.length === 0) continue;
         const sisiLawan = rows.filter(r => !akunKasIds.has(r.akun_id));
 
-        const totalKasDebit = sisiKas.reduce((s, r) => s + Number(r.debit || 0), 0);
+        const totalKasDebit  = sisiKas.reduce((s, r) => s + Number(r.debit  || 0), 0);
         const totalKasKredit = sisiKas.reduce((s, r) => s + Number(r.kredit || 0), 0);
-        const totalLawanDebit = sisiLawan.reduce((s, r) => s + Number(r.debit || 0), 0);
+        const totalLawanDebit  = sisiLawan.reduce((s, r) => s + Number(r.debit  || 0), 0);
         const totalLawanKredit = sisiLawan.reduce((s, r) => s + Number(r.kredit || 0), 0);
 
         const netKas = totalKasDebit - totalKasKredit;
@@ -366,10 +415,10 @@ export function useLaporanArusKas(tahun: number, departemenIds?: string[]) {
         }
       }
 
-      const arusOperasi = acc.operasiPenerimaan - acc.operasiPengeluaran;
+      const arusOperasi   = acc.operasiPenerimaan   - acc.operasiPengeluaran;
       const arusInvestasi = acc.investasiPenerimaan - acc.investasiPengeluaran;
       const arusPendanaan = acc.pendanaanPenerimaan - acc.pendanaanPengeluaran;
-      const kenaikanKas = arusOperasi + arusInvestasi + arusPendanaan;
+      const kenaikanKas   = arusOperasi + arusInvestasi + arusPendanaan;
 
       return {
         penerimaanOperasi: acc.operasiPenerimaan,

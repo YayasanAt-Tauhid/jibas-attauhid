@@ -2,13 +2,17 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Printer } from "lucide-react";
 import { useTahunAjaran, formatRupiah } from "@/hooks/useKeuangan";
-import { useLaporanPosisiKeuangan, useLaporanKomprehensif, useDepartemenGroups } from "@/hooks/useISAK35";
+import { useLaporanPosisiKeuangan, useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel, posisiLabel } from "@/hooks/useISAK35";
 
 export default function CatatanLaporanKeuangan() {
   const currentYear = new Date().getFullYear();
+  const [modePeriode, setModePeriode] = useState<"tahun" | "range">("tahun");
   const [tahun, setTahun] = useState(currentYear);
+  const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
+  const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
@@ -21,8 +25,12 @@ export default function CatatanLaporanKeuangan() {
     allDepts.some(d => d.id === filterUnit) ? [filterUnit] :
     undefined;
 
-  const { data: posisi } = useLaporanPosisiKeuangan(tahun, departemenIds);
-  const { data: kompr } = useLaporanKomprehensif(tahun, departemenIds);
+  const filter: PeriodeFilter = modePeriode === "tahun"
+    ? { type: "tahun", tahun }
+    : { type: "range", tglAwal, tglAkhir };
+
+  const { data: posisi } = useLaporanPosisiKeuangan(filter, departemenIds);
+  const { data: kompr } = useLaporanKomprehensif(filter, departemenIds);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
@@ -34,11 +42,36 @@ export default function CatatanLaporanKeuangan() {
     filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
     allDepts.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
+  const tahunLabel = modePeriode === "tahun" ? tahun : parseInt(tglAkhir.substring(0, 4));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between print:hidden">
         <h1 className="text-2xl font-bold text-foreground">Catatan atas Laporan Keuangan (CaLK)</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* Toggle mode periode */}
+          <div className="flex rounded-md border overflow-hidden text-sm">
+            <button
+              className={`px-3 py-1.5 ${modePeriode === "tahun" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              onClick={() => setModePeriode("tahun")}>Per Tahun</button>
+            <button
+              className={`px-3 py-1.5 ${modePeriode === "range" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              onClick={() => setModePeriode("range")}>Rentang Tanggal</button>
+          </div>
+
+          {modePeriode === "tahun" ? (
+            <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Input type="date" className="w-36 h-9" value={tglAwal} onChange={e => setTglAwal(e.target.value)} />
+              <span className="text-muted-foreground text-sm">s.d.</span>
+              <Input type="date" className="w-36 h-9" value={tglAkhir} onChange={e => setTglAkhir(e.target.value)} />
+            </div>
+          )}
+
           <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
             <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -61,10 +94,6 @@ export default function CatatanLaporanKeuangan() {
               </SelectGroup>
             </SelectContent>
           </Select>
-          <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-          </Select>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" /> Cetak</Button>
         </div>
       </div>
@@ -72,7 +101,7 @@ export default function CatatanLaporanKeuangan() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-lg">CATATAN ATAS LAPORAN KEUANGAN</CardTitle>
-          <p className="text-sm text-muted-foreground">{labelUnit} — Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
+          <p className="text-sm text-muted-foreground">{labelUnit} — {periodeLabel(filter)}</p>
           <p className="text-xs text-muted-foreground">Sesuai ISAK 35 Paragraf 19</p>
         </CardHeader>
         <CardContent className="prose prose-sm max-w-3xl mx-auto space-y-6">
@@ -86,7 +115,7 @@ export default function CatatanLaporanKeuangan() {
             <ul className="list-disc pl-6 space-y-1">
               <li>Laporan keuangan disusun atas dasar <strong>akrual</strong> dan menggunakan konsep <strong>biaya historis</strong>, kecuali dinyatakan lain.</li>
               <li>Mata uang pelaporan adalah Rupiah (Rp).</li>
-              <li>Periode pelaporan adalah satu tahun yang berakhir pada 31 Desember {tahun}.</li>
+              <li>Periode pelaporan: <strong>{periodeLabel(filter)}</strong>.</li>
               <li>Komponen laporan keuangan terdiri dari: Laporan Posisi Keuangan, Laporan Penghasilan Komprehensif, Laporan Perubahan Aset Neto, Laporan Arus Kas (metode langsung), dan Catatan atas Laporan Keuangan.</li>
             </ul>
           </section>
@@ -105,7 +134,7 @@ export default function CatatanLaporanKeuangan() {
             <p>Pendapatan diakui pada saat hak untuk menerima sumber daya telah terpenuhi. Pendapatan diterima di muka (mis. SPP yang dibayar lebih awal) dicatat sebagai <strong>liabilitas</strong> dan diakui sebagai pendapatan secara proporsional pada periode jasa diberikan.</p>
 
             <h4 className="font-semibold mt-2">3.3 Aset Tetap dan Depresiasi</h4>
-            <p>Aset tetap dicatat sebesar harga perolehan dan disusutkan dengan metode <strong>garis lurus</strong> selama umur ekonomis. Beban depresiasi tahun {tahun} sebesar <strong>{formatRupiah(Math.round((kompr?.beban || []).filter(a => a.nama.toLowerCase().includes('penyusutan')).reduce((s, a) => s + a.saldo, 0)))}</strong>.</p>
+            <p>Aset tetap dicatat sebesar harga perolehan dan disusutkan dengan metode <strong>garis lurus</strong> selama umur ekonomis. Beban depresiasi periode ini sebesar <strong>{formatRupiah(Math.round((kompr?.beban || []).filter(a => a.nama.toLowerCase().includes('penyusutan')).reduce((s, a) => s + a.saldo, 0)))}</strong>.</p>
 
             <h4 className="font-semibold mt-2">3.4 Kas dan Setara Kas</h4>
             <p>Kas dan setara kas mencakup kas di tangan dan saldo bank yang dapat segera digunakan. Laporan arus kas disusun dengan <strong>metode langsung</strong>.</p>

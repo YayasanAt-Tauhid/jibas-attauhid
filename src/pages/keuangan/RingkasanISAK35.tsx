@@ -2,14 +2,18 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups } from "@/hooks/useISAK35";
+import { Input } from "@/components/ui/input";
+import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { useNavigate } from "react-router-dom";
 import { TrendingUp, TrendingDown, DollarSign, Building, FileBarChart, ArrowLeft } from "lucide-react";
 
 export default function RingkasanISAK35() {
   const currentYear = new Date().getFullYear();
+  const [modePeriode, setModePeriode] = useState<"tahun" | "range">("tahun");
   const [tahun, setTahun] = useState(currentYear);
+  const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
+  const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
@@ -23,12 +27,22 @@ export default function RingkasanISAK35() {
     allDepts.some(d => d.id === filterUnit) ? [filterUnit] :
     undefined;
 
-  const { data: komprehensif } = useLaporanKomprehensif(tahun, departemenIds);
-  const { data: posisi } = useLaporanPosisiKeuangan(tahun, departemenIds);
+  const filter: PeriodeFilter = modePeriode === "tahun"
+    ? { type: "tahun", tahun }
+    : { type: "range", tglAwal, tglAkhir };
+
+  const { data: komprehensif } = useLaporanKomprehensif(filter, departemenIds);
+  const { data: posisi } = useLaporanPosisiKeuangan(filter, departemenIds);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
   }).filter(Boolean)])).sort((a: any, b: any) => b - a);
+
+  const labelUnit =
+    filterUnit === "semua" ? "Gabungan Semua Unit" :
+    filterUnit === "pendidikan" ? "Unit Pendidikan (Gabungan)" :
+    filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
+    allDepts.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
   const cards = [
     { title: "Total Pendapatan", value: komprehensif?.totalPendapatan ?? 0, icon: TrendingUp, color: "text-emerald-600" },
@@ -44,12 +58,6 @@ export default function RingkasanISAK35() {
     { label: "Arus Kas", url: "/keuangan/isak35/arus-kas" },
     { label: "Catatan atas Lap. Keuangan (CaLK)", url: "/keuangan/isak35/calk" },
   ];
-
-  const labelUnit =
-    filterUnit === "semua" ? "Gabungan Semua Unit" :
-    filterUnit === "pendidikan" ? "Unit Pendidikan (Gabungan)" :
-    filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
-    allDepts.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
   return (
     <div className="space-y-6">
@@ -69,7 +77,30 @@ export default function RingkasanISAK35() {
             <p className="text-sm text-muted-foreground">Laporan keuangan entitas nirlaba — {labelUnit}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Toggle mode periode */}
+          <div className="flex rounded-md border overflow-hidden text-sm">
+            <button
+              className={`px-3 py-1.5 ${modePeriode === "tahun" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              onClick={() => setModePeriode("tahun")}>Per Tahun</button>
+            <button
+              className={`px-3 py-1.5 ${modePeriode === "range" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              onClick={() => setModePeriode("range")}>Rentang Tanggal</button>
+          </div>
+
+          {modePeriode === "tahun" ? (
+            <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Input type="date" className="w-36 h-9" value={tglAwal} onChange={e => setTglAwal(e.target.value)} />
+              <span className="text-muted-foreground text-sm">s.d.</span>
+              <Input type="date" className="w-36 h-9" value={tglAkhir} onChange={e => setTglAkhir(e.target.value)} />
+            </div>
+          )}
+
           <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
             <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -92,12 +123,10 @@ export default function RingkasanISAK35() {
               </SelectGroup>
             </SelectContent>
           </Select>
-          <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-          </Select>
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground -mt-2">{periodeLabel(filter)}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map(c => (

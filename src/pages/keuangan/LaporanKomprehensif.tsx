@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useLaporanKomprehensif, useDepartemenGroups } from "@/hooks/useISAK35";
+import { Input } from "@/components/ui/input";
+import { useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { Printer, EyeOff, Eye } from "lucide-react";
 
@@ -13,7 +14,10 @@ function Nominal({ value, bold }: { value: number; bold?: boolean }) {
 
 export default function LaporanKomprehensif() {
   const currentYear = new Date().getFullYear();
+  const [modePeriode, setModePeriode] = useState<"tahun" | "range">("tahun");
   const [tahun, setTahun] = useState(currentYear);
+  const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
+  const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
   const [sembunyikanNol, setSembunyikanNol] = useState(true);
   const { data: taList = [] } = useTahunAjaran();
@@ -27,7 +31,11 @@ export default function LaporanKomprehensif() {
     allDepts.some(d => d.id === filterUnit) ? [filterUnit] :
     undefined;
 
-  const { data, isLoading, isError, error } = useLaporanKomprehensif(tahun, departemenIds);
+  const filter: PeriodeFilter = modePeriode === "tahun"
+    ? { type: "tahun", tahun }
+    : { type: "range", tglAwal, tglAkhir };
+
+  const { data, isLoading, isError, error } = useLaporanKomprehensif(filter, departemenIds);
 
   const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
     const m = t.nama?.match(/(\d{4})/);
@@ -44,7 +52,30 @@ export default function LaporanKomprehensif() {
     <div className="space-y-6">
       <div className="flex items-center justify-between print:hidden">
         <h1 className="text-2xl font-bold text-foreground">Laporan Penghasilan Komprehensif</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* Toggle mode periode */}
+          <div className="flex rounded-md border overflow-hidden text-sm">
+            <button
+              className={`px-3 py-1.5 ${modePeriode === "tahun" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              onClick={() => setModePeriode("tahun")}>Per Tahun</button>
+            <button
+              className={`px-3 py-1.5 ${modePeriode === "range" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              onClick={() => setModePeriode("range")}>Rentang Tanggal</button>
+          </div>
+
+          {modePeriode === "tahun" ? (
+            <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Input type="date" className="w-36 h-9" value={tglAwal} onChange={e => setTglAwal(e.target.value)} />
+              <span className="text-muted-foreground text-sm">s.d.</span>
+              <Input type="date" className="w-36 h-9" value={tglAkhir} onChange={e => setTglAkhir(e.target.value)} />
+            </div>
+          )}
+
           <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
             <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -67,10 +98,6 @@ export default function LaporanKomprehensif() {
               </SelectGroup>
             </SelectContent>
           </Select>
-          <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-          </Select>
           <Button variant="outline" onClick={() => setSembunyikanNol(v => !v)} className="print:hidden">
             {sembunyikanNol ? <><Eye className="h-4 w-4 mr-2" /> Tampilkan Rp 0</> : <><EyeOff className="h-4 w-4 mr-2" /> Sembunyikan Rp 0</>}
           </Button>
@@ -81,7 +108,7 @@ export default function LaporanKomprehensif() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN PENGHASILAN KOMPREHENSIF</CardTitle>
-          <p className="text-sm text-muted-foreground">{labelUnit} — Untuk Tahun yang Berakhir pada 31 Desember {tahun}</p>
+          <p className="text-sm text-muted-foreground">{labelUnit} — {periodeLabel(filter)}</p>
         </CardHeader>
         <CardContent>
           {isError ? <p className="text-destructive text-sm">Gagal memuat data: {(error as any)?.message}</p> : isLoading || !data ? <p className="text-muted-foreground">Memuat...</p> : (
