@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { useLaporanKomprehensif, useDepartemenGroups } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
-import { Printer } from "lucide-react";
+import { Printer, EyeOff, Eye } from "lucide-react";
 
 function Nominal({ value, bold }: { value: number; bold?: boolean }) {
   const cls = `text-right ${value < 0 ? "text-destructive" : ""} ${bold ? "font-bold text-base" : ""}`;
@@ -15,6 +15,7 @@ export default function LaporanKomprehensif() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
   const [filterUnit, setFilterUnit] = useState("semua");
+  const [sembunyikanNol, setSembunyikanNol] = useState(true);
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
 
@@ -70,6 +71,9 @@ export default function LaporanKomprehensif() {
             <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
             <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => setSembunyikanNol(v => !v)} className="print:hidden">
+            {sembunyikanNol ? <><Eye className="h-4 w-4 mr-2" /> Tampilkan Rp 0</> : <><EyeOff className="h-4 w-4 mr-2" /> Sembunyikan Rp 0</>}
+          </Button>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" /> Cetak</Button>
         </div>
       </div>
@@ -87,14 +91,14 @@ export default function LaporanKomprehensif() {
                 <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">Tanpa Pembatasan dari Pemberi Sumber Daya</h3>
                 <div className="space-y-1">
                   <p className="font-medium text-sm">Pendapatan:</p>
-                  {data.pendapatan.map(a => (
+                  {data.pendapatan.filter(a => !sembunyikanNol || a.saldo !== 0).map(a => (
                     <div key={a.akun_id} className="flex justify-between text-sm pl-4"><span>{a.nama}</span><Nominal value={a.saldo} /></div>
                   ))}
                   <div className="flex justify-between font-semibold text-sm border-t pt-1"><span>Total Pendapatan</span><Nominal value={data.totalPendapatan} /></div>
                 </div>
                 <div className="space-y-1 mt-4">
                   <p className="font-medium text-sm">Beban:</p>
-                  {data.beban.map(a => (
+                  {data.beban.filter(a => !sembunyikanNol || a.saldo !== 0).map(a => (
                     <div key={a.akun_id} className="flex justify-between text-sm pl-4"><span>{a.nama}</span><Nominal value={a.saldo} /></div>
                   ))}
                   <div className="flex justify-between font-semibold text-sm border-t pt-1"><span>Total Beban</span><Nominal value={data.totalBeban} /></div>
@@ -109,14 +113,14 @@ export default function LaporanKomprehensif() {
                 <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-3">Dengan Pembatasan dari Pemberi Sumber Daya</h3>
                 <div className="space-y-1">
                   <p className="font-medium text-sm">Pendapatan:</p>
-                  {data.pendapatanTerbatas.map(a => (
+                  {data.pendapatanTerbatas.filter(a => !sembunyikanNol || a.saldo !== 0).map(a => (
                     <div key={a.akun_id} className="flex justify-between text-sm pl-4"><span>{a.nama}</span><Nominal value={a.saldo} /></div>
                   ))}
                   <div className="flex justify-between font-semibold text-sm border-t pt-1"><span>Total Pendapatan Terbatas</span><Nominal value={data.totalPT} /></div>
                 </div>
                 <div className="space-y-1 mt-4">
                   <p className="font-medium text-sm">Beban:</p>
-                  {data.bebanTerbatas.map(a => (
+                  {data.bebanTerbatas.filter(a => !sembunyikanNol || a.saldo !== 0).map(a => (
                     <div key={a.akun_id} className="flex justify-between text-sm pl-4"><span>{a.nama}</span><Nominal value={a.saldo} /></div>
                   ))}
                   <div className="flex justify-between font-semibold text-sm border-t pt-1"><span>Total Beban Terbatas</span><Nominal value={data.totalBT} /></div>
@@ -128,7 +132,9 @@ export default function LaporanKomprehensif() {
 
               {/* PKL & Total */}
               <div className="border-t-2 border-foreground pt-3 space-y-2">
-                <div className="flex justify-between text-sm"><span>Penghasilan Komprehensif Lain</span><Nominal value={data.pkl} /></div>
+                {(!sembunyikanNol || data.pkl !== 0) && (
+                  <div className="flex justify-between text-sm"><span>Penghasilan Komprehensif Lain</span><Nominal value={data.pkl} /></div>
+                )}
                 <div className="flex justify-between font-bold text-lg border-t-2 border-foreground pt-2">
                   <span>TOTAL PENGHASILAN KOMPREHENSIF</span><Nominal value={data.totalKomprehensif} bold />
                 </div>
