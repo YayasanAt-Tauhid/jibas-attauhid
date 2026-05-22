@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLaporanPosisiKeuangan, useDepartemenGroups } from "@/hooks/useISAK35";
@@ -25,15 +25,16 @@ function DoubleDivider() { return <div className="border-t-2 border-foreground m
 export default function LaporanPosisiKeuangan() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
-  const [filterUnit, setFilterUnit] = useState("pendidikan");
+  const [filterUnit, setFilterUnit] = useState("semua");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
 
-  const isUsahaDept = deptGroups?.usahaDepts?.some(d => d.id === filterUnit) ?? false;
+  const allDepts = [...(deptGroups?.pendidikanDepts ?? []), ...(deptGroups?.usahaDepts ?? [])];
   const departemenIds =
+    filterUnit === "semua" ? undefined :
     filterUnit === "pendidikan" ? deptGroups?.pendidikanIds :
     filterUnit === "usaha" ? deptGroups?.usahaIds :
-    isUsahaDept ? [filterUnit] :
+    allDepts.some(d => d.id === filterUnit) ? [filterUnit] :
     undefined;
 
   const { data, isLoading, isError, error } = useLaporanPosisiKeuangan(tahun, departemenIds);
@@ -43,9 +44,10 @@ export default function LaporanPosisiKeuangan() {
   }).filter(Boolean)])).sort((a: any, b: any) => b - a);
 
   const labelUnit =
-    filterUnit === "pendidikan" ? "Unit Pendidikan" :
+    filterUnit === "semua" ? "Gabungan Semua Unit" :
+    filterUnit === "pendidikan" ? "Unit Pendidikan (Gabungan)" :
     filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
-    deptGroups?.usahaDepts?.find(d => d.id === filterUnit)?.nama ?? filterUnit;
+    allDepts.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
   return (
     <div className="space-y-6">
@@ -53,13 +55,25 @@ export default function LaporanPosisiKeuangan() {
         <h1 className="text-2xl font-bold text-foreground">Laporan Posisi Keuangan</h1>
         <div className="flex items-center gap-3">
           <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="pendidikan">Unit Pendidikan</SelectItem>
-              <SelectItem value="usaha">Unit Usaha & Dana (Gabungan)</SelectItem>
-              {deptGroups?.usahaDepts?.map(d => (
-                <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
-              ))}
+              <SelectItem value="semua">Gabungan Semua Unit</SelectItem>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Unit Pendidikan</SelectLabel>
+                <SelectItem value="pendidikan">— Gabungan Pendidikan</SelectItem>
+                {deptGroups?.pendidikanDepts?.map(d => (
+                  <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Unit Usaha & Dana</SelectLabel>
+                <SelectItem value="usaha">— Gabungan Usaha & Dana</SelectItem>
+                {deptGroups?.usahaDepts?.map(d => (
+                  <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
           <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
