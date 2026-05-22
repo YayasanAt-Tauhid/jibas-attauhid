@@ -6,19 +6,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
-import { ExportButton } from "@/components/shared/ExportButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useKelas } from "@/hooks/useAkademikData";
-import { useJenisPembayaran, useRekapKeuanganPerLembaga, useLembaga, formatRupiah, namaBulan, BULAN_NAMES, BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
+import { useJenisPembayaran, useLembaga, formatRupiah, namaBulan, BULAN_NAMES, BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { Building2, CheckCircle, GraduationCap, FileBarChart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+
 
 const now = new Date();
 
@@ -73,14 +71,12 @@ export default function LaporanKeuangan() {
           <TabsTrigger value="pengeluaran">Pengeluaran</TabsTrigger>
           <TabsTrigger value="rekap-spp">Rekap SPP Bulanan</TabsTrigger>
           <TabsTrigger value="ringkasan-kas">Ringkasan Kas</TabsTrigger>
-          <TabsTrigger value="konsolidasi">Konsolidasi Lembaga</TabsTrigger>
         </TabsList>
 
         <TabsContent value="penerimaan"><TabPenerimaan departemenId={deptId} /></TabsContent>
         <TabsContent value="pengeluaran"><TabPengeluaran departemenId={deptId} /></TabsContent>
         <TabsContent value="rekap-spp"><TabRekapSPP departemenId={deptId} /></TabsContent>
         <TabsContent value="ringkasan-kas"><TabNeraca departemenId={deptId} /></TabsContent>
-        <TabsContent value="konsolidasi"><TabKonsolidasi /></TabsContent>
       </Tabs>
     </div>
   );
@@ -561,91 +557,3 @@ function TabNeraca({ departemenId }: { departemenId?: string }) {
   );
 }
 
-function TabKonsolidasi() {
-  const [tahun, setTahun] = useState(new Date().getFullYear());
-  const { data: rekapLembaga, isLoading } = useRekapKeuanganPerLembaga(tahun);
-
-  const totalPemasukan = rekapLembaga?.reduce((s, r) => s + r.totalPemasukan, 0) || 0;
-  const totalPengeluaran = rekapLembaga?.reduce((s, r) => s + r.totalPengeluaran, 0) || 0;
-  const totalSaldo = totalPemasukan - totalPengeluaran;
-
-  const chartData = rekapLembaga?.map((r) => ({
-    name: r.kode || r.lembaga,
-    Pemasukan: r.totalPemasukan,
-    Pengeluaran: r.totalPengeluaran,
-  })) || [];
-
-  return (
-    <div className="space-y-4 pt-4">
-      <div className="flex gap-3 items-end">
-        <div>
-          <Label>Tahun</Label>
-          <Input type="number" className="w-24" value={tahun} onChange={(e) => setTahun(Number(e.target.value))} />
-        </div>
-        <ExportButton data={rekapLembaga || []} filename={`konsolidasi-yayasan-${tahun}`} />
-      </div>
-
-      {isLoading ? <Skeleton className="h-64" /> : (
-        <Card>
-          <CardContent className="pt-6 space-y-6">
-            <div className="text-center">
-              <h2 className="text-lg font-bold">LAPORAN KONSOLIDASI KEUANGAN YAYASAN</h2>
-              <p className="text-sm text-muted-foreground">Periode: Tahun {tahun}</p>
-            </div>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lembaga</TableHead>
-                  <TableHead className="text-right">Total Pemasukan</TableHead>
-                  <TableHead className="text-right">Total Pengeluaran</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rekapLembaga?.map((r) => (
-                  <TableRow key={r.departemen_id}>
-                    <TableCell>
-                      <span className="font-medium text-primary">{r.kode}</span>{" "}
-                      {r.lembaga}
-                    </TableCell>
-                    <TableCell className="text-right">{formatRupiah(r.totalPemasukan)}</TableCell>
-                    <TableCell className="text-right">{formatRupiah(r.totalPengeluaran)}</TableCell>
-                    <TableCell className={`text-right font-semibold ${r.saldo >= 0 ? "text-success" : "text-destructive"}`}>
-                      {formatRupiah(r.saldo)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow className="font-bold">
-                  <TableCell>TOTAL YAYASAN</TableCell>
-                  <TableCell className="text-right">{formatRupiah(totalPemasukan)}</TableCell>
-                  <TableCell className="text-right">{formatRupiah(totalPengeluaran)}</TableCell>
-                  <TableCell className={`text-right ${totalSaldo >= 0 ? "text-success" : "text-destructive"}`}>
-                    {formatRupiah(totalSaldo)}
-                  </TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-
-            {/* Bar chart per lembaga */}
-            <div className="pt-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}jt`} />
-                  <Tooltip formatter={(v: number) => formatRupiah(v)} />
-                  <Legend />
-                  <Bar dataKey="Pemasukan" fill="hsl(var(--success))" radius={[4,4,0,0]} />
-                  <Bar dataKey="Pengeluaran" fill="hsl(var(--destructive))" radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
