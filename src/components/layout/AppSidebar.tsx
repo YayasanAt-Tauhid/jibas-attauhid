@@ -130,7 +130,6 @@ const menuItems: MenuItem[] = [
         items: [
           { title: "Jurnal Umum", url: "/keuangan/jurnal" },
           { title: "Buku Besar", url: "/keuangan/buku-besar" },
-          { title: "Rekon Antar Lembaga", url: "/keuangan/rekon-antar-lembaga" },
           { title: "Manajemen Piutang", url: "/keuangan/piutang" },
           { title: "Aset Tetap", url: "/keuangan/aset-tetap" },
           { title: "Tutup Buku", url: "/keuangan/tutup-buku" },

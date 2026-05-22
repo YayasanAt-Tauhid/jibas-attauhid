@@ -95,8 +95,7 @@ import NotifikasiGateway from "./pages/pengaturan/NotifikasiGateway";
 import BackupExport from "./pages/pengaturan/BackupExport";
 import MigrasiData from "./pages/pengaturan/MigrasiData";
 import CekKesehatan from "./pages/pengaturan/CekKesehatan";
-// Keuangan - Rekonsiliasi
-import RekonsiliasiAntarLembaga from "./pages/keuangan/RekonsiliasiAntarLembaga";
+// Keuangan - Piutang
 import PiutangManajemen from "./pages/keuangan/PiutangManajemen";
 
 const queryClient = new QueryClient();
@@ -180,7 +179,6 @@ const App = () => (
                   <Route path="/keuangan/audit-perubahan" element={<AuditPerubahanData />} />
                   <Route path="/keuangan/pengakuan-pendapatan" element={<PengakuanPendapatan />} />
                   <Route path="/keuangan/aset-tetap" element={<AsetTetap />} />
-                  <Route path="/keuangan/rekon-antar-lembaga" element={<RekonsiliasiAntarLembaga />} />
                   <Route path="/keuangan/piutang" element={<PiutangManajemen />} />
                   <Route path="/keuangan/isak35" element={<RingkasanISAK35 />} />
                   <Route path="/keuangan/isak35/komprehensif" element={<LaporanKomprehensif />} />
