@@ -7,8 +7,6 @@ import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups }
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { Printer } from "lucide-react";
 
-type FilterUnit = "semua" | "pendidikan" | "usaha";
-
 function Rp({ value }: { value: number }) {
   return <span className={value < 0 ? "text-destructive" : ""}>{formatRupiah(Math.round(value))}</span>;
 }
@@ -16,13 +14,15 @@ function Rp({ value }: { value: number }) {
 export default function LaporanPerubahanAsetNeto() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
-  const [filterUnit, setFilterUnit] = useState<FilterUnit>("semua");
+  const [filterUnit, setFilterUnit] = useState("pendidikan");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
 
+  const isUsahaDept = deptGroups?.usahaDepts?.some(d => d.id === filterUnit) ?? false;
   const departemenIds =
     filterUnit === "pendidikan" ? deptGroups?.pendidikanIds :
     filterUnit === "usaha" ? deptGroups?.usahaIds :
+    isUsahaDept ? [filterUnit] :
     undefined;
 
   const { data: komprehensif, isLoading: l1 } = useLaporanKomprehensif(tahun, departemenIds);
@@ -34,7 +34,10 @@ export default function LaporanPerubahanAsetNeto() {
   }).filter(Boolean)])).sort((a: any, b: any) => b - a);
 
   const isLoading = l1 || l2;
-  const labelUnit = filterUnit === "pendidikan" ? "Unit Pendidikan" : filterUnit === "usaha" ? "Unit Usaha & Dana" : "Semua Unit";
+  const labelUnit =
+    filterUnit === "pendidikan" ? "Unit Pendidikan" :
+    filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
+    deptGroups?.usahaDepts?.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
   const saldoTPTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
     .filter(a => a.pos_isak35 === "aset_neto_tidak_terikat")
@@ -55,12 +58,14 @@ export default function LaporanPerubahanAsetNeto() {
       <div className="flex items-center justify-between print:hidden">
         <h1 className="text-2xl font-bold text-foreground">Laporan Perubahan Aset Neto</h1>
         <div className="flex items-center gap-3">
-          <Select value={filterUnit} onValueChange={v => setFilterUnit(v as FilterUnit)}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="semua">Semua Unit</SelectItem>
               <SelectItem value="pendidikan">Unit Pendidikan</SelectItem>
-              <SelectItem value="usaha">Unit Usaha & Dana</SelectItem>
+              <SelectItem value="usaha">Unit Usaha & Dana (Gabungan)</SelectItem>
+              {deptGroups?.usahaDepts?.map(d => (
+                <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>

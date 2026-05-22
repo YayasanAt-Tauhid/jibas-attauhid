@@ -11,12 +11,15 @@ export function useDepartemenGroups() {
     queryFn: async () => {
       const { data } = await supabase
         .from("departemen")
-        .select("id, kode")
+        .select("id, kode, nama")
         .eq("aktif", true);
       const rows = (data as any[]) || [];
       const pendidikanIds = rows.filter(d => UNIT_PENDIDIKAN_KODE.includes(d.kode)).map(d => d.id);
-      const usahaIds = rows.filter(d => !UNIT_PENDIDIKAN_KODE.includes(d.kode)).map(d => d.id);
-      return { pendidikanIds, usahaIds };
+      const usahaDepts: { id: string; kode: string; nama: string }[] = rows
+        .filter(d => !UNIT_PENDIDIKAN_KODE.includes(d.kode))
+        .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
+      const usahaIds = usahaDepts.map(d => d.id);
+      return { pendidikanIds, usahaIds, usahaDepts };
     },
     staleTime: Infinity,
   });

@@ -7,19 +7,19 @@ import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
 import { useNavigate } from "react-router-dom";
 import { TrendingUp, TrendingDown, DollarSign, Building, FileBarChart, ArrowLeft } from "lucide-react";
 
-type FilterUnit = "semua" | "pendidikan" | "usaha";
-
 export default function RingkasanISAK35() {
   const currentYear = new Date().getFullYear();
   const [tahun, setTahun] = useState(currentYear);
-  const [filterUnit, setFilterUnit] = useState<FilterUnit>("semua");
+  const [filterUnit, setFilterUnit] = useState("pendidikan");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
   const navigate = useNavigate();
 
+  const isUsahaDept = deptGroups?.usahaDepts?.some(d => d.id === filterUnit) ?? false;
   const departemenIds =
     filterUnit === "pendidikan" ? deptGroups?.pendidikanIds :
     filterUnit === "usaha" ? deptGroups?.usahaIds :
+    isUsahaDept ? [filterUnit] :
     undefined;
 
   const { data: komprehensif } = useLaporanKomprehensif(tahun, departemenIds);
@@ -44,7 +44,10 @@ export default function RingkasanISAK35() {
     { label: "Catatan atas Lap. Keuangan (CaLK)", url: "/keuangan/isak35/calk" },
   ];
 
-  const labelUnit = filterUnit === "pendidikan" ? "Unit Pendidikan" : filterUnit === "usaha" ? "Unit Usaha & Dana" : "Semua Unit";
+  const labelUnit =
+    filterUnit === "pendidikan" ? "Unit Pendidikan" :
+    filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
+    deptGroups?.usahaDepts?.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
   return (
     <div className="space-y-6">
@@ -65,12 +68,14 @@ export default function RingkasanISAK35() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={filterUnit} onValueChange={v => setFilterUnit(v as FilterUnit)}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="semua">Semua Unit</SelectItem>
               <SelectItem value="pendidikan">Unit Pendidikan</SelectItem>
-              <SelectItem value="usaha">Unit Usaha & Dana</SelectItem>
+              <SelectItem value="usaha">Unit Usaha & Dana (Gabungan)</SelectItem>
+              {deptGroups?.usahaDepts?.map(d => (
+                <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
