@@ -104,6 +104,7 @@ const menuItems: MenuItem[] = [
           { title: "Pembayaran PSB", url: "/keuangan/pembayaran-psb", roles: ["admin", "kepala_sekolah", "keuangan"] },
           { title: "Penerimaan Lain", url: "/keuangan/penerimaan-lain", roles: ["admin", "kepala_sekolah", "keuangan"] },
           { title: "Pengeluaran", url: "/keuangan/pengeluaran", roles: ["admin", "kepala_sekolah", "keuangan"] },
+          { title: "Kas Kecil", url: "/keuangan/kas-kecil", roles: ["admin", "kepala_sekolah", "keuangan"] },
           { title: "Online Payment", url: "/keuangan/online-payment", roles: ["admin", "kepala_sekolah", "keuangan"] },
           { title: "Tabungan Siswa", url: "/keuangan/tabungan", roles: ["admin", "kepala_sekolah", "keuangan"] },
           { title: "Tabungan Pegawai", url: "/keuangan/tabungan-pegawai", roles: ["admin", "kepala_sekolah", "keuangan"] },
