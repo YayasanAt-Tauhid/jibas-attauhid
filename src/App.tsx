@@ -97,6 +97,7 @@ import MigrasiData from "./pages/pengaturan/MigrasiData";
 import CekKesehatan from "./pages/pengaturan/CekKesehatan";
 // Keuangan - Piutang
 import PiutangManajemen from "./pages/keuangan/PiutangManajemen";
+import CekKejanggalan from "./pages/keuangan/CekKejanggalan";
 
 const queryClient = new QueryClient();
 
@@ -186,6 +187,7 @@ const App = () => (
                   <Route path="/keuangan/isak35/arus-kas" element={<LaporanArusKasISAK35 />} />
                   <Route path="/keuangan/isak35/perubahan-aset-neto" element={<LaporanPerubahanAsetNeto />} />
                   <Route path="/keuangan/isak35/calk" element={<CatatanLaporanKeuangan />} />
+                  <Route path="/keuangan/cek-kejanggalan" element={<CekKejanggalan />} />
                 </Route>
                 {/* Kepegawaian */}
                 <Route path="/kepegawaian" element={<Kepegawaian />} />
