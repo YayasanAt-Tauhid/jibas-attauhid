@@ -75,7 +75,7 @@ export default function LaporanPerubahanAsetNeto() {
   const saldoAkhirTB = saldoAwalTB + surplusTB;
 
   const periodeAwal = modePeriode === "tahun"
-    ? `1 Jan ${tahun}`
+    ? `1 Jan ${namaTampil}`
     : tglAwal;
 
   return (
