@@ -203,6 +203,14 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
         if (lockErr) throw new Error(`Gagal mengunci tahun ajaran: ${lockErr.message}`);
       }
 
+      // Otomatis isi saldo_awal_isak35 untuk tahun berikutnya
+      await (supabase as any).rpc("isi_saldo_awal_isak35", {
+        p_tahun_ditutup: tahun,
+        p_tgl_mulai:     selectedTA.tanggal_mulai,
+        p_tgl_selesai:   selectedTA.tanggal_selesai,
+        p_kategori:      cfg.kategori,
+      });
+
       return selectedTA.nama;
     },
     onSuccess: (nama) => {
