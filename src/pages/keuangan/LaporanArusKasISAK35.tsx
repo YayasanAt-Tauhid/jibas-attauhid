@@ -20,12 +20,19 @@ function Row({ label, value, bold, indent }: { label: string; value: number; bol
 export default function LaporanArusKasISAK35() {
   const currentYear = new Date().getFullYear();
   const [modePeriode, setModePeriode] = useState<"tahun" | "range">("tahun");
-  const [tahun, setTahun] = useState(currentYear);
+  const [selectedNama, setSelectedNama] = useState("");
   const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
+
+  const taOptions = taList
+    .filter((t: any) => t.tanggal_selesai)
+    .sort((a: any, b: any) => b.tanggal_selesai.localeCompare(a.tanggal_selesai));
+
+  const selectedTA = taOptions.find((t: any) => t.nama === selectedNama) ?? taOptions[0];
+  const namaTampil = selectedTA?.nama ?? String(currentYear);
 
   const allDepts = [...(deptGroups?.pendidikanDepts ?? []), ...(deptGroups?.usahaDepts ?? [])];
   const departemenIds =
@@ -35,16 +42,11 @@ export default function LaporanArusKasISAK35() {
     allDepts.some(d => d.id === filterUnit) ? [filterUnit] :
     undefined;
 
-  const filter: PeriodeFilter = modePeriode === "tahun"
-    ? { type: "tahun", tahun }
+  const filter: PeriodeFilter = modePeriode === "tahun" && selectedTA
+    ? { type: "range", tglAwal: selectedTA.tanggal_mulai, tglAkhir: selectedTA.tanggal_selesai }
     : { type: "range", tglAwal, tglAkhir };
 
   const { data, isLoading, isError, error } = useLaporanArusKas(filter, departemenIds);
-
-  const years = taList
-    .filter((t: any) => t.tanggal_selesai)
-    .map((t: any) => ({ tahun: new Date(t.tanggal_selesai).getFullYear(), label: t.nama }))
-    .sort((a: any, b: any) => b.tahun - a.tahun);
 
   const labelUnit =
     filterUnit === "semua" ? "Gabungan Semua Unit" :
@@ -71,9 +73,9 @@ export default function LaporanArusKasISAK35() {
           </div>
 
           {modePeriode === "tahun" ? (
-            <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{years.map((item: any) => <SelectItem key={item.tahun} value={String(item.tahun)}>{item.label}</SelectItem>)}</SelectContent>
+            <Select value={selectedTA?.nama ?? ""} onValueChange={setSelectedNama}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>{taOptions.map((t: any) => <SelectItem key={t.id} value={t.nama}>{t.nama}</SelectItem>)}</SelectContent>
             </Select>
           ) : (
             <div className="flex items-center gap-1">
@@ -120,7 +122,7 @@ export default function LaporanArusKasISAK35() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN ARUS KAS</CardTitle>
-          <p className="text-sm text-muted-foreground">{labelUnit} — {periodeLabel(filter)}</p>
+          <p className="text-sm text-muted-foreground">{labelUnit} — {modePeriode === "tahun" ? namaTampil : periodeLabel(filter)}</p>
           <p className="text-xs text-muted-foreground">(Metode Langsung)</p>
         </CardHeader>
         <CardContent>
