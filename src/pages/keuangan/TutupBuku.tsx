@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useTahunAjaran, formatRupiah } from "@/hooks/useKeuangan";
+import { useTahunBuku, formatRupiah } from "@/hooks/useKeuangan";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Lock, AlertTriangle, TrendingUp, TrendingDown, DollarSign, History, GraduationCap, Briefcase } from "lucide-react";
@@ -38,7 +38,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
   const qc = useQueryClient();
   const cfg = UNIT_CONFIG[unitKey];
 
-  const { data: taList } = useTahunAjaran();
+  const { data: taList } = useTahunBuku();
   const selectedTA = taList?.find((t: any) => t.id === tahunId);
 
   const { data: akunAsetNeto } = useQuery({
@@ -62,7 +62,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
       const { data } = await supabase
         .from("log_tutup_buku" as any)
         .select("*")
-        .eq("tahun_ajaran_id", tahunId)
+        .eq("tahun_buku_id", tahunId)
         .eq("unit", cfg.unitKey)
         .order("tanggal_proses", { ascending: false })
         .limit(1)
@@ -186,7 +186,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
 
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("log_tutup_buku" as any).insert({
-        tahun_ajaran_id: selectedTA.id,
+        tahun_buku_id: selectedTA.id,
         user_id: user?.id,
         total_laba_rugi: labaRugi,
         jurnal_id: jurnalId,
@@ -194,13 +194,12 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
         keterangan: `Tutup buku ${cfg.label} — ${selectedTA.nama}. Surplus/Defisit: ${formatRupiah(labaRugi)}`,
       });
 
-      // Jika unit_pendidikan: kunci tahun ajaran (ditutup = true)
+      // Jika unit_pendidikan: kunci tahun buku (ditutup = true)
       if (unitKey === "unit_pendidikan") {
-        const { error: lockErr } = await supabase
-          .from("tahun_ajaran")
+        const { error: lockErr } = await (supabase.from("tahun_buku" as any) as any)
           .update({ ditutup: true })
           .eq("id", selectedTA.id);
-        if (lockErr) throw new Error(`Gagal mengunci tahun ajaran: ${lockErr.message}`);
+        if (lockErr) throw new Error(`Gagal mengunci tahun buku: ${lockErr.message}`);
       }
 
       // Otomatis isi saldo_awal_isak35 untuk tahun berikutnya
@@ -217,7 +216,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
       qc.invalidateQueries({ queryKey: ["log_tutup_buku_unit", tahunId, unitKey] });
       qc.invalidateQueries({ queryKey: ["saldo_akun_unit", tahunId, unitKey] });
       qc.invalidateQueries({ queryKey: ["log_tutup_buku"] });
-      qc.invalidateQueries({ queryKey: ["tahun_ajaran"] }); // refresh TA list agar badge 🔒 muncul
+      qc.invalidateQueries({ queryKey: ["tahun_buku"] });
       toast.success(`Tutup buku ${cfg.label} — ${nama} berhasil.`);
     },
     onError: (e: any) => toast.error(e.message),
@@ -342,7 +341,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
 
 export default function TutupBuku() {
   const [tahunId, setTahunId] = useState("");
-  const { data: taList } = useTahunAjaran();
+  const { data: taList } = useTahunBuku();
 
   // Ambil status tutup buku per unit untuk semua tahun ajaran
   const { data: statusMap } = useQuery({
@@ -350,10 +349,10 @@ export default function TutupBuku() {
     queryFn: async () => {
       const { data } = await supabase
         .from("v_status_tutup_buku" as any)
-        .select("tahun_ajaran_id, ditutup_unit_pendidikan, ditutup_unit_usaha_dana");
+        .select("tahun_buku_id, ditutup_unit_pendidikan, ditutup_unit_usaha_dana, ditutup");
       const map: Record<string, { pend: boolean; usda: boolean }> = {};
       for (const row of (data || []) as any[]) {
-        map[row.tahun_ajaran_id] = {
+        map[row.tahun_buku_id] = {
           pend: !!row.ditutup_unit_pendidikan,
           usda: !!row.ditutup_unit_usaha_dana,
         };
