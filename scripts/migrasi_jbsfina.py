@@ -115,26 +115,34 @@ JENIS_TO_SALDO_NORMAL = {
     "pendapatan": "K",
 }
 
-# Nama departemen readable dari kode
-DEPT_NAMA = {
-    "TK":   "Taman Kanak-Kanak",
-    "SD":   "Sekolah Dasar",
-    "SMP":  "Sekolah Menengah Pertama",
-    "SMA":  "Sekolah Menengah Atas",
-    "MTA":  "Madrasah Tsanawiyah / Aliyah",
-    "MART": "Koperasi/Mart",
-    "KTN":  "Kantin",
-    "UM":   "Umum / Yayasan",
-    "YYS":  "Yayasan",
+# Mapping kode jbsfina → (nama, kategori)
+DEPT_MAP_JBSFINA = {
+    "TK":             ("TK",               "unit_pendidikan"),
+    "SD":             ("SD",               "unit_pendidikan"),
+    "SMP":            ("SMP",              "unit_pendidikan"),
+    "SMA":            ("SMA",              "unit_pendidikan"),
+    "MTA":            ("MTA",              "unit_pendidikan"),
+    "KEPONDOKAN":     ("Kepondokan",       "unit_pendidikan"),
+    "UMUM":           ("Umum",             "unit_pendidikan"),
+    "DAPOER ATTAUHID":("Dapoer Attauhid",  "unit_usaha"),
+    "KANTIN ATTAUHID":("Kantin Attauhid",  "unit_usaha"),
+    "MART ATTAUHID":  ("Mart Attauhid",    "unit_usaha"),
+    "MART ICT":       ("Mart ICT",         "unit_usaha"),
+    "MASJID ICT":     ("Masjid ICT",       "unit_dana_terikat"),
+    "AYO BERSEDEKAH": ("Ayo Bersedekah",   "unit_dana_terikat"),
+    "PALESTINA":      ("Palestina",        "unit_dana_terikat"),
+    "SOSIAL":         ("Sosial",           "unit_dana_terikat"),
+    "SUBSIDI SILANG": ("Subsidi Silang",   "unit_yayasan"),
+    "LAINNYA":        ("Lainnya",          "unit_yayasan"),
 }
 
 
-def dept_nama(kode):
+def dept_info(kode):
+    """Return (nama, kategori) untuk kode departemen dari jbsfina."""
     k = (kode or "").strip().upper()
-    for prefix, nama in DEPT_NAMA.items():
-        if k.startswith(prefix):
-            return nama
-    return kode
+    if k in DEPT_MAP_JBSFINA:
+        return DEPT_MAP_JBSFINA[k]
+    return kode, None  # kategori null → perlu diset manual di Supabase
 
 
 # ── 1. Sync rekakun → akun_rekening ──────────────────────────────────────────
@@ -188,11 +196,11 @@ def sync_departemen(conn):
         kode = (r["departemen"] or "").strip()
         if not kode or kode in existing_kodes:
             continue
-        records.append({
-            "kode":  kode,
-            "nama":  dept_nama(kode),
-            "aktif": True,
-        })
+        nama, kategori = dept_info(kode)
+        rec = {"kode": kode, "nama": nama, "aktif": True}
+        if kategori:
+            rec["kategori"] = kategori
+        records.append(rec)
 
     insert_batches("departemen", records, "departemen baru")
 
