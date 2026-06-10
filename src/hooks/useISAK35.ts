@@ -106,7 +106,8 @@ async function hitungSaldoAkun(filter: PeriodeFilter, departemenIds?: string[]):
     saldoAwalQuery = (saldoAwalQuery as any).in("departemen_id", departemenIds);
   const { data: saldoAwalData } = await saldoAwalQuery;
   const saldoAwalMap: Record<string, number> = {};
-  for (const s of (saldoAwalData as any[]) || []) saldoAwalMap[s.akun_id] = Number(s.saldo || 0);
+  for (const s of (saldoAwalData as any[]) || [])
+    saldoAwalMap[s.akun_id] = (saldoAwalMap[s.akun_id] ?? 0) + Number(s.saldo || 0);
 
   // Jika saldo_awal_isak35 kosong untuk tahun ini, gunakan 0 — bukan akun.saldo_awal.
   return (akunList || []).map((akun: any) => {
