@@ -245,13 +245,12 @@ def get_max_replid_jurnal():
     rows = supa_get("jurnal", {
         "select":    "referensi",
         "referensi": "like.MIGR-jbsfina-%",
-        "order":     "referensi.desc",
-        "limit":     "1",
+        "limit":     "50000",
     })
     if not rows:
         return 0
     try:
-        return int(rows[0]["referensi"].split("-")[-1])
+        return max(int(r["referensi"].split("-")[-1]) for r in rows)
     except Exception:
         return 0
 
