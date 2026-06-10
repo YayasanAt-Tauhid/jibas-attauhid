@@ -18,13 +18,12 @@ JOIN tahun_buku tb
 WHERE ltb.tahun_ajaran_id = ta.id
   AND ltb.tahun_buku_id IS NULL;
 
--- 4. Backfill tahun_buku.ditutup dari tahun_ajaran.ditutup
+-- 4. Set tahun_buku.ditutup berdasarkan log_tutup_buku (bukan tahun_ajaran)
 UPDATE tahun_buku tb
-SET ditutup = true
-FROM tahun_ajaran ta
-WHERE ta.tanggal_mulai = tb.tanggal_mulai
-  AND ta.tanggal_selesai = tb.tanggal_selesai
-  AND ta.ditutup = true;
+SET ditutup = EXISTS (
+  SELECT 1 FROM log_tutup_buku l
+  WHERE l.tahun_buku_id = tb.id AND l.unit = 'unit_pendidikan'
+);
 
 -- 5. Update view v_status_tutup_buku → join ke tahun_buku
 CREATE OR REPLACE VIEW public.v_status_tutup_buku AS
