@@ -44,9 +44,10 @@ export default function LaporanPerubahanAsetNeto() {
   const { data: komprehensif, isLoading: l1 } = useLaporanKomprehensif(filter, departemenIds);
   const { data: posisiTahunLalu, isLoading: l2 } = useLaporanPosisiKeuangan(filterSaldoAwal, departemenIds);
 
-  const years = Array.from(new Set([currentYear, currentYear - 1, ...taList.map((t: any) => {
-    const m = t.nama?.match(/(\d{4})/); return m ? parseInt(m[1]) : null;
-  }).filter(Boolean)])).sort((a: any, b: any) => b - a);
+  const years = taList
+    .filter((t: any) => t.tanggal_selesai)
+    .map((t: any) => ({ tahun: new Date(t.tanggal_selesai).getFullYear(), label: t.nama }))
+    .sort((a: any, b: any) => b.tahun - a.tahun);
 
   const isLoading = l1 || l2;
   const labelUnit =
@@ -91,7 +92,7 @@ export default function LaporanPerubahanAsetNeto() {
           {modePeriode === "tahun" ? (
             <Select value={String(tahun)} onValueChange={v => setTahun(Number(v))}>
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{years.map((y: any) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+              <SelectContent>{years.map((item: any) => <SelectItem key={item.tahun} value={String(item.tahun)}>{item.label}</SelectItem>)}</SelectContent>
             </Select>
           ) : (
             <div className="flex items-center gap-1">
