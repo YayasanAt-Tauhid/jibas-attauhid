@@ -370,6 +370,7 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
         }
       };
 
+      let totalNetKasRaw = 0;
       for (const jId of Object.keys(perJurnal)) {
         const rows = perJurnal[jId];
         const sisiKas = rows.filter(r => akunKasIds.has(r.akun_id));
@@ -382,13 +383,13 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
         const totalLawanKredit = sisiLawan.reduce((s, r) => s + Number(r.kredit || 0), 0);
 
         const netKas = totalKasDebit - totalKasKredit;
+        totalNetKasRaw += netKas;
         if (netKas === 0) continue;
 
         const isPenerimaan = netKas > 0;
         const totalLawanRelevan = isPenerimaan ? totalLawanKredit : totalLawanDebit;
         const absKas = Math.abs(netKas);
 
-        let terdistribusi = 0;
         for (const lr of sisiLawan) {
           const meta = akunMeta[lr.akun_id];
           if (meta?.kode && (EXCLUDE_BEBAN_TRANSFER.includes(meta.kode) || EXCLUDE_ASET_INTERNAL.includes(meta.kode))) continue;
@@ -396,7 +397,6 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
           const nilaiLawan = isPenerimaan ? Number(lr.kredit || 0) : Number(lr.debit || 0);
           if (nilaiLawan === 0) continue;
           const porsi = totalLawanRelevan > 0 ? (nilaiLawan / totalLawanRelevan) * absKas : 0;
-          terdistribusi += porsi;
           const cat = klasifikasiByLawan(pos);
           if (isPenerimaan) {
             if (cat === "operasi") acc.operasiPenerimaan += porsi;
@@ -416,17 +416,6 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
             }
           }
         }
-        // Kalau tidak ada lawan yang bisa diklasifikasi, masukkan ke operasi agar kas tidak hilang
-        const sisa = absKas - terdistribusi;
-        if (sisa > 0.01) {
-          if (isPenerimaan) {
-            acc.operasiPenerimaan += sisa;
-            acc.rincianPenerimaanOperasi["Penerimaan Operasi Lainnya"] = (acc.rincianPenerimaanOperasi["Penerimaan Operasi Lainnya"] || 0) + sisa;
-          } else {
-            acc.operasiPengeluaran += sisa;
-            acc.rincianPengeluaranOperasi["Pengeluaran Operasi Lainnya"] = (acc.rincianPengeluaranOperasi["Pengeluaran Operasi Lainnya"] || 0) + sisa;
-          }
-        }
       }
 
       const arusOperasi   = acc.operasiPenerimaan   - acc.operasiPengeluaran;
@@ -442,7 +431,7 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
         arusPendanaan,
         kenaikanKas,
         kasAwal,
-        kasAkhir: kasAwal + kenaikanKas,
+        kasAkhir: kasAwal + totalNetKasRaw,
         rincianPenerimaanOperasi: acc.rincianPenerimaanOperasi,
         rincianPengeluaranOperasi: acc.rincianPengeluaranOperasi,
         investasiPenerimaan: acc.investasiPenerimaan,
