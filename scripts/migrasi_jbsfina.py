@@ -256,11 +256,40 @@ def get_max_replid_jurnal():
         return 0
 
 
+def fetch_periode_ditutup():
+    """Ambil daftar (tgl_mulai, tgl_selesai) tahun buku yang sudah ditutup unit_pendidikan."""
+    rows = supa_get("v_status_tutup_buku", {
+        "select": "tanggal_mulai,tanggal_selesai,ditutup_unit_pendidikan,ditutup_unit_usaha_dana",
+        "limit":  "100",
+    })
+    locked = []
+    for r in rows:
+        if r.get("ditutup_unit_pendidikan") or r.get("ditutup_unit_usaha_dana"):
+            locked.append((r["tanggal_mulai"], r["tanggal_selesai"]))
+    return locked  # list of (tgl_mulai_str, tgl_selesai_str)
+
+
+def is_periode_locked(tanggal_str, locked_periodes):
+    """Return True jika tanggal jatuh dalam periode yang sudah ditutup."""
+    if not tanggal_str or not locked_periodes:
+        return False
+    from datetime import date
+    tgl = date.fromisoformat(str(tanggal_str)[:10])
+    for tgl_mulai, tgl_selesai in locked_periodes:
+        if date.fromisoformat(tgl_mulai) <= tgl <= date.fromisoformat(tgl_selesai):
+            return True
+    return False
+
+
 def sync_jurnal(conn, akun_map, dept_map):
     print("\n[4] Sync jurnal + jurnaldetail (delta) ...")
 
     max_replid = get_max_replid_jurnal()
     print(f"  max replid di Supabase = {max_replid}")
+
+    locked_periodes = fetch_periode_ditutup()
+    if locked_periodes:
+        print(f"  Periode terkunci (skip): {locked_periodes}")
 
     with conn.cursor(pymysql.cursors.DictCursor) as cur:
         cur.execute("""
@@ -307,14 +336,19 @@ def sync_jurnal(conn, akun_map, dept_map):
 
     replid_to_uuid = {}
     jurnal_records = []
+    skipped_locked = 0
     for r in jurnal_rows:
+        tanggal = r["tanggal"].isoformat() if r["tanggal"] else None
+        if is_periode_locked(tanggal, locked_periodes):
+            skipped_locked += 1
+            continue
+
         uid = str(uuidlib.uuid4())
         replid_to_uuid[r["replid"]] = uid
         kode_dept = (r["departemen"] or "").strip()
         dept_id = dept_map.get(kode_dept)
         keterangan = r["transaksi"] or r["keterangan"] or "-"
         tot = totals.get(r["replid"], {"debit": 0, "kredit": 0})
-        tanggal = r["tanggal"].isoformat() if r["tanggal"] else None
 
         jurnal_records.append({
             "id":            uid,
@@ -355,6 +389,8 @@ def sync_jurnal(conn, akun_map, dept_map):
     insert_batches("jurnal_detail", detail_records,  "jurnal_detail")
 
     new_max = jurnal_rows[-1]["replid"]
+    if skipped_locked:
+        print(f"  Skip {skipped_locked} jurnal (periode sudah ditutup buku)")
     print(f"  Selesai: {len(jurnal_records)} jurnal, {len(detail_records)} detail (replid s/d {new_max})")
 
 
