@@ -388,6 +388,7 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
         const totalLawanRelevan = isPenerimaan ? totalLawanKredit : totalLawanDebit;
         const absKas = Math.abs(netKas);
 
+        let terdistribusi = 0;
         for (const lr of sisiLawan) {
           const meta = akunMeta[lr.akun_id];
           if (meta?.kode && (EXCLUDE_BEBAN_TRANSFER.includes(meta.kode) || EXCLUDE_ASET_INTERNAL.includes(meta.kode))) continue;
@@ -395,6 +396,7 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
           const nilaiLawan = isPenerimaan ? Number(lr.kredit || 0) : Number(lr.debit || 0);
           if (nilaiLawan === 0) continue;
           const porsi = totalLawanRelevan > 0 ? (nilaiLawan / totalLawanRelevan) * absKas : 0;
+          terdistribusi += porsi;
           const cat = klasifikasiByLawan(pos);
           if (isPenerimaan) {
             if (cat === "operasi") acc.operasiPenerimaan += porsi;
@@ -412,6 +414,17 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
               const key = namaPos(pos, meta?.nama || "Pengeluaran Lain");
               acc.rincianPengeluaranOperasi[key] = (acc.rincianPengeluaranOperasi[key] || 0) + porsi;
             }
+          }
+        }
+        // Kalau tidak ada lawan yang bisa diklasifikasi, masukkan ke operasi agar kas tidak hilang
+        const sisa = absKas - terdistribusi;
+        if (sisa > 0.01) {
+          if (isPenerimaan) {
+            acc.operasiPenerimaan += sisa;
+            acc.rincianPenerimaanOperasi["Penerimaan Operasi Lainnya"] = (acc.rincianPenerimaanOperasi["Penerimaan Operasi Lainnya"] || 0) + sisa;
+          } else {
+            acc.operasiPengeluaran += sisa;
+            acc.rincianPengeluaranOperasi["Pengeluaran Operasi Lainnya"] = (acc.rincianPengeluaranOperasi["Pengeluaran Operasi Lainnya"] || 0) + sisa;
           }
         }
       }
