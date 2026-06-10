@@ -27,7 +27,7 @@ export function posisiLabel(filter: PeriodeFilter): string {
 }
 
 // Kode departemen yang termasuk Unit Pendidikan
-export const UNIT_PENDIDIKAN_KODE = ["TK", "SD", "SMP", "SMA", "MTA", "PDK", "UM"];
+export const UNIT_PENDIDIKAN_KODE = ["TK", "SD", "SMP", "SMA", "MTA", "KEPONDOKAN", "UMUM"];
 
 export function useDepartemenGroups() {
   return useQuery({
