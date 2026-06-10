@@ -1,16 +1,16 @@
 # Graph Report - jibas-attauhid  (2026-06-10)
 
 ## Corpus Check
-- 283 files · ~186,677 words
+- 283 files · ~186,572 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1536 nodes · 4656 edges · 109 communities (98 shown, 11 thin omitted)
+- 1535 nodes · 4655 edges · 104 communities (93 shown, 11 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 4 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8f49b353`
+- Built from commit: `ae44b26d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -109,11 +109,6 @@
 - [[_COMMUNITY_Community 101|Community 101]]
 - [[_COMMUNITY_Community 102|Community 102]]
 - [[_COMMUNITY_Community 103|Community 103]]
-- [[_COMMUNITY_Community 104|Community 104]]
-- [[_COMMUNITY_Community 105|Community 105]]
-- [[_COMMUNITY_Community 106|Community 106]]
-- [[_COMMUNITY_Community 107|Community 107]]
-- [[_COMMUNITY_Community 108|Community 108]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 93 edges
@@ -144,63 +139,67 @@
 - **JIBAS Multi-Module Architecture with Multi-Lembaga Support** — jibas_blueprint_jibas_system, jibas_blueprint_multi_lembaga, jibas_blueprint_departemen_id, jibas_blueprint_rls, jibas_blueprint_supabase_backend [INFERRED 0.95]
 - **Year-End Closing Process: Tutup Buku + Audit Trail + Period Locking** — lovable_plan_tutup_buku_fix, lovable_plan_log_tutup_buku, lovable_plan_period_locking, sesi_notes_tahun_buku_table [EXTRACTED 1.00]
 
-## Communities (109 total, 11 thin omitted)
+## Communities (104 total, 11 thin omitted)
 
 ### Community 0 - "Academic Records & Scheduling"
-Cohesion: 0.08
-Nodes (22): HARI_COLORS, HARI_ORDER, JadwalRow, COLORS, PegawaiRow, CheckResult, Status, now (+14 more)
+Cohesion: 0.06
+Nodes (89): KATEGORI, STATUS_MAP, COLORS, PeriodeFilter, formatRupiah(), useTahunAjaran(), getTarifBatch(), AGAMA_OPTIONS (+81 more)
 
 ### Community 1 - "Financial Assets & Accounts"
 Cohesion: 0.10
-Nodes (36): AkunMeta, depresiasiSatuAset(), EXCLUDE_ASET_INTERNAL, EXCLUDE_BEBAN_TRANSFER, filterTahunSaldoAwal(), hitungSaldoAkun(), PeriodeFilter, periodeLabel() (+28 more)
+Nodes (28): AkunMeta, depresiasiSatuAset(), EXCLUDE_ASET_INTERNAL, EXCLUDE_BEBAN_TRANSFER, filterTahunSaldoAwal(), hitungSaldoAkun(), periodeLabel(), posisiLabel() (+20 more)
 
 ### Community 2 - "Academic Reports & Alumni"
-Cohesion: 0.16
-Nodes (25): CetakRapor(), DataAlumni(), JadwalPerKelas(), KomentarRapor(), LeggerNilai(), InputNilai(), RekapNilai(), StatistikNilai() (+17 more)
+Cohesion: 0.12
+Nodes (28): CetakRapor(), DataAlumni(), JadwalPerGuru(), JadwalPerKelas(), KomentarRapor(), LeggerNilai(), InputNilai(), JENIS_UJIAN (+20 more)
 
 ### Community 3 - "NPM Dependencies"
 Cohesion: 0.04
 Nodes (52): dependencies, class-variance-authority, clsx, cmdk, date-fns, embla-carousel-react, @hookform/resolvers, input-otp (+44 more)
 
 ### Community 4 - "Routing & Navigation"
-Cohesion: 0.12
-Nodes (16): useIsMobile(), Separator, SidebarContext, SidebarFooter, SidebarGroupAction, SidebarGroupLabel, SidebarInput, SidebarInset (+8 more)
+Cohesion: 0.09
+Nodes (28): useIsMobile(), menuItems, SubGroupCollapsible(), Sidebar, SidebarContent, SidebarContext, SidebarFooter, SidebarGroup (+20 more)
+
+### Community 5 - "Student Management"
+Cohesion: 0.14
+Nodes (9): DaftarSiswa(), MutasiSiswa(), useDeleteSiswa(), useSiswaList(), DetailPegawai(), JENJANG, Avatar, AvatarFallback (+1 more)
 
 ### Community 6 - "Account Ledger Hooks"
-Cohesion: 0.08
-Nodes (35): useAkunByJenis(), useAllAkunRekening(), useCreateAkunRekening(), useCreatePengaturanAkun(), useDeleteAkunRekening(), useDeletePengaturanAkun(), useUpdateAkunRekening(), useUpdatePengaturanAkun() (+27 more)
+Cohesion: 0.10
+Nodes (30): useAkunByJenis(), useAllAkunRekening(), useCreateAkunRekening(), useCreatePengaturanAkun(), useDeleteAkunRekening(), useDeletePengaturanAkun(), useUpdateAkunRekening(), useUpdatePengaturanAkun() (+22 more)
 
 ### Community 7 - "Core System Architecture"
 Cohesion: 0.07
 Nodes (36): index.html — SPA Entry Point (Hijrah At-Tauhid), Midtrans Snap.js Payment Gateway Integration, Authentication & Role-Based Access System, departemen_id Column — Multi-Lembaga Data Filter, JIBAS 32.0 (Legacy PHP System), JIBAS — School Information Management System, Modul Akademik, Modul Buletin (School Announcements) (+28 more)
 
 ### Community 8 - "UI Notifications & Navigation"
-Cohesion: 0.19
-Nodes (11): navItems, PortalLayout(), DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator (+3 more)
+Cohesion: 0.13
+Nodes (17): NotifikasiItem, useNotifikasi(), navItems, roleLabels, tipeIcon, TopNavbar(), DropdownMenuCheckboxItem, DropdownMenuContent (+9 more)
 
 ### Community 9 - "Balance Sheet Accounting"
-Cohesion: 0.13
-Nodes (14): AkunNeraca, POS_ASET, POS_ASET_NETO, POS_BEBAN, POS_KEWAJIBAN, POS_PENDAPATAN, TabNeracaAkuntansi(), Akun (+6 more)
+Cohesion: 0.15
+Nodes (11): AkunNeraca, POS_ASET, POS_ASET_NETO, POS_BEBAN, POS_KEWAJIBAN, POS_PENDAPATAN, TabNeracaAkuntansi(), Akun (+3 more)
 
 ### Community 10 - "Payment Period Management"
-Cohesion: 0.13
-Nodes (25): usePengaturanAkun(), terbilang(), useCreatePembayaran(), useCreatePengeluaran(), useDeletePengeluaran(), useJenisPengeluaran(), usePembayaranBySiswa(), usePengeluaranList() (+17 more)
+Cohesion: 0.11
+Nodes (26): BULAN_NAMES, useAktifkanTahunAjaran(), useCreatePengeluaran(), useCreateTahunAjaran(), useDeletePengeluaran(), useDeleteTahunAjaran(), usePengeluaranList(), useRekapKeuanganPerLembaga() (+18 more)
 
 ### Community 11 - "Fiscal Year & Billing"
-Cohesion: 0.13
-Nodes (21): useTahunBukuAktif(), useTarifSiswa(), FORM_DEFAULT, InputPembayaran(), useProsesPembayaran(), FORM_PEMBAYARAN_DEFAULT, FormPembayaran, isTipeSekali() (+13 more)
+Cohesion: 0.06
+Nodes (51): useAngkatan(), namaBulan(), terbilang(), useAllJenisPembayaran(), useJenisPembayaran(), useTahunBukuAktif(), useGenerateTagihan(), useTagihanBySiswa() (+43 more)
 
 ### Community 12 - "Toast Notification System"
 Cohesion: 0.11
 Nodes (24): Action, ActionType, actionTypes, addToRemoveQueue(), dispatch(), genId(), listeners, memoryState (+16 more)
 
 ### Community 13 - "Academic Reference Settings"
-Cohesion: 0.10
-Nodes (30): KATEGORI, STATUS_MAP, AGAMA_OPTIONS, PegawaiRow, currentYear, now, KATEGORI, kategoriBadgeColor (+22 more)
+Cohesion: 0.11
+Nodes (19): ReferensiAkademik(), TabAngkatan(), TabKelas(), TabMapel(), TabTingkat(), useDepartemenPendidikan(), useTingkat(), DepartemenOption (+11 more)
 
 ### Community 14 - "UI Utility Components"
-Cohesion: 0.22
-Nodes (12): cn(), ButtonProps, Pagination(), PaginationContent, PaginationEllipsis(), PaginationItem, PaginationLink(), PaginationLinkProps (+4 more)
+Cohesion: 0.14
+Nodes (17): cn(), ButtonProps, buttonVariants, Calendar(), CalendarProps, HoverCardContent, Pagination(), PaginationContent (+9 more)
 
 ### Community 15 - "TypeScript App Config"
 Cohesion: 0.09
@@ -211,12 +210,12 @@ Cohesion: 0.09
 Nodes (22): devDependencies, autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, globals, jsdom (+14 more)
 
 ### Community 17 - "Login & Auth Forms"
-Cohesion: 0.10
-Nodes (20): Login(), LoginForm, loginSchema, eyeButton, mockNavigate, mockSignIn, passwordInput, toggleButtons (+12 more)
+Cohesion: 0.16
+Nodes (16): LoginForm, loginSchema, LoginForm, loginSchema, PasswordForm, passwordSchema, FormControl, FormDescription (+8 more)
 
 ### Community 18 - "Financial Audit Logging"
-Cohesion: 0.18
-Nodes (15): BULAN_ORDER_AKADEMIK, namaBulan(), useJenisPembayaran(), useTahunAjaranAktif(), getTarifBatch(), LaporanBayarKelas(), TabRekapSPP(), PengakuanPendapatan() (+7 more)
+Cohesion: 0.19
+Nodes (12): logAuditKeuangan(), usePengaturanAkun(), BULAN_ORDER_AKADEMIK, useTahunAjaranAktif(), LaporanBayarKelas(), PengakuanPendapatan(), currentYear, now (+4 more)
 
 ### Community 19 - "Payment Gateway Integration"
 Cohesion: 0.11
@@ -227,20 +226,20 @@ Cohesion: 0.14
 Nodes (16): aliases, components, hooks, lib, ui, utils, rsc, $schema (+8 more)
 
 ### Community 21 - "Journal & Period Locking"
-Cohesion: 0.22
-Nodes (14): logAuditKeuangan(), useAkunRekening(), useBukuBesar(), useCreateJurnal(), useDeleteJurnal(), useJurnalDetail(), useJurnalList(), useKoreksiJurnal() (+6 more)
+Cohesion: 0.19
+Nodes (16): useAkunRekening(), useBukuBesar(), useCreateJurnal(), useDeleteJurnal(), useJurnalDetail(), useJurnalList(), useKoreksiJurnal(), usePostJurnal() (+8 more)
 
 ### Community 22 - "Student Billing Hooks"
-Cohesion: 0.26
-Nodes (10): useTahunAjaran(), statusConfig, Button, Table, TableBody, TableCaption, TableCell, TableHead (+2 more)
+Cohesion: 0.16
+Nodes (10): DataTableProps, SortDir, downloadBlob(), ExportButton(), ExportButtonProps, exportCSV(), Button, Checkbox (+2 more)
 
 ### Community 23 - "TypeScript Node Config"
 Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, isolatedModules, lib, module, moduleDetection, moduleResolution, noEmit (+7 more)
 
 ### Community 24 - "App Layout & Routing"
-Cohesion: 0.20
-Nodes (10): NotifikasiItem, useNotifikasi(), AppLayout(), roleLabels, tipeIcon, TopNavbar(), ScrollArea, ScrollBar (+2 more)
+Cohesion: 0.40
+Nodes (4): AppLayout(), AppSidebar(), SidebarProvider, useSidebar()
 
 ### Community 25 - "Academic Calendar & Tariffs"
 Cohesion: 0.05
@@ -248,7 +247,7 @@ Nodes (39): 1. Persiapan Awal (Setup Referensi), 2. Pendaftaran Siswa Baru (PSB)
 
 ### Community 26 - "Staff Statistics & Audit"
 Cohesion: 0.11
-Nodes (19): useAuditKeuangan(), useLembaga(), DataPegawai(), DUK(), JadwalPegawai(), PresensiPegawai(), StatistikPegawai(), AuditPerubahanData() (+11 more)
+Nodes (18): useAuditKeuangan(), useCreatePembayaran(), useLembaga(), usePembayaranBySiswa(), DataPegawai(), DUK(), JadwalPegawai(), PresensiPegawai() (+10 more)
 
 ### Community 27 - "Edge Function Auth Utilities"
 Cohesion: 0.14
@@ -271,16 +270,16 @@ Cohesion: 0.18
 Nodes (11): compilerOptions, allowJs, noImplicitAny, noUnusedLocals, noUnusedParameters, paths, skipLibCheck, strictNullChecks (+3 more)
 
 ### Community 32 - "Data Export & Backup"
-Cohesion: 0.13
-Nodes (15): KalenderAkademik(), ReferensiAkademik(), ProtectedPortalRoute(), useAuth(), Buletin(), KatalogBuku(), Peminjaman(), ManajemenPengguna() (+7 more)
+Cohesion: 0.12
+Nodes (16): KalenderAkademik(), ProtectedPortalRoute(), useAuth(), PortalLayout(), Buletin(), Login(), KatalogBuku(), Peminjaman() (+8 more)
 
 ### Community 33 - "Menubar Components"
 Cohesion: 0.17
 Nodes (11): Menubar, MenubarCheckboxItem, MenubarContent, MenubarItem, MenubarLabel, MenubarRadioItem, MenubarSeparator, MenubarShortcut() (+3 more)
 
 ### Community 34 - "Support Portal"
-Cohesion: 0.36
-Nodes (5): contacts, faqs, AccordionContent, AccordionItem, AccordionTrigger
+Cohesion: 0.29
+Nodes (6): contacts, faqs, statusConfig, AccordionContent, AccordionItem, AccordionTrigger
 
 ### Community 35 - "Bulk Payment Operations"
 Cohesion: 0.17
@@ -295,16 +294,16 @@ Cohesion: 0.18
 Nodes (9): Command, CommandDialogProps, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator (+1 more)
 
 ### Community 38 - "Supabase Type Definitions"
-Cohesion: 0.17
-Nodes (7): AkunRow, AkunSaldo, JurnalGroup, JurnalRow, POS_ISAK35_VALID, SALDO_NORMAL_VALID, TIPE_AKUN_VALID
+Cohesion: 0.14
+Nodes (20): STATUS_OPTIONS, BULAN_NAMES, BULAN_ORDER_AKADEMIK, PresensiRow, STATUS_OPTIONS, AkunRow, AkunSaldo, JurnalGroup (+12 more)
 
 ### Community 39 - "Context Menu Components"
 Cohesion: 0.20
 Nodes (9): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuShortcut(), ContextMenuSubContent (+1 more)
 
 ### Community 40 - "Auth Testing Utilities"
-Cohesion: 0.33
-Nodes (4): ProtectedRoute(), ProtectedRouteProps, { container }, mockUseAuth
+Cohesion: 0.22
+Nodes (8): ProtectedRoute(), ProtectedRouteProps, { container }, mockUseAuth, UserRole, MenuItem, SubGroup, SubMenuItem
 
 ### Community 41 - "Role-Based Edge Functions"
 Cohesion: 0.20
@@ -335,8 +334,8 @@ Cohesion: 0.25
 Nodes (7): NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle, NavigationMenuViewport
 
 ### Community 48 - "Student Form Schema"
-Cohesion: 0.11
-Nodes (20): agamaOptions, pekerjaanOptions, SiswaForm, siswaSchema, RekapPresensi(), STATUS_OPTIONS, AuthContext, AuthContextType (+12 more)
+Cohesion: 0.21
+Nodes (13): DetailSiswa(), agamaOptions, FormSiswa(), pekerjaanOptions, SiswaForm, siswaSchema, SiswaWithRelations, useCreateSiswa() (+5 more)
 
 ### Community 49 - "Integrity & Hash Utilities"
 Cohesion: 0.25
@@ -351,8 +350,8 @@ Cohesion: 0.06
 Nodes (32): 1a. Buat tabel `tahun_buku`, 1b. Copy data dari `tahun_ajaran` ke `tahun_buku`, 1c. Pindahkan FK keuangan — satu per satu, 1d. Update RPC & View, Cara Mulai Sesi Berikutnya, Catatan Sesi — 10 Mei 2026, Catatan Teknis Penting, code:sql (INSERT INTO tahun_buku (id, nama, tanggal_mulai, tanggal_sel) (+24 more)
 
 ### Community 52 - "Login Test Mocks"
-Cohesion: 0.18
-Nodes (26): COLORS, AKSI_CONFIG, now, now, currentYear, now, now, ArusItem (+18 more)
+Cohesion: 0.29
+Nodes (5): eyeButton, mockNavigate, mockSignIn, passwordInput, toggleButtons
 
 ### Community 53 - "Multi-Lembaga Edge Function"
 Cohesion: 0.40
@@ -363,16 +362,16 @@ Cohesion: 0.53
 Nodes (4): name, organization_id, organization_slug, ref
 
 ### Community 71 - "Community 71"
-Cohesion: 0.40
-Nodes (5): formatRupiah(), NAMA_BULAN, OnlinePayment(), PAYMENT_TYPE_LABELS, STATUS_MAP
+Cohesion: 0.21
+Nodes (14): HARI_LIST, TIME_SLOTS, formatRupiah(), NAMA_BULAN, OnlinePayment(), PAYMENT_TYPE_LABELS, STATUS_MAP, DialogContent (+6 more)
 
 ### Community 72 - "Community 72"
 Cohesion: 0.23
 Nodes (19): dept_info(), fetch_akun_map(), fetch_dept_map(), fetch_periode_ditutup(), get_max_replid_jurnal(), insert_batches(), is_periode_locked(), main() (+11 more)
 
 ### Community 73 - "Community 73"
-Cohesion: 0.16
-Nodes (20): KasKecilSetting, ReplenishmentKasKecil, TransaksiKasKecil, useCreateReplenishment(), useCreateTransaksiKasKecil(), useDeleteTransaksiKasKecil(), useKasKecilSetting(), useReplenishmentList() (+12 more)
+Cohesion: 0.24
+Nodes (16): KasKecilSetting, ReplenishmentKasKecil, TransaksiKasKecil, useCreateReplenishment(), useCreateTransaksiKasKecil(), useDeleteTransaksiKasKecil(), useKasKecilSetting(), useReplenishmentList() (+8 more)
 
 ### Community 74 - "Community 74"
 Cohesion: 0.12
@@ -384,11 +383,11 @@ Nodes (16): 5. Database Schema (Supabase/PostgreSQL), code:sql (users_profile (i
 
 ### Community 76 - "Community 76"
 Cohesion: 0.12
-Nodes (16): 7.2 Keuangan, 7.4 CBE (Competency-Based Education), 7.5 SIMTAKA, 7.7 Pengaturan, 7. Modul-Modul Aplikasi, code:sql (kompetensi_dasar (id, mapel_id, kode_kd, deskripsi, semester), code:sql (koleksi_buku  (id, kode, judul, pengarang, penerbit, tahun,), Sub-Modul yang Masih Perlu Dibangun (+8 more)
+Nodes (16): 7.2 Keuangan, 7.4 CBE (Competency-Based Education), 7.6 Buletin, 7.7 Pengaturan, 7. Modul-Modul Aplikasi, code:sql (kompetensi_dasar (id, mapel_id, kode_kd, deskripsi, semester), code:sql (pengumuman (id, judul, konten, kategori, lampiran_url,), Sub-Modul yang Masih Perlu Dibangun (+8 more)
 
 ### Community 77 - "Community 77"
-Cohesion: 0.12
-Nodes (5): ArusKasUnit(), EXCLUDED_KATEGORI, KATEGORI_ICON, KATEGORI_LABEL, SALDO_AWAL_NERACA
+Cohesion: 0.13
+Nodes (4): EXCLUDED_KATEGORI, KATEGORI_ICON, KATEGORI_LABEL, SALDO_AWAL_NERACA
 
 ### Community 78 - "Community 78"
 Cohesion: 0.14
@@ -455,48 +454,24 @@ Cohesion: 0.50
 Nodes (4): AppBreadcrumb(), BreadcrumbSegment, buildBreadcrumbs(), routeMap
 
 ### Community 94 - "Community 94"
-Cohesion: 0.12
-Nodes (11): FileUpload(), FileUploadProps, HoverCardContent, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Progress (+3 more)
+Cohesion: 0.50
+Nodes (3): FileUpload(), FileUploadProps, Progress
 
 ### Community 95 - "Community 95"
-Cohesion: 0.07
-Nodes (17): BULAN_NAMES, JABATAN_ORDER, OrgNode, AkunSaldo, subModules, currentYear, links, now (+9 more)
+Cohesion: 0.40
+Nodes (4): InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot
 
 ### Community 96 - "Community 96"
-Cohesion: 0.24
-Nodes (14): DaftarSiswa(), DetailSiswa(), FormSiswa(), MutasiSiswa(), SiswaWithRelations, useCreateSiswa(), useDeleteSiswa(), useSiswaDetail() (+6 more)
+Cohesion: 0.50
+Nodes (3): AuthContext, AuthContextType, AuthProvider()
 
 ### Community 97 - "Community 97"
 Cohesion: 0.50
 Nodes (4): 4. Arsitektur Aplikasi, code:block3 (Browser), code:typescript (// Contoh pola di custom hook), Pola Data Fetching
 
 ### Community 98 - "Community 98"
-Cohesion: 0.21
-Nodes (9): useGenerateTagihan(), useTagihanBySiswa(), useTagihanList(), useAllTarifTagihan(), useCreateTarifTagihan(), useDeleteTarifTagihan(), useUpdateTarifTagihan(), TabTarifTagihan() (+1 more)
-
-### Community 101 - "Community 101"
-Cohesion: 0.11
-Nodes (20): NavLink, NavLinkCompatProps, UserRole, AppSidebar(), MenuItem, menuItems, SubGroup, SubGroupCollapsible() (+12 more)
-
-### Community 102 - "Community 102"
-Cohesion: 0.20
-Nodes (5): JENIS_UJIAN, downloadBlob(), ExportButton(), ExportButtonProps, exportCSV()
-
-### Community 104 - "Community 104"
-Cohesion: 0.20
-Nodes (9): HARI_LIST, JadwalPerGuru(), TIME_SLOTS, TabAngkatan(), TabKelas(), TabMapel(), TabTingkat(), useDepartemenPendidikan() (+1 more)
-
-### Community 105 - "Community 105"
-Cohesion: 0.18
-Nodes (10): CompositeTypes, Constants, Database, DatabaseWithoutInternals, DefaultSchema, Enums, Json, Tables (+2 more)
-
-### Community 106 - "Community 106"
-Cohesion: 0.33
-Nodes (4): Angkatan, Departemen, initialForm, JENIS_OPTIONS
-
-### Community 107 - "Community 107"
 Cohesion: 0.50
-Nodes (4): 7.6 Buletin, code:sql (pengumuman (id, judul, konten, kategori, lampiran_url,), Tabel yang Dibutuhkan, Yang Perlu Dibangun
+Nodes (4): 7.5 SIMTAKA, code:sql (koleksi_buku  (id, kode, judul, pengarang, penerbit, tahun,), Tabel yang Dibutuhkan, Yang Perlu Dibangun
 
 ## Knowledge Gaps
 - **674 isolated node(s):** `dev`, `build`, `build:dev`, `lint`, `preview` (+669 more)
@@ -506,17 +481,17 @@ Nodes (4): 7.6 Buletin, code:sql (pengumuman (id, judul, konten, kategori, lampi
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `UI Utility Components` to `Academic Records & Scheduling`, `Academic Reports & Alumni`, `Routing & Navigation`, `UI Notifications & Navigation`, `Balance Sheet Accounting`, `Fiscal Year & Billing`, `Toast Notification System`, `Academic Reference Settings`, `Login & Auth Forms`, `Student Billing Hooks`, `App Layout & Routing`, `Menubar Components`, `Support Portal`, `Chart Components`, `Command Palette UI`, `Context Menu Components`, `Sheet Drawer Components`, `Breadcrumb Navigation`, `Navigation Menu Components`, `Student Form Schema`, `Toggle Group Components`, `Login Test Mocks`, `Community 73`, `Community 78`, `Community 80`, `Community 85`, `Community 89`, `Community 94`, `Community 95`, `Community 96`, `Community 101`, `Community 102`?**
-  _High betweenness centrality (0.045) - this node is a cross-community bridge._
-- **Why does `supabase` connect `Academic Records & Scheduling` to `Financial Assets & Accounts`, `Academic Reports & Alumni`, `Student Management`, `Account Ledger Hooks`, `UI Notifications & Navigation`, `Balance Sheet Accounting`, `Payment Period Management`, `Fiscal Year & Billing`, `Academic Reference Settings`, `Login & Auth Forms`, `Financial Audit Logging`, `Journal & Period Locking`, `Student Billing Hooks`, `App Layout & Routing`, `Supabase Type Definitions`, `Student Form Schema`, `Login Test Mocks`, `Community 71`, `Community 73`, `Community 77`, `Community 82`, `Community 94`, `Community 95`, `Community 96`, `Community 98`, `Community 102`, `Community 104`, `Community 106`?**
+- **Why does `cn()` connect `UI Utility Components` to `Academic Records & Scheduling`, `Academic Reports & Alumni`, `Routing & Navigation`, `Student Management`, `UI Notifications & Navigation`, `Balance Sheet Accounting`, `Fiscal Year & Billing`, `Toast Notification System`, `Academic Reference Settings`, `Login & Auth Forms`, `Student Billing Hooks`, `Menubar Components`, `Support Portal`, `Chart Components`, `Command Palette UI`, `Supabase Type Definitions`, `Context Menu Components`, `Sheet Drawer Components`, `Breadcrumb Navigation`, `Navigation Menu Components`, `Toggle Group Components`, `Community 71`, `Community 78`, `Community 80`, `Community 85`, `Community 89`, `Community 94`, `Community 95`, `Community 101`, `Community 102`?**
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `supabase` connect `Academic Records & Scheduling` to `Financial Assets & Accounts`, `Academic Reports & Alumni`, `Student Management`, `Account Ledger Hooks`, `UI Notifications & Navigation`, `Balance Sheet Accounting`, `Payment Period Management`, `Fiscal Year & Billing`, `Academic Reference Settings`, `Login & Auth Forms`, `Financial Audit Logging`, `Journal & Period Locking`, `Student Billing Hooks`, `Support Portal`, `Supabase Type Definitions`, `Student Form Schema`, `Community 71`, `Community 73`, `Community 77`, `Community 82`, `Community 94`, `Community 96`?**
   _High betweenness centrality (0.019) - this node is a cross-community bridge._
-- **Why does `Button` connect `Student Billing Hooks` to `Academic Records & Scheduling`, `Financial Assets & Accounts`, `Academic Reports & Alumni`, `Routing & Navigation`, `Student Management`, `Account Ledger Hooks`, `UI Notifications & Navigation`, `Balance Sheet Accounting`, `Payment Period Management`, `Fiscal Year & Billing`, `Academic Reference Settings`, `Login & Auth Forms`, `Financial Audit Logging`, `Journal & Period Locking`, `App Layout & Routing`, `Support Portal`, `Supabase Type Definitions`, `Student Form Schema`, `Login Test Mocks`, `Community 71`, `Community 73`, `Community 78`, `Community 82`, `Community 94`, `Community 95`, `Community 96`, `Community 102`, `Community 104`, `Community 106`?**
-  _High betweenness centrality (0.014) - this node is a cross-community bridge._
+- **Why does `Button` connect `Student Billing Hooks` to `Academic Records & Scheduling`, `Academic Reports & Alumni`, `Routing & Navigation`, `Student Management`, `Account Ledger Hooks`, `UI Notifications & Navigation`, `Balance Sheet Accounting`, `Payment Period Management`, `Fiscal Year & Billing`, `Academic Reference Settings`, `Login & Auth Forms`, `Financial Audit Logging`, `Journal & Period Locking`, `Support Portal`, `Supabase Type Definitions`, `Student Form Schema`, `Community 71`, `Community 73`, `Community 78`, `Community 82`, `Community 94`?**
+  _High betweenness centrality (0.015) - this node is a cross-community bridge._
 - **What connects `dev`, `build`, `build:dev` to the rest of the system?**
   _680 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Academic Records & Scheduling` be split into smaller, more focused modules?**
-  _Cohesion score 0.083710407239819 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05521783181357649 - nodes in this community are weakly interconnected._
 - **Should `Financial Assets & Accounts` be split into smaller, more focused modules?**
-  _Cohesion score 0.10431372549019607 - nodes in this community are weakly interconnected._
-- **Should `NPM Dependencies` be split into smaller, more focused modules?**
-  _Cohesion score 0.038461538461538464 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10227272727272728 - nodes in this community are weakly interconnected._
+- **Should `Academic Reports & Alumni` be split into smaller, more focused modules?**
+  _Cohesion score 0.11711711711711711 - nodes in this community are weakly interconnected._

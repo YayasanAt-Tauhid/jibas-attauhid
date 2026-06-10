@@ -171,6 +171,22 @@ function isAkunKas(kode: string, nama: string): boolean {
   return n.startsWith("KAS ") || n === "KAS" || n.startsWith("BANK ") || n === "BANK";
 }
 
+/** Ambil seluruh baris hasil RPC dengan paginasi — PostgREST membatasi
+ *  maksimal 1000 baris per request, sedangkan detail jurnal kas setahun
+ *  bisa belasan ribu baris. */
+async function rpcAllRows(fn: string, params: Record<string, any>): Promise<any[]> {
+  const pageSize = 1000;
+  const all: any[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await (supabase as any).rpc(fn, params).range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return all;
+}
+
 interface AkunMeta { id: string; kode: string; nama: string; pos_isak35: string | null; jenis: string }
 
 async function getAkunMeta(): Promise<Record<string, AkunMeta>> {
@@ -320,18 +336,15 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
 
       let allDetails: any[] = [];
       if (kasIdsArr.length > 0) {
-        let detailRows: any[], detErr: any;
         if (filter.type === "tahun") {
           const rpc: any = { p_tahun: filter.tahun, p_akun_kas_ids: kasIdsArr };
           if (departemenIds && departemenIds.length > 0) rpc.p_departemen_ids = departemenIds;
-          ({ data: detailRows, error: detErr } = await (supabase as any).rpc("get_detail_jurnal_kas", rpc));
+          allDetails = await rpcAllRows("get_detail_jurnal_kas", rpc);
         } else {
           const rpc: any = { p_tgl_awal: filter.tglAwal, p_tgl_akhir: filter.tglAkhir, p_akun_kas_ids: kasIdsArr };
           if (departemenIds && departemenIds.length > 0) rpc.p_departemen_ids = departemenIds;
-          ({ data: detailRows, error: detErr } = await (supabase as any).rpc("get_detail_jurnal_kas_range", rpc));
+          allDetails = await rpcAllRows("get_detail_jurnal_kas_range", rpc);
         }
-        if (detErr) throw detErr;
-        allDetails = detailRows || [];
       }
 
       const perJurnal: Record<string, any[]> = {};
