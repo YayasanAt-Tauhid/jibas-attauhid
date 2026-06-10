@@ -351,7 +351,10 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
         rincianPengeluaranOperasi: {} as Record<string, number>,
       };
 
-      const klasifikasiByLawan = (lawanPos: string | null | undefined): "operasi" | "investasi" | "pendanaan" => {
+      const klasifikasiByLawan = (lawanPos: string | null | undefined, lawanKode?: string): "operasi" | "investasi" | "pendanaan" => {
+        // Rekening antar lembaga/bagian = kas riil keluar/masuk unit → operasi,
+        // agar kenaikan bersih kas tetap sama dengan kas akhir - kas awal.
+        if (lawanKode && EXCLUDE_ASET_INTERNAL.includes(lawanKode)) return "operasi";
         if (lawanPos === "aset_tidak_lancar") return "investasi";
         if (lawanPos === "kewajiban_jangka_panjang") return "pendanaan";
         if (lawanPos === "aset_neto_tidak_terikat" || lawanPos === "aset_neto_terikat_temporer" || lawanPos === "aset_neto_terikat_permanen") return "pendanaan";
@@ -392,12 +395,12 @@ export function useLaporanArusKas(filter: PeriodeFilter, departemenIds?: string[
 
         for (const lr of sisiLawan) {
           const meta = akunMeta[lr.akun_id];
-          if (meta?.kode && (EXCLUDE_BEBAN_TRANSFER.includes(meta.kode) || EXCLUDE_ASET_INTERNAL.includes(meta.kode))) continue;
+          if (meta?.kode && EXCLUDE_BEBAN_TRANSFER.includes(meta.kode)) continue;
           const pos = meta?.pos_isak35 ?? null;
           const nilaiLawan = isPenerimaan ? Number(lr.kredit || 0) : Number(lr.debit || 0);
           if (nilaiLawan === 0) continue;
           const porsi = totalLawanRelevan > 0 ? (nilaiLawan / totalLawanRelevan) * absKas : 0;
-          const cat = klasifikasiByLawan(pos);
+          const cat = klasifikasiByLawan(pos, meta?.kode);
           if (isPenerimaan) {
             if (cat === "operasi") acc.operasiPenerimaan += porsi;
             else if (cat === "investasi") acc.investasiPenerimaan += porsi;
