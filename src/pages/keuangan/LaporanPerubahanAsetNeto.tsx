@@ -51,26 +51,47 @@ export default function LaporanPerubahanAsetNeto() {
     : { type: "range", tglAwal: `${parseInt(tglAwal.substring(0, 4)) - 1}-01-01`, tglAkhir: `${parseInt(tglAwal.substring(0, 4)) - 1}-12-31` };
 
   const { data: komprehensif, isLoading: l1 } = useLaporanKomprehensif(filter, departemenIds);
-  const { data: posisiTahunLalu, isLoading: l2 } = useLaporanPosisiKeuangan(filterSaldoAwal, departemenIds);
+  const { data: posisiTahunIni,  isLoading: l2 } = useLaporanPosisiKeuangan(filter, departemenIds);
+  const { data: posisiTahunLalu, isLoading: l3 } = useLaporanPosisiKeuangan(filterSaldoAwal, departemenIds);
 
-  const isLoading = l1 || l2;
+  const isLoading = l1 || l2 || l3;
   const labelUnit =
     filterUnit === "semua" ? "Gabungan Semua Unit" :
     filterUnit === "pendidikan" ? "Unit Pendidikan (Gabungan)" :
     filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
     allDepts.find(d => d.id === filterUnit)?.nama ?? filterUnit;
 
-  const saldoTPTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
-    .filter(a => a.pos_isak35 === "aset_neto_tidak_terikat")
-    .reduce((s, a) => s + a.saldo, 0);
-  const saldoTBTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
-    .filter(a => a.pos_isak35 === "aset_neto_terikat_temporer" || a.pos_isak35 === "aset_neto_terikat_permanen")
-    .reduce((s, a) => s + a.saldo, 0);
-  const saldoAwalTP = saldoTPTahunLalu + (posisiTahunLalu?.surplusBerjalan || 0);
-  const saldoAwalTB = saldoTBTahunLalu + (posisiTahunLalu?.surplusTerbatasBerjalan || 0);
   const surplusTP = komprehensif?.surplusDefisit ?? 0;
   const surplusTB = komprehensif?.surplusTerbatas ?? 0;
   const pkl = komprehensif?.pkl ?? 0;
+
+  // Saldo awal = closing balance tahun ini dikurangi perubahan selama tahun ini.
+  // Pendekatan ini benar untuk tahun pertama (tidak ada data tahun lalu)
+  // maupun tahun berikutnya.
+  const saldoNetoAkhirTP = (posisiTahunIni?.asetNetoItems || [])
+    .filter((a: any) => a.pos_isak35 === "aset_neto_tidak_terikat")
+    .reduce((s: number, a: any) => s + a.saldo, 0) + (posisiTahunIni?.surplusBerjalan || 0);
+  const saldoNetoAkhirTB = (posisiTahunIni?.asetNetoItems || [])
+    .filter((a: any) => a.pos_isak35 === "aset_neto_terikat_temporer" || a.pos_isak35 === "aset_neto_terikat_permanen")
+    .reduce((s: number, a: any) => s + a.saldo, 0) + (posisiTahunIni?.surplusTerbatasBerjalan || 0);
+
+  // Jika ada data tahun lalu, gunakan itu sebagai saldo awal (lebih akurat).
+  // Jika tidak ada (tahun pertama), derive dari closing balance - perubahan.
+  const saldoTPTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
+    .filter((a: any) => a.pos_isak35 === "aset_neto_tidak_terikat")
+    .reduce((s: number, a: any) => s + a.saldo, 0);
+  const hasPrevData = saldoTPTahunLalu !== 0 || (posisiTahunLalu?.surplusBerjalan || 0) !== 0;
+
+  const saldoAwalTP = hasPrevData
+    ? saldoTPTahunLalu + (posisiTahunLalu?.surplusBerjalan || 0)
+    : saldoNetoAkhirTP - surplusTP - pkl;
+  const saldoTBTahunLalu = (posisiTahunLalu?.asetNetoItems || [])
+    .filter((a: any) => a.pos_isak35 === "aset_neto_terikat_temporer" || a.pos_isak35 === "aset_neto_terikat_permanen")
+    .reduce((s: number, a: any) => s + a.saldo, 0);
+  const saldoAwalTB = hasPrevData
+    ? saldoTBTahunLalu + (posisiTahunLalu?.surplusTerbatasBerjalan || 0)
+    : saldoNetoAkhirTB - surplusTB;
+
   const saldoAkhirTP = saldoAwalTP + surplusTP + pkl;
   const saldoAkhirTB = saldoAwalTB + surplusTB;
 
