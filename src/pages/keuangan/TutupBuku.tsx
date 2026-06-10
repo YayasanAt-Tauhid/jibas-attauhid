@@ -185,7 +185,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
       }
 
       const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from("log_tutup_buku" as any).insert({
+      const { error: logErr } = await supabase.from("log_tutup_buku" as any).insert({
         tahun_buku_id: selectedTA.id,
         user_id: user?.id,
         total_laba_rugi: labaRugi,
@@ -193,6 +193,7 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
         unit: cfg.unitKey,
         keterangan: `Tutup buku ${cfg.label} — ${selectedTA.nama}. Surplus/Defisit: ${formatRupiah(labaRugi)}`,
       });
+      if (logErr) throw new Error(`Gagal menyimpan log tutup buku: ${logErr.message}`);
 
       // Jika unit_pendidikan: kunci tahun buku (ditutup = true)
       if (unitKey === "unit_pendidikan") {
