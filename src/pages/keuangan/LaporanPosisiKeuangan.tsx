@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
-import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
+import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import { Printer, AlertTriangle } from "lucide-react";
 
 function Row({ label, value, bold, indent, contraAsset }: { label: string; value: number; bold?: boolean; indent?: boolean; contraAsset?: boolean }) {
@@ -29,7 +29,7 @@ export default function LaporanPosisiKeuangan() {
   const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
-  const { data: taList = [] } = useTahunAjaran();
+  const { data: taList = [] } = useTahunBuku();
   const { data: deptGroups } = useDepartemenGroups();
 
   const taOptions = taList

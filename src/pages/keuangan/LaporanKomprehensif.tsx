@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
-import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
+import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import { Printer, EyeOff, Eye } from "lucide-react";
 
 function Nominal({ value, bold }: { value: number; bold?: boolean }) {
@@ -20,7 +20,7 @@ export default function LaporanKomprehensif() {
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
   const [sembunyikanNol, setSembunyikanNol] = useState(true);
-  const { data: taList = [] } = useTahunAjaran();
+  const { data: taList = [] } = useTahunBuku();
   const { data: deptGroups } = useDepartemenGroups();
 
   const taOptions = taList

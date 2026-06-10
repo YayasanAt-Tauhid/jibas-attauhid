@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanArusKas, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
-import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
+import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import { Printer, Info } from "lucide-react";
 
 function Row({ label, value, bold, indent }: { label: string; value: number; bold?: boolean; indent?: boolean }) {
@@ -24,7 +24,7 @@ export default function LaporanArusKasISAK35() {
   const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
-  const { data: taList = [] } = useTahunAjaran();
+  const { data: taList = [] } = useTahunBuku();
   const { data: deptGroups } = useDepartemenGroups();
 
   const taOptions = taList

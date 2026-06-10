@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
-import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
+import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import { Printer } from "lucide-react";
 
 function Rp({ value }: { value: number }) {
@@ -19,7 +19,7 @@ export default function LaporanPerubahanAsetNeto() {
   const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("semua");
-  const { data: taList = [] } = useTahunAjaran();
+  const { data: taList = [] } = useTahunBuku();
   const { data: deptGroups } = useDepartemenGroups();
 
   const taOptions = taList
