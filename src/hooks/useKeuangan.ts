@@ -130,7 +130,7 @@ export function useAllJenisPembayaran() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("jenis_pembayaran")
-        .select("id, nama, nominal, keterangan, aktif, departemen_id, akun_pendapatan_id, tipe, departemen:departemen_id(nama, kode), akun_pendapatan:akun_pendapatan_id(id, kode, nama)")
+        .select("id, nama, nominal, keterangan, aktif, departemen_id, akun_pendapatan_id, akun_dimuka_id, tipe, departemen:departemen_id(nama, kode), akun_pendapatan:akun_pendapatan_id(id, kode, nama), akun_dimuka:akun_dimuka_id(id, kode, nama)")
         .order("nama");
       if (error) throw error;
       return (data || []) as any[];
@@ -606,7 +606,7 @@ export function useRekapKeuanganPerLembaga(tahun: number) {
 export function useCreateJenisPembayaran() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (values: { nama: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string; akun_pendapatan_id?: string | null }) => {
+    mutationFn: async (values: { nama: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string; akun_pendapatan_id?: string | null; akun_dimuka_id?: string | null }) => {
       const { error } = await supabase.from("jenis_pembayaran").insert(values);
       if (error) throw error;
     },
@@ -621,7 +621,7 @@ export function useCreateJenisPembayaran() {
 export function useUpdateJenisPembayaran() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...values }: { id: string; nama?: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string | null; akun_pendapatan_id?: string | null }) => {
+    mutationFn: async ({ id, ...values }: { id: string; nama?: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string | null; akun_pendapatan_id?: string | null; akun_dimuka_id?: string | null }) => {
       const { error } = await supabase.from("jenis_pembayaran").update(values).eq("id", id);
       if (error) throw error;
     },

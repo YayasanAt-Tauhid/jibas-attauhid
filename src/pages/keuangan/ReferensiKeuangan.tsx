@@ -63,6 +63,7 @@ function TabJenisPembayaran() {
   const { data, isLoading } = useAllJenisPembayaran();
   const { data: lembagaList } = useLembaga();
   const { data: akunPendapatanList } = useAkunByJenis("pendapatan");
+  const { data: akunLiabilitasList } = useAkunByJenis("liabilitas");
   const createMut = useCreateJenisPembayaran();
   const updateMut = useUpdateJenisPembayaran();
   const deleteMut = useDeleteJenisPembayaran();
@@ -75,13 +76,14 @@ function TabJenisPembayaran() {
   const [aktif, setAktif] = useState(true);
   const [formDepartemenId, setFormDepartemenId] = useState("");
   const [akunPendapatanId, setAkunPendapatanId] = useState("");
+  const [akunDimukaId, setAkunDimukaId] = useState("");
   const [tipe, setTipe] = useState("bulanan");
 
-  const openAdd = () => { setEditItem(null); setNama(""); setNominal(""); setKeterangan(""); setAktif(true); setFormDepartemenId(""); setAkunPendapatanId(""); setTipe("bulanan"); setDialogOpen(true); };
-  const openEdit = (item: any) => { setEditItem(item); setNama(item.nama); setNominal(String(item.nominal || "")); setKeterangan(item.keterangan || ""); setAktif(item.aktif !== false); setFormDepartemenId(item.departemen_id || ""); setAkunPendapatanId(item.akun_pendapatan_id || ""); setTipe(item.tipe || "bulanan"); setDialogOpen(true); };
+  const openAdd = () => { setEditItem(null); setNama(""); setNominal(""); setKeterangan(""); setAktif(true); setFormDepartemenId(""); setAkunPendapatanId(""); setAkunDimukaId(""); setTipe("bulanan"); setDialogOpen(true); };
+  const openEdit = (item: any) => { setEditItem(item); setNama(item.nama); setNominal(String(item.nominal || "")); setKeterangan(item.keterangan || ""); setAktif(item.aktif !== false); setFormDepartemenId(item.departemen_id || ""); setAkunPendapatanId(item.akun_pendapatan_id || ""); setAkunDimukaId(item.akun_dimuka_id || ""); setTipe(item.tipe || "bulanan"); setDialogOpen(true); };
 
   const handleSave = async () => {
-    const values = { nama, nominal: nominal ? Number(nominal) : undefined, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined, akun_pendapatan_id: akunPendapatanId || null, tipe };
+    const values = { nama, nominal: nominal ? Number(nominal) : undefined, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined, akun_pendapatan_id: akunPendapatanId || null, akun_dimuka_id: akunDimukaId || null, tipe };
     if (editItem) await updateMut.mutateAsync({ id: editItem.id, ...values });
     else await createMut.mutateAsync(values);
     setDialogOpen(false);
@@ -98,6 +100,14 @@ function TabJenisPembayaran() {
         const akun = (r as any).akun_pendapatan;
         if (akun) return <span className="text-sm">{akun.kode} - {akun.nama}</span>;
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Belum diset</Badge>;
+      },
+    },
+    {
+      key: "akun_dimuka", label: "Akun Dimuka",
+      render: (_, r) => {
+        const akun = (r as any).akun_dimuka;
+        if (akun) return <span className="text-sm">{akun.kode} - {akun.nama}</span>;
+        return <span className="text-xs text-muted-foreground">Global</span>;
       },
     },
     { key: "keterangan", label: "Keterangan", render: (v) => (v as string) || "-" },
@@ -167,6 +177,19 @@ function TabJenisPembayaran() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">Akun yang di-kredit saat menerima pembayaran jenis ini</p>
+            </div>
+            <div>
+              <Label>Akun Pendapatan Dimuka (untuk pembayaran di muka)</Label>
+              <Select value={akunDimukaId || "__none__"} onValueChange={(v) => setAkunDimukaId(v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Pilih akun dimuka..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Pakai setting global —</SelectItem>
+                  {akunLiabilitasList?.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>{a.kode} - {a.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Akun liabilitas yang di-kredit saat jenis ini dibayar sebelum tahun ajaran dimulai. Kosongkan untuk pakai setting AKUN_PENDAPATAN_DIMUKA.</p>
             </div>
             <div><Label>Keterangan</Label><Textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} /></div>
             <div className="flex items-center gap-2"><Switch checked={aktif} onCheckedChange={setAktif} /><Label>Aktif</Label></div>

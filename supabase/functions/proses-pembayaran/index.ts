@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     // ── Ambil jenis pembayaran ───────────────────────────────────────────────
     const { data: jenis, error: jenisErr } = await admin
       .from("jenis_pembayaran")
-      .select("id, nama, tipe, akun_pendapatan_id")
+      .select("id, nama, tipe, akun_pendapatan_id, akun_dimuka_id")
       .eq("id", jenis_id)
       .single();
     if (jenisErr || !jenis) throw new Error("Jenis pembayaran tidak ditemukan");
@@ -182,9 +182,11 @@ Deno.serve(async (req) => {
     let kreditLabel: string;
 
     if (is_bayar_dimuka) {
-      if (!dimukaAkunId) throw new Error("Akun Pendapatan Diterima di Muka belum dikonfigurasi");
-      kreditAkunId = dimukaAkunId;
-      kreditLabel  = "Pendapatan Diterima di Muka";
+      // Akun dimuka per jenis (2106 uang pangkal, 2107 SPP, dst); fallback ke setting global
+      const dimukaJenisAkunId = jenis.akun_dimuka_id ?? dimukaAkunId;
+      if (!dimukaJenisAkunId) throw new Error("Akun Pendapatan Diterima di Muka belum dikonfigurasi");
+      kreditAkunId = dimukaJenisAkunId;
+      kreditLabel  = `Pendapatan Diterima di Muka — ${jenis.nama}`;
     } else if (tagihan_id && piutangAkunId) {
       kreditAkunId = piutangAkunId;
       kreditLabel  = "Piutang Siswa";
