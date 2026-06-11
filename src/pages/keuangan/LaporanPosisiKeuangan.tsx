@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLaporanPosisiKeuangan, useDepartemenGroups, useRekonRekeningAntar, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import KopLaporan from "@/components/keuangan/KopLaporan";
+import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
 import { Printer, AlertTriangle } from "lucide-react";
 
 function Row({ label, value, bold, indent, contraAsset }: { label: string; value: number; bold?: boolean; indent?: boolean; contraAsset?: boolean }) {
@@ -224,6 +225,7 @@ export default function LaporanPosisiKeuangan() {
             </div>
           )}
         </CardContent>
+      <TandaTanganLaporan />
       </Card>
     </div>
   );

@@ -58,7 +58,7 @@ function TabProfil({ isAdmin }: { isAdmin: boolean }) {
         setForm({
           nama: data.nama, alamat: data.alamat, kota: data.kota,
           telepon: data.telepon, email: data.email,
-          kepala_sekolah: data.kepala_sekolah, npsn: data.npsn,
+          kepala_sekolah: data.kepala_sekolah, bendahara: (data as any).bendahara, npsn: data.npsn,
           akreditasi: data.akreditasi, logo_url: data.logo_url,
         });
       }
@@ -73,6 +73,7 @@ function TabProfil({ isAdmin }: { isAdmin: boolean }) {
       nama: form.nama || null, alamat: form.alamat || null,
       kota: form.kota || null, telepon: form.telepon || null,
       email: form.email || null, kepala_sekolah: form.kepala_sekolah || null,
+      bendahara: form.bendahara || null,
       npsn: form.npsn || null, akreditasi: form.akreditasi || null,
       logo_url: form.logo_url || null,
     };
@@ -107,6 +108,7 @@ function TabProfil({ isAdmin }: { isAdmin: boolean }) {
           <div className="grid gap-4 sm:grid-cols-2 flex-1">
             <Field label="Nama Yayasan" value={form.nama} onChange={(v) => set("nama", v)} />
             <Field label="Ketua Yayasan" value={form.kepala_sekolah} onChange={(v) => set("kepala_sekolah", v)} />
+            <Field label="Bendahara" value={form.bendahara} onChange={(v) => set("bendahara", v)} />
             <Field label="Alamat" value={form.alamat} onChange={(v) => set("alamat", v)} />
             <Field label="Kota" value={form.kota} onChange={(v) => set("kota", v)} />
             <Field label="Telepon" value={form.telepon} onChange={(v) => set("telepon", v)} />

@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import KopLaporan from "@/components/keuangan/KopLaporan";
+import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
 import { Printer } from "lucide-react";
 import { useTahunAjaran, formatRupiah } from "@/hooks/useKeuangan";
 import { useLaporanPosisiKeuangan, useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel, posisiLabel } from "@/hooks/useISAK35";
@@ -166,6 +167,7 @@ export default function CatatanLaporanKeuangan() {
             <p>* CaLK ini bersifat ringkas. Pengungkapan tambahan (rincian piutang, kewajiban, komitmen, transaksi pihak berelasi, dsb.) dapat dilengkapi sesuai kebutuhan entitas.</p>
           </section>
         </CardContent>
+      <TandaTanganLaporan />
       </Card>
     </div>
   );

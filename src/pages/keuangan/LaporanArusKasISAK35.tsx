@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLaporanArusKas, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import KopLaporan from "@/components/keuangan/KopLaporan";
+import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
 import { Printer, Info } from "lucide-react";
 
 function Row({ label, value, bold, indent }: { label: string; value: number; bold?: boolean; indent?: boolean }) {
@@ -167,6 +168,7 @@ export default function LaporanArusKasISAK35() {
             </div>
           )}
         </CardContent>
+      <TandaTanganLaporan />
       </Card>
     </div>
   );

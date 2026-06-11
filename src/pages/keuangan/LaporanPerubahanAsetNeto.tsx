@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import KopLaporan from "@/components/keuangan/KopLaporan";
+import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
 import { Printer } from "lucide-react";
 
 function Rp({ value }: { value: number }) {
@@ -200,6 +201,7 @@ export default function LaporanPerubahanAsetNeto() {
             </Table>
           )}
         </CardContent>
+      <TandaTanganLaporan />
       </Card>
     </div>
   );

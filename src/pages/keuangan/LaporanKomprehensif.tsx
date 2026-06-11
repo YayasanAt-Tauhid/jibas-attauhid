@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import KopLaporan from "@/components/keuangan/KopLaporan";
+import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
 import { Printer, EyeOff, Eye } from "lucide-react";
 
 function Nominal({ value, bold }: { value: number; bold?: boolean }) {
@@ -173,6 +174,7 @@ export default function LaporanKomprehensif() {
             </div>
           )}
         </CardContent>
+      <TandaTanganLaporan />
       </Card>
     </div>
   );
