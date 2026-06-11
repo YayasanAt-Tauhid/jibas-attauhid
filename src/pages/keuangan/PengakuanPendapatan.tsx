@@ -32,7 +32,7 @@ export default function PengakuanPendapatan() {
         .select(`
           *,
           siswa:siswa_id(id, nama, nis),
-          jenis:jenis_id(id, nama, akun_pendapatan_id),
+          jenis:jenis_id(id, nama, akun_pendapatan_id, akun_dimuka_id),
           tahun_pembayaran:tahun_ajaran_pembayaran_id(id, nama),
           tahun_target:tahun_ajaran_target_id(id, nama, aktif),
           pembayaran:pembayaran_id(id, tanggal_bayar, jumlah)
@@ -59,7 +59,9 @@ export default function PengakuanPendapatan() {
       const item = dimukaList?.find((d: any) => d.id === dimukaId);
       if (!item) throw new Error("Data tidak ditemukan");
 
-      const dimukaAkunId = pengaturanAkun?.find((p: any) => p.kode_setting === "AKUN_PENDAPATAN_DIMUKA")?.akun?.id;
+      // Pakai akun dimuka per-jenis jika ada (konsisten dengan edge function proses-pembayaran), fallback ke setting global
+      const dimukaGlobalId = pengaturanAkun?.find((p: any) => p.kode_setting === "AKUN_PENDAPATAN_DIMUKA")?.akun?.id;
+      const dimukaAkunId = item.jenis?.akun_dimuka_id ?? dimukaGlobalId;
       const pendapatanAkunId = item.jenis?.akun_pendapatan_id;
 
       if (!dimukaAkunId || !pendapatanAkunId) {
