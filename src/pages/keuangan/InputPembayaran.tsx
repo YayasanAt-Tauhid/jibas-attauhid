@@ -86,10 +86,12 @@ export default function InputPembayaran() {
     queryKey: ["search_siswa", searchTerm, departemenId],
     enabled: searchTerm.length >= 2,
     queryFn: async () => {
+      // karakter khusus filter PostgREST (koma/kurung/%) bisa merusak ekspresi .or()
+      const safeTerm = searchTerm.replace(/[%,()]/g, "");
       const { data } = await supabase
         .from("siswa")
         .select("id, nis, nama, foto_url, status, angkatan_id, kelas_siswa(kelas_id, kelas(id, nama, departemen_id))")
-        .or(`nama.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`)
+        .or(`nama.ilike.%${safeTerm}%,nis.ilike.%${safeTerm}%`)
         .eq("status", "aktif")
         .limit(10);
       const all = (data ?? []) as SiswaWithKelas[];

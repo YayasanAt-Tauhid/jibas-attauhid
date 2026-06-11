@@ -65,8 +65,8 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("id", user.id)
       .single();
-    if (!profile || !["admin", "kepala_sekolah", "keuangan"].includes(profile.role)) {
-      throw new Error("Forbidden: hanya admin/keuangan yang bisa memproses pembayaran");
+    if (!profile || !["admin", "kepala_sekolah", "keuangan", "kasir"].includes(profile.role)) {
+      throw new Error("Forbidden: hanya admin/keuangan/kasir yang bisa memproses pembayaran");
     }
 
     // ── Parse & validasi input ───────────────────────────────────────────────
