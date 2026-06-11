@@ -671,15 +671,15 @@ export function useAkunByJenis(jenis: string) {
 }
 
 // ─── Buku Besar ───
-export function useBukuBesar(akunId?: string, bulanDari?: number, bulanSampai?: number, tahun?: number) {
+export function useBukuBesar(akunId?: string, bulanDari?: number, bulanSampai?: number, tahun?: number, departemenId?: string) {
   return useQuery({
-    queryKey: ["buku_besar", akunId, bulanDari, bulanSampai, tahun],
+    queryKey: ["buku_besar", akunId, bulanDari, bulanSampai, tahun, departemenId],
     enabled: !!akunId,
     queryFn: async () => {
       const y = tahun || new Date().getFullYear();
       let q = supabase
         .from("jurnal_detail")
-        .select("*, jurnal:jurnal_id(nomor, tanggal, keterangan, status)")
+        .select("*, jurnal:jurnal_id(nomor, tanggal, keterangan, status, departemen_id, departemen:departemen_id(nama, kode))")
         .eq("akun_id", akunId!);
 
       const { data, error } = await q.order("jurnal_id");
@@ -695,6 +695,7 @@ export function useBukuBesar(akunId?: string, bulanDari?: number, bulanSampai?: 
       return (data as any[]).filter((d: any) => {
         const j = d.jurnal;
         if (!j || j.status !== "posted") return false;
+        if (departemenId && j.departemen_id !== departemenId) return false;
         return j.tanggal >= startDate && j.tanggal < endDate;
       }).sort((a: any, b: any) => a.jurnal.tanggal.localeCompare(b.jurnal.tanggal));
     },

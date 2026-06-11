@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useAkunRekening, useBukuBesar } from "@/hooks/useJurnal";
+import { useDepartemen } from "@/hooks/useAkademikData";
 import { formatRupiah, BULAN_NAMES, BULAN_ORDER_AKADEMIK, namaBulan } from "@/hooks/useKeuangan";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -17,9 +18,11 @@ export default function BukuBesar() {
   const [bulanDari, setBulanDari] = useState(1);
   const [bulanSampai, setBulanSampai] = useState(12);
   const [tahun, setTahun] = useState(currentYear);
+  const [departemenId, setDepartemenId] = useState<string>("");
 
   const { data: akunList } = useAkunRekening();
-  const { data: mutasiList, isLoading } = useBukuBesar(akunId || undefined, bulanDari, bulanSampai, tahun);
+  const { data: lembagaList } = useDepartemen();
+  const { data: mutasiList, isLoading } = useBukuBesar(akunId || undefined, bulanDari, bulanSampai, tahun, departemenId || undefined);
 
   const selectedAkun = akunList?.find((a: any) => a.id === akunId);
 
@@ -35,6 +38,7 @@ export default function BukuBesar() {
       return {
         tanggal: d.jurnal?.tanggal,
         nomor: d.jurnal?.nomor,
+        lembaga: d.jurnal?.departemen?.nama || "-",
         keterangan: d.keterangan || d.jurnal?.keterangan || "-",
         debit,
         kredit,
@@ -48,6 +52,7 @@ export default function BukuBesar() {
   const columns: DataTableColumn<any>[] = [
     { key: "tanggal", label: "Tanggal", render: (v) => v ? format(new Date(v as string), "d MMM yyyy", { locale: idLocale }) : "-" },
     { key: "nomor", label: "No. Jurnal" },
+    { key: "lembaga", label: "Lembaga" },
     { key: "keterangan", label: "Keterangan" },
     { key: "debit", label: "Debit", render: (v) => Number(v) > 0 ? formatRupiah(Number(v)) : "-" },
     { key: "kredit", label: "Kredit", render: (v) => Number(v) > 0 ? formatRupiah(Number(v)) : "-" },
@@ -71,6 +76,18 @@ export default function BukuBesar() {
             <SelectContent>
               {akunList?.map((a: any) => (
                 <SelectItem key={a.id} value={a.id}>{a.kode} - {a.nama}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[200px]">
+          <Label>Lembaga</Label>
+          <Select value={departemenId || "__all__"} onValueChange={(v) => setDepartemenId(v === "__all__" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Semua Lembaga</SelectItem>
+              {lembagaList?.map((l: any) => (
+                <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
               ))}
             </SelectContent>
           </Select>
