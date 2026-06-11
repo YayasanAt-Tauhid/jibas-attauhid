@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
+import KopLaporan from "@/components/keuangan/KopLaporan";
 import { Printer, EyeOff, Eye } from "lucide-react";
 
 function Nominal({ value, bold }: { value: number; bold?: boolean }) {
@@ -107,7 +108,8 @@ export default function LaporanKomprehensif() {
         </div>
       </div>
 
-      <Card>
+      <Card className="print:border-0 print:shadow-none">
+        <KopLaporan />
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN PENGHASILAN KOMPREHENSIF</CardTitle>
           <p className="text-sm text-muted-foreground">{labelUnit} — {modePeriode === "tahun" ? namaTampil : periodeLabel(filter)}</p>

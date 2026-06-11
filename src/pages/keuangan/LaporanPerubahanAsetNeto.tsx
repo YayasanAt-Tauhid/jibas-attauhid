@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
+import KopLaporan from "@/components/keuangan/KopLaporan";
 import { Printer } from "lucide-react";
 
 function Rp({ value }: { value: number }) {
@@ -153,7 +154,8 @@ export default function LaporanPerubahanAsetNeto() {
         </div>
       </div>
 
-      <Card>
+      <Card className="print:border-0 print:shadow-none">
+        <KopLaporan />
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN PERUBAHAN ASET NETO</CardTitle>
           <p className="text-sm text-muted-foreground">{labelUnit} — {modePeriode === "tahun" ? namaTampil : periodeLabel(filter)}</p>

@@ -124,6 +124,102 @@ async function hitungSaldoAkun(filter: PeriodeFilter, departemenIds?: string[]):
   });
 }
 
+// ============================================================
+// Rekonsiliasi rekening antar lembaga/bagian (1900, 1901, 1902)
+// Akun ini harus bersaldo NOL per tanggal laporan eksternal —
+// saldo tersisa berarti ada transfer yang belum dicatat lawannya.
+// ============================================================
+export const KODE_REKENING_ANTAR = ["1900", "1901", "1902"];
+
+export interface RekonAntarRow {
+  departemen_id: string | null;
+  departemen: string;
+  kode: string;
+  nama: string;
+  saldo: number;
+}
+
+export function useRekonRekeningAntar(filter: PeriodeFilter) {
+  // Saldo kumulatif s.d. akhir periode (sama seperti neraca)
+  const tglAkhir = filter.type === "tahun" ? `${filter.tahun}-12-31` : filter.tglAkhir;
+  const tahun = parseInt(tglAkhir.substring(0, 4));
+
+  return useQuery({
+    queryKey: ["rekon_rekening_antar", tglAkhir],
+    queryFn: async () => {
+      const { data: akunList, error: akunErr } = await supabase
+        .from("akun_rekening")
+        .select("id, kode, nama, saldo_normal")
+        .in("kode", KODE_REKENING_ANTAR);
+      if (akunErr) throw akunErr;
+      const akunIds = (akunList || []).map((a: any) => a.id);
+      if (akunIds.length === 0) return { rows: [] as RekonAntarRow[], total: 0 };
+
+      const akunById: Record<string, any> = {};
+      for (const a of (akunList as any[]) || []) akunById[a.id] = a;
+
+      const { data: depts } = await supabase
+        .from("departemen")
+        .select("id, nama");
+      const deptById: Record<string, string> = {};
+      for (const d of (depts as any[]) || []) deptById[d.id] = d.nama;
+
+      // saldo per (departemen, akun) = saldo awal tahun berjalan + mutasi tahun berjalan
+      const saldoMap: Record<string, number> = {};
+      const keyOf = (dept: string | null, akun: string) => `${dept ?? "-"}|${akun}`;
+
+      const { data: saldoAwal } = await (supabase
+        .from("saldo_awal_isak35" as any)
+        .select("departemen_id, akun_id, saldo")
+        .eq("tahun", tahun)
+        .in("akun_id", akunIds) as any);
+      for (const s of (saldoAwal as any[]) || [])
+        saldoMap[keyOf(s.departemen_id, s.akun_id)] =
+          (saldoMap[keyOf(s.departemen_id, s.akun_id)] ?? 0) + Number(s.saldo || 0);
+
+      // mutasi tahun berjalan, paginasi (PostgREST max 1000 baris)
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data: rows, error } = await supabase
+          .from("jurnal_detail")
+          .select("akun_id, debit, kredit, jurnal!inner(departemen_id, tanggal, status, tipe)")
+          .in("akun_id", akunIds)
+          .eq("jurnal.status", "posted")
+          .gte("jurnal.tanggal", `${tahun}-01-01`)
+          .lte("jurnal.tanggal", tglAkhir)
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        for (const r of (rows as any[]) || []) {
+          if ((r.jurnal?.tipe ?? "") === "penutup") continue;
+          const a = akunById[r.akun_id];
+          const arah = a?.saldo_normal === "K" ? -1 : 1;
+          const k = keyOf(r.jurnal?.departemen_id ?? null, r.akun_id);
+          saldoMap[k] = (saldoMap[k] ?? 0) + arah * (Number(r.debit || 0) - Number(r.kredit || 0));
+        }
+        if (((rows as any[]) || []).length < pageSize) break;
+      }
+
+      const result: RekonAntarRow[] = [];
+      let total = 0;
+      for (const [k, saldo] of Object.entries(saldoMap)) {
+        if (Math.abs(saldo) < 0.005) continue;
+        const [deptId, akunId] = k.split("|");
+        const a = akunById[akunId];
+        result.push({
+          departemen_id: deptId === "-" ? null : deptId,
+          departemen: deptId === "-" ? "(Tanpa Departemen)" : (deptById[deptId] ?? deptId),
+          kode: a?.kode ?? "?",
+          nama: a?.nama ?? "?",
+          saldo,
+        });
+        total += saldo;
+      }
+      result.sort((x, y) => x.kode.localeCompare(y.kode) || x.departemen.localeCompare(y.departemen));
+      return { rows: result, total };
+    },
+  });
+}
+
 function depresiasiSatuAset(harga: number, umurBulan: number, tglPerolehan: string, tahun: number) {
   const bpb = harga / umurBulan;
   const tgl = new Date(tglPerolehan);

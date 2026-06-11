@@ -115,9 +115,14 @@
   }
 }
 
+@page {
+  size: A4 portrait;
+  margin: 15mm 18mm;
+}
+
 @media print {
   .no-print,
-  nav, aside, header,
+  nav, aside, header, button,
   [data-sidebar], [data-radix-popper-content-wrapper],
   .toaster, [data-sonner-toaster] {
     display: none !important;
@@ -125,10 +130,11 @@
   .print-only {
     display: block !important;
   }
-  body {
+  html, body {
     background: white !important;
     color: black !important;
-    font-size: 12pt;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
   }
   main {
     padding: 0 !important;
@@ -136,5 +142,44 @@
   }
   #kuitansi-print, #bukti-pengeluaran {
     display: block !important;
+  }
+
+  /* Dokumen formal: hilangkan "chrome" UI (kartu, bayangan, sudut bulat) */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .rounded-lg, .rounded-md, .rounded-xl {
+    border-radius: 0 !important;
+  }
+  .text-muted-foreground {
+    color: black !important;
+  }
+  .text-sm, .text-xs {
+    font-size: 11pt !important;
+  }
+  .text-lg, .text-xl, .text-2xl {
+    font-size: 14pt !important;
+  }
+
+  /* Tabel bergaya laporan: garis tipis hitam, header tegas */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead th {
+    border-bottom: 1.5pt solid black !important;
+    color: black !important;
+    font-weight: bold !important;
+  }
+  td, th {
+    padding: 3pt 6pt !important;
+    border-color: black !important;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3 {
+    page-break-after: avoid;
   }
 }

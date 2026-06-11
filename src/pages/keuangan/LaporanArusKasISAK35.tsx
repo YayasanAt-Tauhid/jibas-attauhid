@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanArusKas, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
+import KopLaporan from "@/components/keuangan/KopLaporan";
 import { Printer, Info } from "lucide-react";
 
 function Row({ label, value, bold, indent }: { label: string; value: number; bold?: boolean; indent?: boolean }) {
@@ -119,7 +120,8 @@ export default function LaporanArusKasISAK35() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="print:border-0 print:shadow-none">
+        <KopLaporan />
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN ARUS KAS</CardTitle>
           <p className="text-sm text-muted-foreground">{labelUnit} — {modePeriode === "tahun" ? namaTampil : periodeLabel(filter)}</p>

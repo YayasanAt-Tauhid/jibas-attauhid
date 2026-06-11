@@ -4,8 +4,9 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
+import { useLaporanPosisiKeuangan, useDepartemenGroups, useRekonRekeningAntar, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
+import KopLaporan from "@/components/keuangan/KopLaporan";
 import { Printer, AlertTriangle } from "lucide-react";
 
 function Row({ label, value, bold, indent, contraAsset }: { label: string; value: number; bold?: boolean; indent?: boolean; contraAsset?: boolean }) {
@@ -52,6 +53,7 @@ export default function LaporanPosisiKeuangan() {
     : { type: "range", tglAwal, tglAkhir };
 
   const { data, isLoading, isError, error } = useLaporanPosisiKeuangan(filter, departemenIds);
+  const { data: rekonAntar } = useRekonRekeningAntar(filter);
 
   const labelUnit =
     filterUnit === "semua" ? "Gabungan Semua Unit" :
@@ -113,7 +115,32 @@ export default function LaporanPosisiKeuangan() {
         </div>
       </div>
 
-      <Card>
+      {rekonAntar && rekonAntar.rows.length > 0 && (
+        <Alert className="print:hidden border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 [&>svg]:text-amber-600">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <p className="font-medium">
+              Saldo rekening antar lembaga/bagian belum nol (total {formatRupiah(Math.round(rekonAntar.total))}) —
+              perlu jurnal penyelesaian/reklasifikasi sebelum menyusun laporan eksternal.
+            </p>
+            <ul className="mt-2 space-y-0.5 text-sm">
+              {rekonAntar.rows.map((r, i) => (
+                <li key={i} className="flex justify-between gap-4">
+                  <span>{r.kode} {r.nama} — {r.departemen}</span>
+                  <span className="font-medium tabular-nums">{formatRupiah(Math.round(r.saldo))}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Saldo tersisa berarti ada transfer yang baru dicatat satu sisi: buat jurnal di unit penerima
+              (debit kas/bank, kredit rekening antar), atau reklasifikasi ke piutang/hutang antar lembaga.
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Card className="print:border-0 print:shadow-none">
+        <KopLaporan />
         <CardHeader className="text-center">
           <CardTitle className="text-lg">LAPORAN POSISI KEUANGAN</CardTitle>
           <p className="text-sm text-muted-foreground">{labelUnit} — {modePeriode === "tahun" ? namaTampil : posisiLabel(filter)}</p>

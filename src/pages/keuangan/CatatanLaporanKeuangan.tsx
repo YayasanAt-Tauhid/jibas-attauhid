@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import KopLaporan from "@/components/keuangan/KopLaporan";
 import { Printer } from "lucide-react";
 import { useTahunAjaran, formatRupiah } from "@/hooks/useKeuangan";
 import { useLaporanPosisiKeuangan, useLaporanKomprehensif, useDepartemenGroups, PeriodeFilter, periodeLabel, posisiLabel } from "@/hooks/useISAK35";
@@ -98,7 +99,8 @@ export default function CatatanLaporanKeuangan() {
         </div>
       </div>
 
-      <Card>
+      <Card className="print:border-0 print:shadow-none">
+        <KopLaporan />
         <CardHeader className="text-center">
           <CardTitle className="text-lg">CATATAN ATAS LAPORAN KEUANGAN</CardTitle>
           <p className="text-sm text-muted-foreground">{labelUnit} — {periodeLabel(filter)}</p>
