@@ -159,6 +159,9 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
             tanggal: selectedTA.tanggal_selesai,
             keterangan: `Jurnal Penutup ${cfg.label} — ${selectedTA.nama}`,
             status: "posted",
+            // Jurnal penutup dikecualikan dari laporan ISAK 35 (hitung_mutasi_akun)
+            // agar laporan komprehensif tahun yang ditutup tetap utuh.
+            tipe: "penutup",
             total_debit: totalDebitJurnal,
             total_kredit: totalKreditJurnal,
           })
