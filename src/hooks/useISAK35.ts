@@ -156,7 +156,11 @@ async function totalDepresiasi(tahun: number, departemenIds?: string[]) {
 // Akun yang di-EXCLUDE dari laporan ISAK 35
 // ============================================================
 const EXCLUDE_BEBAN_TRANSFER: string[] = [];
-const EXCLUDE_ASET_INTERNAL  = ["1901", "1902"];
+// Akun rekening antar lembaga/bagian (1901, 1902) TIDAK dikecualikan:
+// saldonya tidak saling menghilangkan antar unit (sisi lawan transfer
+// dicatat sebagai kas di unit penerima), sehingga membuangnya membuat
+// neraca tidak seimbang.
+const EXCLUDE_ASET_INTERNAL: string[] = [];
 
 function byPos(saldo: SaldoAkun[], ...positions: string[]) {
   return saldo.filter(a => positions.includes(a.pos_isak35));
