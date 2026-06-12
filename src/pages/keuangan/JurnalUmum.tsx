@@ -36,7 +36,7 @@ export default function JurnalUmum() {
   const [departemenId, setDepartemenId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"semua" | "draft" | "posted">("semua");
-  const [sembunyikanKoreksi, setSembunyikanKoreksi] = useState(false);
+  const [sembunyikanKoreksi, setSembunyikanKoreksi] = useState(true);
   const [akunFilter, setAkunFilter] = useState("");
   const [tanggalDari, setTanggalDari] = useState(defaultDari);
   const [tanggalSampai, setTanggalSampai] = useState(defaultSampai);
