@@ -17,7 +17,8 @@ import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDe
 import { AkunCombobox } from "@/components/shared/AkunCombobox";
 import { formatRupiah, useLembaga } from "@/hooks/useKeuangan";
 import { StatsCard } from "@/components/shared/StatsCard";
-import { Plus, Eye, Pencil, Trash2, Lock, Send, Search, BookOpen, CheckCircle, FileEdit, RotateCcw } from "lucide-react";
+import { Plus, Eye, Pencil, Trash2, Lock, Send, Search, BookOpen, CheckCircle, FileEdit, RotateCcw, Printer } from "lucide-react";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
@@ -201,6 +202,54 @@ export default function JurnalUmum() {
   };
 
   const lembagaNama = lembagaList?.find((l: any) => l.id === departemenId);
+
+  // Cetak detail jurnal via popup terpisah (pola sama dengan printBukti di PortalRiwayat)
+  const printJurnal = (j: any) => {
+    const w = window.open("", "_blank", "width=800,height=650");
+    if (!w) { toast.error("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    const esc = (s: any) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const rows = (j.details || []).map((d: any) => `
+      <tr>
+        <td>${esc(d.akun_rekening?.kode)} - ${esc(d.akun_rekening?.nama)}</td>
+        <td>${esc(d.keterangan || "-")}</td>
+        <td class="num">${Number(d.debit) > 0 ? formatRupiah(Number(d.debit)) : "-"}</td>
+        <td class="num">${Number(d.kredit) > 0 ? formatRupiah(Number(d.kredit)) : "-"}</td>
+      </tr>`).join("");
+    w.document.write(`
+      <html><head><title>Jurnal ${esc(j.nomor)}</title>
+      <style>
+        body{font-family:sans-serif;padding:24px;color:#111;font-size:13px}
+        h2{margin:0 0 2px}
+        .sub{color:#555;margin:0 0 16px}
+        .meta{margin:4px 0}
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+        th{background:#f0f0f0}
+        .num{text-align:right}
+        tfoot td{font-weight:bold;background:#f7f7f7}
+        .footer{margin-top:32px;font-size:11px;color:#666}
+        @media print{button{display:none}}
+      </style>
+      </head><body>
+      <h2>Detail Jurnal Umum</h2>
+      <p class="sub">Arsip cetak — ${new Date().toLocaleString("id-ID")}</p>
+      <p class="meta"><b>Nomor:</b> ${esc(j.nomor)}</p>
+      <p class="meta"><b>Tanggal:</b> ${format(new Date(j.tanggal), "d MMMM yyyy", { locale: idLocale })}</p>
+      <p class="meta"><b>Status:</b> ${j.status === "posted" ? "Posted" : "Draft"}</p>
+      <p class="meta"><b>Lembaga:</b> ${esc(j.departemen?.kode || "-")}</p>
+      <p class="meta"><b>Keterangan:</b> ${esc(j.keterangan)}</p>
+      <table>
+        <thead><tr><th>Akun</th><th>Keterangan</th><th class="num">Debit</th><th class="num">Kredit</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="2" class="num">Total</td><td class="num">${formatRupiah(Number(j.total_debit) || 0)}</td><td class="num">${formatRupiah(Number(j.total_kredit) || 0)}</td></tr></tfoot>
+      </table>
+      <p class="footer">Dicetak dari aplikasi keuangan untuk keperluan arsip.</p>
+      <br/><button onclick="window.print()">Cetak</button>
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
 
   // Query jurnal IDs that contain a specific akun (when akunFilter is set)
   const { data: jurnalIdsByAkun } = useQuery({
@@ -613,11 +662,16 @@ export default function JurnalUmum() {
                   </tfoot>
                 </table>
               </div>
-              {viewData.status === "draft" && (
-                <Button onClick={() => { postMut.mutate(viewData.id); setViewOpen(false); setViewId(null); }}>
-                  <Send className="h-4 w-4 mr-2" />Posting Jurnal
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => printJurnal(viewData)}>
+                  <Printer className="h-4 w-4 mr-2" />Print
                 </Button>
-              )}
+                {viewData.status === "draft" && (
+                  <Button onClick={() => { postMut.mutate(viewData.id); setViewOpen(false); setViewId(null); }}>
+                    <Send className="h-4 w-4 mr-2" />Posting Jurnal
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
