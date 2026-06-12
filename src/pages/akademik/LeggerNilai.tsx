@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useDepartemen, useKelas, useTahunAjaran, useSemester } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { useQuery } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,12 +31,17 @@ export default function LeggerNilai() {
     queryKey: ["legger", kelasId, taId, semId],
     enabled: !!kelasId && !!taId && !!semId,
     queryFn: async () => {
-      const [{ data: mapels }, { data: ksList }, { data: nilaiData }, { data: kelasData }] = await Promise.all([
-        supabase.from("mata_pelajaran").select("id, nama, kode").eq("aktif", true).order("nama"),
+      const [{ data: mapelsAll }, { data: ksList }, { data: kelasData }] = await Promise.all([
+        supabase.from("mata_pelajaran").select("id, nama, kode, departemen_id, tingkat_id").eq("aktif", true).order("nama"),
         supabase.from("kelas_siswa").select("siswa:siswa_id(id, nis, nama, jenis_kelamin)").eq("kelas_id", kelasId).eq("aktif", true),
-        supabase.from("penilaian").select("siswa_id, mapel_id, nilai").eq("kelas_id", kelasId).eq("tahun_ajaran_id", taId).eq("semester_id", semId),
-        supabase.from("kelas").select("nama").eq("id", kelasId).single(),
+        supabase.from("kelas").select("nama, departemen_id, tingkat_id").eq("id", kelasId).single(),
       ]);
+      const nilaiData = await fetchAllPages<any>((from, to) =>
+        supabase.from("penilaian").select("siswa_id, mapel_id, nilai").eq("kelas_id", kelasId).eq("tahun_ajaran_id", taId).eq("semester_id", semId).order("id").range(from, to));
+      // Hanya mapel milik lembaga/tingkat kelas ini (mapel tanpa lembaga/tingkat berlaku umum)
+      const mapels = (mapelsAll || []).filter((m: any) =>
+        (!m.departemen_id || m.departemen_id === (kelasData as any)?.departemen_id) &&
+        (!m.tingkat_id || m.tingkat_id === (kelasData as any)?.tingkat_id));
 
       const siswaList = (ksList || []).map((ks: any) => ks.siswa).filter(Boolean).sort((a: any, b: any) => a.nama.localeCompare(b.nama));
 

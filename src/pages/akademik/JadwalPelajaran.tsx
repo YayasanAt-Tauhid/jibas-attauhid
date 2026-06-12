@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ function JadwalPerKelas() {
   const { data: semList } = useSemester(taId || undefined);
   const aktifTA = taList?.find((t: any) => t.aktif);
 
-  useState(() => { if (aktifTA && !taId) setTaId(aktifTA.id); });
+  useEffect(() => { if (aktifTA && !taId) setTaId(aktifTA.id); }, [aktifTA]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: jadwalData, isLoading } = useQuery({
     queryKey: ["jadwal_kelas", kelasId, taId, semId],
@@ -80,8 +80,16 @@ function JadwalPerKelas() {
   const { data: mapelList } = useQuery({
     queryKey: ["mapel_for_jadwal", deptId],
     enabled: !!deptId,
-    queryFn: async () => { const { data } = await supabase.from("mata_pelajaran").select("id, nama, kode").eq("aktif", true).order("nama"); return data || []; },
+    queryFn: async () => {
+      const { data } = await supabase.from("mata_pelajaran").select("id, nama, kode, tingkat_id").eq("aktif", true)
+        .or(`departemen_id.is.null,departemen_id.eq.${deptId}`).order("nama");
+      return data || [];
+    },
   });
+
+  // Mapel ber-tingkat hanya muncul untuk tingkat yang dipilih
+  const mapelOptions = (mapelList || []).filter((m: any) =>
+    !m.tingkat_id || !tingkatId || m.tingkat_id === tingkatId);
 
   const { data: guruList } = useQuery({
     queryKey: ["guru_for_jadwal"],
@@ -177,7 +185,7 @@ function JadwalPerKelas() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Tambah"} Jadwal</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label>Mata Pelajaran *</Label><Select value={form.mapel_id} onValueChange={(v) => setForm({ ...form, mapel_id: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelList?.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.kode ? `${m.kode} - ` : ""}{m.nama}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>Mata Pelajaran *</Label><Select value={form.mapel_id} onValueChange={(v) => setForm({ ...form, mapel_id: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelOptions.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.kode ? `${m.kode} - ` : ""}{m.nama}</SelectItem>)}</SelectContent></Select></div>
             <div><Label>Guru *</Label><Select value={form.pegawai_id} onValueChange={(v) => setForm({ ...form, pegawai_id: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{guruList?.map((g: any) => <SelectItem key={g.id} value={g.id}>{g.nama}</SelectItem>)}</SelectContent></Select></div>
             <div><Label>Hari *</Label><Select value={form.hari} onValueChange={(v) => setForm({ ...form, hari: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{HARI_LIST.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select></div>
             <div className="grid grid-cols-2 gap-4">

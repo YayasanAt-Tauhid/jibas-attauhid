@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { useDepartemen, useKelas, useTahunAjaran, useSemester } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { useQuery } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,14 +43,19 @@ export default function CetakRapor() {
     queryKey: ["rapor_data", siswaId, kelasId, taId, semId, deptId],
     enabled: !!siswaId && !!kelasId && !!taId && !!semId,
     queryFn: async () => {
-      const [{ data: mapels }, { data: nilaiData }, { data: presensiData }, { data: sekolahData }, { data: kelasData }, { data: lembagaData }] = await Promise.all([
-        supabase.from("mata_pelajaran").select("id, nama, kode").eq("aktif", true).order("nama"),
+      const [{ data: mapelsAll }, { data: nilaiData }, { data: presensiData }, { data: sekolahData }, { data: kelasData }, { data: lembagaData }] = await Promise.all([
+        supabase.from("mata_pelajaran").select("id, nama, kode, departemen_id, tingkat_id").eq("aktif", true).order("nama"),
         supabase.from("penilaian").select("mapel_id, jenis_ujian, nilai").eq("siswa_id", siswaId).eq("kelas_id", kelasId).eq("tahun_ajaran_id", taId).eq("semester_id", semId),
         supabase.from("presensi_siswa").select("status").eq("siswa_id", siswaId).eq("kelas_id", kelasId).eq("tahun_ajaran_id", taId).eq("semester_id", semId),
         supabase.from("sekolah").select("*").limit(1).single(),
-        supabase.from("kelas").select("nama, wali_kelas_id, departemen_id, pegawai:wali_kelas_id(nama)").eq("id", kelasId).single(),
+        supabase.from("kelas").select("nama, wali_kelas_id, departemen_id, tingkat_id, pegawai:wali_kelas_id(nama)").eq("id", kelasId).single(),
         deptId ? supabase.from("departemen").select("*").eq("id", deptId).single() : Promise.resolve({ data: null }),
       ]);
+
+      // Hanya mapel milik lembaga/tingkat kelas ini (mapel tanpa lembaga/tingkat berlaku umum)
+      const mapels = (mapelsAll || []).filter((m: any) =>
+        (!m.departemen_id || m.departemen_id === (kelasData as any)?.departemen_id) &&
+        (!m.tingkat_id || m.tingkat_id === (kelasData as any)?.tingkat_id));
 
       // Use lembaga data if available, fallback to sekolah (yayasan)
       const lembaga = lembagaData || {};
@@ -79,17 +85,21 @@ export default function CetakRapor() {
       const presensi = { H: 0, I: 0, S: 0, A: 0 };
       (presensiData || []).forEach((p: any) => { if (p.status in presensi) presensi[p.status as keyof typeof presensi]++; });
 
-      // Ranking
+      // Ranking — rata-rata per mapel dulu, lalu rata-rata antar mapel (sama dengan Rekap Nilai & Legger)
       const { data: allKsList } = await supabase.from("kelas_siswa").select("siswa_id").eq("kelas_id", kelasId).eq("aktif", true);
-      const { data: allNilai } = await supabase.from("penilaian").select("siswa_id, nilai").eq("kelas_id", kelasId).eq("tahun_ajaran_id", taId).eq("semester_id", semId);
-      const avgBySiswa = new Map<string, number[]>();
-      (allNilai || []).forEach((n: any) => {
-        if (!avgBySiswa.has(n.siswa_id)) avgBySiswa.set(n.siswa_id, []);
-        avgBySiswa.get(n.siswa_id)!.push(Number(n.nilai));
+      const allNilai = await fetchAllPages<any>((from, to) =>
+        supabase.from("penilaian").select("siswa_id, mapel_id, nilai").eq("kelas_id", kelasId).eq("tahun_ajaran_id", taId).eq("semester_id", semId).order("id").range(from, to));
+      const nilaiSiswaMapel = new Map<string, Map<string, number[]>>();
+      allNilai.forEach((n: any) => {
+        if (!nilaiSiswaMapel.has(n.siswa_id)) nilaiSiswaMapel.set(n.siswa_id, new Map());
+        const byMapel = nilaiSiswaMapel.get(n.siswa_id)!;
+        if (!byMapel.has(n.mapel_id)) byMapel.set(n.mapel_id, []);
+        byMapel.get(n.mapel_id)!.push(Number(n.nilai));
       });
-      const rankings = Array.from(avgBySiswa.entries()).map(([id, vals]) => ({
-        id, avg: vals.reduce((a, b) => a + b, 0) / vals.length,
-      })).sort((a, b) => b.avg - a.avg);
+      const rankings = Array.from(nilaiSiswaMapel.entries()).map(([id, byMapel]) => {
+        const mapelAvgs = Array.from(byMapel.values()).map((vals) => vals.reduce((a, b) => a + b, 0) / vals.length);
+        return { id, avg: mapelAvgs.reduce((a, b) => a + b, 0) / mapelAvgs.length };
+      }).sort((a, b) => b.avg - a.avg);
       const rank = rankings.findIndex((r) => r.id === siswaId) + 1;
       const totalSiswa = (allKsList || []).length;
 

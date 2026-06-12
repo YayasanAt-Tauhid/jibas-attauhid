@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { toast } from "sonner";
 
 export interface SiswaWithRelations {
@@ -30,19 +31,22 @@ export function useSiswaList() {
   return useQuery({
     queryKey: ["siswa"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("siswa")
-        .select(`
-          *,
-          angkatan:angkatan_id(id, nama),
-          kelas_siswa(
-            id, aktif,
-            kelas:kelas_id(id, nama, tingkat:tingkat_id(id, nama), departemen:departemen_id(id, nama)),
-            tahun_ajaran:tahun_ajaran_id(id, nama)
-          )
-        `)
-        .order("nama");
-      if (error) throw error;
+      const data = await fetchAllPages((from, to) =>
+        supabase
+          .from("siswa")
+          .select(`
+            *,
+            angkatan:angkatan_id(id, nama),
+            kelas_siswa(
+              id, aktif,
+              kelas:kelas_id(id, nama, tingkat:tingkat_id(id, nama), departemen:departemen_id(id, nama)),
+              tahun_ajaran:tahun_ajaran_id(id, nama)
+            )
+          `)
+          .order("nama")
+          .order("id")
+          .range(from, to)
+      );
       return data as SiswaWithRelations[];
     },
   });

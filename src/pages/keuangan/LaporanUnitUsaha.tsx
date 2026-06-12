@@ -44,7 +44,7 @@ async function fetchSaldoAwalNeraca(tahun: number, deptIds: string[]) {
 // ─── Fetch jurnal detail per departemen ─────────────────────────
 async function fetchJurnalDetail(tahun: number, departemenId: string) {
   const allRows: any[] = [];
-  const batchSize = 5000;
+  const batchSize = 1000; // PostgREST max_rows = 1000 — minta lebih tetap dipotong 1000
   let offset = 0;
   while (true) {
     const { data, error } = await supabase
@@ -54,6 +54,7 @@ async function fetchJurnalDetail(tahun: number, departemenId: string) {
       .eq("jurnal.departemen_id", departemenId)
       .gte("jurnal.tanggal", `${tahun}-01-01`)
       .lte("jurnal.tanggal", `${tahun}-12-31`)
+      .order("id")
       .range(offset, offset + batchSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -67,7 +68,7 @@ async function fetchJurnalDetail(tahun: number, departemenId: string) {
 // ─── Fetch semua jurnal konsolidasi (semua dept non-sekolah) ────
 async function fetchJurnalKonsolidasi(tahun: number, deptIds: string[]) {
   const allRows: any[] = [];
-  const batchSize = 5000;
+  const batchSize = 1000; // PostgREST max_rows = 1000 — minta lebih tetap dipotong 1000
   let offset = 0;
   while (true) {
     const { data, error } = await supabase
@@ -77,6 +78,7 @@ async function fetchJurnalKonsolidasi(tahun: number, deptIds: string[]) {
       .in("jurnal.departemen_id", deptIds)
       .gte("jurnal.tanggal", `${tahun}-01-01`)
       .lte("jurnal.tanggal", `${tahun}-12-31`)
+      .order("id")
       .range(offset, offset + batchSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -584,7 +586,7 @@ async function fetchJurnalArusKas(
   deptIds: string[],
 ) {
   const allRows: any[] = [];
-  const batchSize = 5000;
+  const batchSize = 1000; // PostgREST max_rows = 1000 — minta lebih tetap dipotong 1000
   let offset = 0;
   while (true) {
     let q = supabase
@@ -594,7 +596,8 @@ async function fetchJurnalArusKas(
       .gte("jurnal.tanggal", startDate)
       .lt("jurnal.tanggal", endDate);
     if (deptIds.length > 0) q = q.in("jurnal.departemen_id", deptIds);
-    const { data, error } = await q.range(offset, offset + batchSize - 1);
+    // Urutan stabil wajib agar paginasi range tidak duplikat/bolong antar halaman
+    const { data, error } = await q.order("id").range(offset, offset + batchSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
     allRows.push(...data);

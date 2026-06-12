@@ -88,7 +88,7 @@ export default function TabNeracaAkuntansi({ departemenId }: { departemenId?: st
       // Fetch semua jurnal_detail dengan pagination (hindari limit 1000 baris)
       let allDetails: any[] = [];
       let from = 0;
-      const batchSize = 5000;
+      const batchSize = 1000; // PostgREST max_rows = 1000 — minta lebih tetap dipotong 1000
       while (true) {
         let q = supabase
           .from("jurnal_detail")
@@ -96,7 +96,8 @@ export default function TabNeracaAkuntansi({ departemenId }: { departemenId?: st
           .eq("jurnal.status", "posted")
           .lte("jurnal.tanggal", tanggalStr);
         if (departemenId) q = q.eq("jurnal.departemen_id", departemenId);
-        const { data: details, error } = await q.range(from, from + batchSize - 1);
+        // Urutan stabil wajib agar paginasi range tidak duplikat/bolong antar halaman
+        const { data: details, error } = await q.order("id").range(from, from + batchSize - 1);
         if (error) throw error;
         if (!details || details.length === 0) break;
         allDetails = allDetails.concat(details);

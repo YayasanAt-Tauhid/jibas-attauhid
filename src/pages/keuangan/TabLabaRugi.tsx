@@ -17,7 +17,7 @@ interface AkunSaldo {
 
 async function fetchAllJurnalDetail(tahun: number, departemenId?: string) {
   const allRows: any[] = [];
-  const batchSize = 5000;
+  const batchSize = 1000; // PostgREST max_rows = 1000 — minta lebih tetap dipotong 1000
   let offset = 0;
   while (true) {
     let q = supabase
@@ -29,7 +29,8 @@ async function fetchAllJurnalDetail(tahun: number, departemenId?: string) {
       .gte("jurnal.tanggal", `${tahun}-01-01`)
       .lte("jurnal.tanggal", `${tahun}-12-31`);
     if (departemenId) q = q.eq("jurnal.departemen_id", departemenId);
-    const { data, error } = await q.range(offset, offset + batchSize - 1);
+    // Urutan stabil wajib agar paginasi range tidak duplikat/bolong antar halaman
+    const { data, error } = await q.order("id").range(offset, offset + batchSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
     allRows.push(...data);

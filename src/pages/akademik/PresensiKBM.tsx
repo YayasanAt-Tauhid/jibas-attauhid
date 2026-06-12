@@ -12,6 +12,7 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDepartemen, useKelas, useTahunAjaran, useSemester } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -67,10 +68,16 @@ function InputPresensiKBM() {
     queryKey: ["mapel_kbm", deptId],
     enabled: !!deptId,
     queryFn: async () => {
-      const { data } = await supabase.from("mata_pelajaran").select("id, nama, kode").eq("aktif", true).order("nama");
+      const { data } = await supabase.from("mata_pelajaran").select("id, nama, kode, departemen_id, tingkat_id").eq("aktif", true)
+        .or(`departemen_id.is.null,departemen_id.eq.${deptId}`).order("nama");
       return data || [];
     },
   });
+
+  // Mapel ber-tingkat hanya muncul untuk kelas dengan tingkat yang sama
+  const selectedKelas = kelasList?.find((k: any) => k.id === kelasId);
+  const mapelOptions = (mapelList || []).filter((m: any) =>
+    !m.tingkat_id || !(selectedKelas as any)?.tingkat_id || m.tingkat_id === (selectedKelas as any).tingkat_id);
 
   const { data: siswaData, isLoading, refetch } = useQuery({
     queryKey: ["presensi_kbm_input", kelasId, mapelId, tanggal, jamKe],
@@ -129,8 +136,8 @@ function InputPresensiKBM() {
         <div className="flex gap-3 items-end flex-wrap">
           <div><Label>Tanggal</Label><Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-40" /></div>
           <div><Label>Lembaga</Label><Select value={deptId} onValueChange={(v) => { setDeptId(v === "__all__" ? "" : v); setKelasId(""); }}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{depts?.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.kode || d.nama}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label>Kelas</Label><Select value={kelasId} onValueChange={setKelasId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{filteredKelas?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label>Mata Pelajaran</Label><Select value={mapelId} onValueChange={setMapelId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelList?.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nama}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label>Kelas</Label><Select value={kelasId} onValueChange={(v) => { setKelasId(v); setMapelId(""); }}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{filteredKelas?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label>Mata Pelajaran</Label><Select value={mapelId} onValueChange={setMapelId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelOptions.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nama}</SelectItem>)}</SelectContent></Select></div>
           <div><Label>Jam ke-</Label><Input type="number" min={1} max={12} className="w-20" value={jamKe} onChange={(e) => setJamKe(e.target.value)} /></div>
           <div><Label>Tahun Ajaran</Label><Select value={taId} onValueChange={setTaId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{taList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}</SelectContent></Select></div>
           <div><Label>Semester</Label><Select value={semId} onValueChange={setSemId}><SelectTrigger className="w-36"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{semList?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>)}</SelectContent></Select></div>
@@ -201,17 +208,26 @@ function RekapPresensiKBM() {
   const { data: semList } = useSemester(taId || undefined);
   const { data: mapelList } = useQuery({
     queryKey: ["mapel_rekap_kbm"],
-    queryFn: async () => { const { data } = await supabase.from("mata_pelajaran").select("id, nama").eq("aktif", true).order("nama"); return data || []; },
+    queryFn: async () => { const { data } = await supabase.from("mata_pelajaran").select("id, nama, departemen_id, tingkat_id").eq("aktif", true).order("nama"); return data || []; },
   });
+
+  // Mapel mengikuti lembaga/tingkat kelas yang dipilih
+  const selectedKelas = kelasList?.find((k: any) => k.id === kelasId);
+  const mapelOptions = (mapelList || []).filter((m: any) =>
+    !selectedKelas ||
+    ((!m.departemen_id || m.departemen_id === (selectedKelas as any).departemen_id) &&
+      (!m.tingkat_id || m.tingkat_id === (selectedKelas as any).tingkat_id)));
 
   const { data: rekapData, isLoading } = useQuery({
     queryKey: ["rekap_kbm", kelasId, mapelId, taId, semId],
     enabled: !!kelasId && !!mapelId && !!taId && !!semId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("presensi_kbm").select("siswa_id, status, siswa:siswa_id(nis, nama)")
-        .eq("kelas_id", kelasId).eq("mapel_id", mapelId)
-        .eq("tahun_ajaran_id", taId).eq("semester_id", semId);
+      const data = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("presensi_kbm").select("siswa_id, status, siswa:siswa_id(nis, nama)")
+          .eq("kelas_id", kelasId).eq("mapel_id", mapelId)
+          .eq("tahun_ajaran_id", taId).eq("semester_id", semId)
+          .order("id").range(from, to));
 
       const grouped = new Map<string, { nis: string; nama: string; H: number; I: number; S: number; A: number; total: number }>();
       (data || []).forEach((r: any) => {
@@ -229,8 +245,8 @@ function RekapPresensiKBM() {
       <div className="flex gap-3 items-end flex-wrap">
         <div><Label>Tahun Ajaran</Label><Select value={taId} onValueChange={setTaId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{taList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}</SelectContent></Select></div>
         <div><Label>Semester</Label><Select value={semId} onValueChange={setSemId}><SelectTrigger className="w-36"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{semList?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label>Kelas</Label><Select value={kelasId} onValueChange={setKelasId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label>Mata Pelajaran</Label><Select value={mapelId} onValueChange={setMapelId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelList?.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nama}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Kelas</Label><Select value={kelasId} onValueChange={(v) => { setKelasId(v); setMapelId(""); }}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Mata Pelajaran</Label><Select value={mapelId} onValueChange={setMapelId}><SelectTrigger className="w-44"><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelOptions.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nama}</SelectItem>)}</SelectContent></Select></div>
         {rekapData && <ExportButton data={rekapData.map(r => ({ NIS: r.nis, Nama: r.nama, Hadir: r.H, Izin: r.I, Sakit: r.S, Alpha: r.A, Total: r.total }))} filename="rekap-presensi-kbm" />}
       </div>
       {kelasId && mapelId && taId && semId && (isLoading ? <Skeleton className="h-96" /> : (

@@ -105,11 +105,14 @@ export default function PSB() {
     if (insertErr || !siswa) { toast.error(insertErr?.message || "Gagal mendaftarkan"); return; }
 
     if (formData.kelas_id) {
-      await supabase.from("kelas_siswa").insert({
+      const { error: ksErr } = await supabase.from("kelas_siswa").insert({
         siswa_id: siswa.id,
         kelas_id: formData.kelas_id,
         aktif: true,
       } as any);
+      if (ksErr) {
+        toast.warning("Siswa terdaftar, tapi gagal dimasukkan ke kelas: " + ksErr.message);
+      }
     }
 
     qc.invalidateQueries({ queryKey: ["siswa"] });
@@ -174,7 +177,8 @@ export default function PSB() {
 
     setNisLoadingId(id);
     try {
-      await supabase.from("siswa").update({ status: "diterima" } as any).eq("id", id);
+      const { error: updErr } = await supabase.from("siswa").update({ status: "diterima" } as any).eq("id", id);
+      if (updErr) throw updErr;
 
       if (!departemenId || !angkatanId) {
         qc.invalidateQueries({ queryKey: ["siswa"] });
@@ -218,7 +222,11 @@ export default function PSB() {
   };
 
   const handleAktifkan = async (id: string) => {
-    await supabase.from("siswa").update({ status: "aktif" } as any).eq("id", id);
+    const { error } = await supabase.from("siswa").update({ status: "aktif" } as any).eq("id", id);
+    if (error) {
+      toast.error("Gagal mengaktifkan siswa: " + error.message);
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["siswa"] });
     toast.success("Siswa diaktifkan");
   };

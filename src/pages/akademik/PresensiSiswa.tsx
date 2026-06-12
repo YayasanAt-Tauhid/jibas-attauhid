@@ -12,6 +12,7 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDepartemen, useKelas, useTahunAjaran, useSemester } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -218,16 +219,18 @@ function RekapPresensi() {
       const endY = bulan === 12 ? tahun + 1 : tahun;
       const endDate = `${endY}-${String(endM).padStart(2, "0")}-01`;
 
-      const { data } = await supabase
-        .from("presensi_siswa")
-        .select("siswa_id, tanggal, status, siswa:siswa_id(nis, nama)")
-        .eq("kelas_id", kelasId)
-        .gte("tanggal", startDate)
-        .lt("tanggal", endDate);
+      const data = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("presensi_siswa")
+          .select("siswa_id, tanggal, status, siswa:siswa_id(nis, nama)")
+          .eq("kelas_id", kelasId)
+          .gte("tanggal", startDate)
+          .lt("tanggal", endDate)
+          .order("id").range(from, to));
 
-      const grouped = new Map<string, { nis: string; nama: string; days: Record<number, string>; H: number; I: number; S: number; A: number }>();
-      (data || []).forEach((r: any) => {
-        if (!grouped.has(r.siswa_id)) grouped.set(r.siswa_id, { nis: r.siswa?.nis || "", nama: r.siswa?.nama || "", days: {}, H: 0, I: 0, S: 0, A: 0 });
+      const grouped = new Map<string, { siswa_id: string; nis: string; nama: string; days: Record<number, string>; H: number; I: number; S: number; A: number }>();
+      data.forEach((r: any) => {
+        if (!grouped.has(r.siswa_id)) grouped.set(r.siswa_id, { siswa_id: r.siswa_id, nis: r.siswa?.nis || "", nama: r.siswa?.nama || "", days: {}, H: 0, I: 0, S: 0, A: 0 });
         const entry = grouped.get(r.siswa_id)!;
         const day = new Date(r.tanggal).getDate();
         entry.days[day] = r.status;
@@ -259,7 +262,7 @@ function RekapPresensi() {
             </TableHeader>
             <TableBody>
               {rekapData?.map((r) => (
-                <TableRow key={r.nis}>
+                <TableRow key={r.siswa_id}>
                   <TableCell className="text-xs">{r.nis}</TableCell>
                   <TableCell className="text-xs font-medium">{r.nama}</TableCell>
                   {Array.from({ length: daysInMonth }, (_, i) => {

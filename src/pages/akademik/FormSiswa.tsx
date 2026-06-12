@@ -100,7 +100,7 @@ export default function FormSiswa() {
         foto_url: siswa.foto_url || "",
         status: siswa.status || "aktif",
         angkatan_id: siswa.angkatan_id || "",
-        departemen_id: activeKelas?.kelas?.departemen?.id || "",
+        departemen_id: activeKelas?.kelas?.departemen?.id || (siswa as any).departemen_id || "",
         tingkat_id: activeKelas?.kelas?.tingkat?.id || "",
         kelas_id: activeKelas?.kelas?.id || "",
         tahun_ajaran_id: activeKelas?.tahun_ajaran?.id || "",
@@ -156,6 +156,8 @@ export default function FormSiswa() {
       foto_url: values.foto_url || null,
       status: values.status,
       angkatan_id: values.angkatan_id || null,
+      // Wajib ikut tersimpan: dipakai filter alumni/statistik & jurnal tabungan per lembaga
+      departemen_id: values.departemen_id || null,
     };
 
     const detailData: Record<string, unknown> = {

@@ -5,6 +5,7 @@ import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { useAngkatan, useDepartemen, useKelas } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { useQuery } from "@tanstack/react-query";
 import { GraduationCap, Users } from "lucide-react";
 
@@ -53,16 +54,17 @@ export default function DataAlumni() {
           }));
       }
 
-      let q = supabase.from("siswa")
-        .select("id, nis, nama, jenis_kelamin, tempat_lahir, tanggal_lahir, angkatan:angkatan_id(nama), status, telepon, email, alamat, departemen_id")
-        .in("status", ["lulus", "alumni"])
-        .order("nama");
-
-      if (angkatanId) q = q.eq("angkatan_id", angkatanId);
-      if (departemenId) q = q.eq("departemen_id", departemenId);
-
-      const { data } = await q;
-      return (data || []).map((s: any) => ({ ...s, angkatan_nama: s.angkatan?.nama || "-", kelas_nama: "-" }));
+      const data = await fetchAllPages<any>((from, to) => {
+        let q = supabase.from("siswa")
+          .select("id, nis, nama, jenis_kelamin, tempat_lahir, tanggal_lahir, angkatan:angkatan_id(nama), status, telepon, email, alamat, departemen_id")
+          .in("status", ["lulus", "alumni"])
+          .order("nama").order("id")
+          .range(from, to);
+        if (angkatanId) q = q.eq("angkatan_id", angkatanId);
+        if (departemenId) q = q.eq("departemen_id", departemenId);
+        return q;
+      });
+      return data.map((s: any) => ({ ...s, angkatan_nama: s.angkatan?.nama || "-", kelas_nama: "-" }));
     },
   });
 

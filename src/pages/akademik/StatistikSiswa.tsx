@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { useDepartemen } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { Users, UserCheck, UserX, GraduationCap } from "lucide-react";
@@ -19,10 +20,15 @@ export default function StatistikSiswa() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["statistik_siswa", deptId],
     queryFn: async () => {
-      let q = supabase.from("siswa").select("id, jenis_kelamin, status, agama, angkatan_id, angkatan:angkatan_id(nama)");
-      // Can't filter by dept directly on siswa, but can via kelas_siswa
-      const { data: siswaData } = await q;
-      const all = siswaData || [];
+      const all = await fetchAllPages<any>((from, to) => {
+        let q = supabase
+          .from("siswa")
+          .select("id, jenis_kelamin, status, agama, angkatan_id, angkatan:angkatan_id(nama)")
+          .order("id")
+          .range(from, to);
+        if (deptId) q = q.eq("departemen_id", deptId);
+        return q;
+      });
 
       const total = all.length;
       const aktif = all.filter((s: any) => s.status === "aktif").length;

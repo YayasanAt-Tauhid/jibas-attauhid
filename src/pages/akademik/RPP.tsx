@@ -31,8 +31,15 @@ export default function RPP() {
   const { data: semList } = useSemester(taId || undefined);
   const { data: mapelList } = useQuery({
     queryKey: ["mapel_rpp"],
-    queryFn: async () => { const { data } = await supabase.from("mata_pelajaran").select("id, nama").eq("aktif", true).order("nama"); return data || []; },
+    queryFn: async () => { const { data } = await supabase.from("mata_pelajaran").select("id, nama, departemen_id, tingkat_id").eq("aktif", true).order("nama"); return data || []; },
   });
+
+  // Mapel mengikuti lembaga/tingkat kelas yang dipilih (mapel tanpa lembaga/tingkat berlaku umum)
+  const kelasForm = kelasList?.find((k: any) => k.id === form.kelas_id);
+  const mapelOptions = (mapelList || []).filter((m: any) =>
+    !kelasForm ||
+    ((!m.departemen_id || m.departemen_id === (kelasForm as any).departemen_id) &&
+      (!m.tingkat_id || m.tingkat_id === (kelasForm as any).tingkat_id)));
 
   const { data: rppData, isLoading } = useQuery({
     queryKey: ["rpp_list", taId, semId],
@@ -107,8 +114,8 @@ export default function RPP() {
       </div>
 
       <div className="flex gap-3 items-end">
-        <div><Label>Tahun Ajaran</Label><Select value={taId} onValueChange={setTaId}><SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{taList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label>Semester</Label><Select value={semId} onValueChange={setSemId}><SelectTrigger className="w-36"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{semList?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Tahun Ajaran</Label><Select value={taId || "__all__"} onValueChange={(v) => setTaId(v === "__all__" ? "" : v)}><SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{taList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Semester</Label><Select value={semId || "__all__"} onValueChange={(v) => setSemId(v === "__all__" ? "" : v)}><SelectTrigger className="w-36"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{semList?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>)}</SelectContent></Select></div>
       </div>
 
       <DataTable columns={columns} data={rppData || []} loading={isLoading} searchable exportable exportFilename="rpp" />
@@ -120,8 +127,8 @@ export default function RPP() {
           <div className="space-y-3">
             <div><Label>Judul</Label><Input value={form.judul} onChange={(e) => setForm({ ...form, judul: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Mata Pelajaran</Label><Select value={form.mapel_id} onValueChange={(v) => setForm({ ...form, mapel_id: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelList?.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nama}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label>Kelas</Label><Select value={form.kelas_id} onValueChange={(v) => setForm({ ...form, kelas_id: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Mata Pelajaran</Label><Select value={form.mapel_id} onValueChange={(v) => setForm({ ...form, mapel_id: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{mapelOptions.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nama}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Kelas</Label><Select value={form.kelas_id} onValueChange={(v) => setForm({ ...form, kelas_id: v, mapel_id: "" })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Pertemuan ke-</Label><Input type="number" min={1} value={form.pertemuan_ke} onChange={(e) => setForm({ ...form, pertemuan_ke: e.target.value })} /></div>

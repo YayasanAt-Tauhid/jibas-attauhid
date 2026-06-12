@@ -18,11 +18,16 @@ export default function MutasiSiswa() {
   const { data: kelasList = [] } = useKelas();
   const { data: taList = [] } = useTahunAjaran();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [filterKelas, setFilterKelas] = useState("");
   const [targetKelas, setTargetKelas] = useState("");
   const [targetTA, setTargetTA] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
   const activeSiswa = siswaList.filter((s) => s.status === "aktif");
+  // Filter kelas asal — wajib dipakai agar "pilih semua" tidak menyeret seluruh sekolah
+  const shownSiswa = filterKelas
+    ? activeSiswa.filter((s) => s.kelas_siswa?.find((ks) => ks.aktif)?.kelas?.id === filterKelas)
+    : activeSiswa;
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -39,8 +44,13 @@ export default function MutasiSiswa() {
     try {
       // Deactivate old kelas_siswa
       for (const siswaId of selected) {
-        await supabase.from("kelas_siswa").update({ aktif: false } as any).eq("siswa_id", siswaId).eq("aktif", true);
-        await supabase.from("kelas_siswa").insert({ siswa_id: siswaId, kelas_id: targetKelas, tahun_ajaran_id: targetTA, aktif: true } as any);
+        const { error: deactErr } = await supabase.from("kelas_siswa").update({ aktif: false } as any).eq("siswa_id", siswaId).eq("aktif", true);
+        if (deactErr) throw deactErr;
+        const { error: insErr } = await supabase.from("kelas_siswa").upsert(
+          { siswa_id: siswaId, kelas_id: targetKelas, tahun_ajaran_id: targetTA, aktif: true } as any,
+          { onConflict: "siswa_id,kelas_id,tahun_ajaran_id" },
+        );
+        if (insErr) throw insErr;
       }
       qc.invalidateQueries({ queryKey: ["siswa"] });
       toast.success(`${selected.size} siswa berhasil dipindahkan`);
@@ -56,9 +66,11 @@ export default function MutasiSiswa() {
     setIsProcessing(true);
     try {
       for (const siswaId of selected) {
-        await supabase.from("siswa").update({ status } as any).eq("id", siswaId);
+        const { error: statusErr } = await supabase.from("siswa").update({ status } as any).eq("id", siswaId);
+        if (statusErr) throw statusErr;
         if (status !== "aktif") {
-          await supabase.from("kelas_siswa").update({ aktif: false } as any).eq("siswa_id", siswaId).eq("aktif", true);
+          const { error: ksErr } = await supabase.from("kelas_siswa").update({ aktif: false } as any).eq("siswa_id", siswaId).eq("aktif", true);
+          if (ksErr) throw ksErr;
         }
       }
       qc.invalidateQueries({ queryKey: ["siswa"] });
@@ -71,15 +83,26 @@ export default function MutasiSiswa() {
   };
 
   const SiswaTable = () => (
-    <div className="rounded-lg border overflow-x-auto max-h-[400px] overflow-y-auto">
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <Select value={filterKelas || "__all__"} onValueChange={(v) => { setFilterKelas(v === "__all__" ? "" : v); setSelected(new Set()); }}>
+          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Filter kelas asal" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">Semua Kelas</SelectItem>
+            {kelasList.map((k) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">{shownSiswa.length} siswa aktif{filterKelas ? " di kelas ini" : ""}</p>
+      </div>
+      <div className="rounded-lg border overflow-x-auto max-h-[400px] overflow-y-auto">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-10">
               <Checkbox
-                checked={selected.size === activeSiswa.length && activeSiswa.length > 0}
+                checked={selected.size === shownSiswa.length && shownSiswa.length > 0}
                 onCheckedChange={(c) => {
-                  setSelected(c ? new Set(activeSiswa.map((s) => s.id)) : new Set());
+                  setSelected(c ? new Set(shownSiswa.map((s) => s.id)) : new Set());
                 }}
               />
             </TableHead>
@@ -89,7 +112,7 @@ export default function MutasiSiswa() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {activeSiswa.map((s) => {
+          {shownSiswa.map((s) => {
             const kelas = s.kelas_siswa?.find((ks) => ks.aktif)?.kelas;
             return (
               <TableRow key={s.id}>
@@ -102,6 +125,7 @@ export default function MutasiSiswa() {
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 
@@ -182,8 +206,13 @@ export default function MutasiSiswa() {
                       const current = activeSiswa.find((s) => s.id === siswaId);
                       const kelasId = current?.kelas_siswa?.find((ks) => ks.aktif)?.kelas?.id;
                       if (kelasId) {
-                        await supabase.from("kelas_siswa").update({ aktif: false } as any).eq("siswa_id", siswaId).eq("aktif", true);
-                        await supabase.from("kelas_siswa").insert({ siswa_id: siswaId, kelas_id: kelasId, tahun_ajaran_id: targetTA, aktif: true } as any);
+                        const { error: deactErr } = await supabase.from("kelas_siswa").update({ aktif: false } as any).eq("siswa_id", siswaId).eq("aktif", true);
+                        if (deactErr) throw deactErr;
+                        const { error: insErr } = await supabase.from("kelas_siswa").upsert(
+                          { siswa_id: siswaId, kelas_id: kelasId, tahun_ajaran_id: targetTA, aktif: true } as any,
+                          { onConflict: "siswa_id,kelas_id,tahun_ajaran_id" },
+                        );
+                        if (insErr) throw insErr;
                       }
                     }
                     qc.invalidateQueries({ queryKey: ["siswa"] });

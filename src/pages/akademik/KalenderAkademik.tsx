@@ -122,8 +122,8 @@ export default function KalenderAkademik() {
       </div>
 
       <div className="flex gap-3 items-end flex-wrap">
-        <div><Label>Tahun Ajaran</Label><Select value={taId} onValueChange={setTaId}><SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{taList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label>Lembaga</Label><Select value={deptId} onValueChange={setDeptId}><SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{depts?.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.kode || d.nama}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Tahun Ajaran</Label><Select value={taId || "__all__"} onValueChange={(v) => setTaId(v === "__all__" ? "" : v)}><SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{taList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Lembaga</Label><Select value={deptId || "__all__"} onValueChange={(v) => setDeptId(v === "__all__" ? "" : v)}><SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="__all__">Semua</SelectItem>{depts?.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.kode || d.nama}</SelectItem>)}</SelectContent></Select></div>
         <div className="flex gap-1">
           {KATEGORI.map(k => (
             <Badge key={k.value} variant="outline" className="text-xs" style={{ borderColor: k.color, color: k.color }}>{k.label}</Badge>
