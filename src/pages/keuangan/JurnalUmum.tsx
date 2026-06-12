@@ -13,7 +13,7 @@ import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
 import { Badge } from "@/components/ui/badge";
-import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDeleteJurnal, usePostJurnal, useAkunRekening, useKoreksiJurnal } from "@/hooks/useJurnal";
+import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDeleteJurnal, usePostJurnal, useAkunRekening, useKoreksiJurnal, useJurnalDikoreksiIds } from "@/hooks/useJurnal";
 import { AkunCombobox } from "@/components/shared/AkunCombobox";
 import { formatRupiah, useLembaga } from "@/hooks/useKeuangan";
 import { StatsCard } from "@/components/shared/StatsCard";
@@ -35,11 +35,13 @@ export default function JurnalUmum() {
   const [departemenId, setDepartemenId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"semua" | "draft" | "posted">("semua");
+  const [sembunyikanKoreksi, setSembunyikanKoreksi] = useState(false);
   const [akunFilter, setAkunFilter] = useState("");
   const [tanggalDari, setTanggalDari] = useState(defaultDari);
   const [tanggalSampai, setTanggalSampai] = useState(defaultSampai);
   const { data: lembagaList } = useLembaga();
   const { data: jurnalList, isLoading } = useJurnalList(tanggalDari || undefined, tanggalSampai || undefined, departemenId || undefined);
+  const { data: dikoreksiIds } = useJurnalDikoreksiIds();
   const { data: akunList } = useAkunRekening();
   const createMut = useCreateJurnal();
   const updateMut = useUpdateJurnal();
@@ -227,8 +229,11 @@ export default function JurnalUmum() {
     if (akunFilter && jurnalIdsByAkun) {
       list = list.filter((j: any) => jurnalIdsByAkun.has(j.id));
     }
+    if (sembunyikanKoreksi) {
+      list = list.filter((j: any) => j.tipe !== "pembalik" && !dikoreksiIds?.has(j.id));
+    }
     return list;
-  }, [jurnalList, searchQuery, statusFilter, akunFilter, jurnalIdsByAkun]);
+  }, [jurnalList, searchQuery, statusFilter, akunFilter, jurnalIdsByAkun, sembunyikanKoreksi, dikoreksiIds]);
 
   const totalJurnal = filteredJurnal.length;
   const jurnalPosted = filteredJurnal.filter((j: any) => j.status === "posted").length;
@@ -247,6 +252,10 @@ export default function JurnalUmum() {
       key: "akun", label: "Akun",
       value: akunList?.find((a: any) => a.id === akunFilter)?.kode || "—",
       onClear: () => setAkunFilter(""),
+    }] : []),
+    ...(sembunyikanKoreksi ? [{
+      key: "koreksi", label: "Koreksi", value: "Disembunyikan",
+      onClear: () => setSembunyikanKoreksi(false),
     }] : []),
     ...(tanggalDari || tanggalSampai ? [{
       key: "rentang", label: "Rentang",
@@ -275,8 +284,12 @@ export default function JurnalUmum() {
     },
     {
       key: "tipe", label: "Tipe",
-      render: (v) => {
-        if (!v || v === "normal") return null;
+      render: (v, r: any) => {
+        if (!v || v === "normal") {
+          return dikoreksiIds?.has(r.id) ? (
+            <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Dikoreksi</Badge>
+          ) : null;
+        }
         const cfg: Record<string, { label: string; color: string }> = {
           pembalik:  { label: "Pembalik",  color: "bg-destructive/15 text-destructive border-destructive/30" },
           pengganti: { label: "Pengganti", color: "bg-info/15 text-info border-info/30" },
@@ -430,6 +443,15 @@ export default function JurnalUmum() {
                 </SelectContent>
               </Select>
             </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sembunyikanKoreksi}
+                onChange={(e) => setSembunyikanKoreksi(e.target.checked)}
+                className="h-4 w-4 rounded"
+              />
+              <span className="text-xs">Sembunyikan jurnal terkoreksi & pembaliknya</span>
+            </label>
             <div className="space-y-1">
               <Label className="text-xs">Dari Tanggal</Label>
               <Input type="date" className="h-8 text-xs" value={tanggalDari} onChange={(e) => setTanggalDari(e.target.value)} />

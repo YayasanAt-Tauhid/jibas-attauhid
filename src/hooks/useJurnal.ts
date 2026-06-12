@@ -104,6 +104,22 @@ export function useJurnalList(tanggalDari?: string, tanggalSampai?: string, depa
   });
 }
 
+// ID jurnal yang sudah dikoreksi (punya jurnal pembalik yang menunjuk ke dia)
+export function useJurnalDikoreksiIds() {
+  return useQuery({
+    queryKey: ["jurnal", "dikoreksi_ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jurnal")
+        .select("jurnal_asal_id")
+        .eq("tipe", "pembalik")
+        .not("jurnal_asal_id", "is", null);
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.jurnal_asal_id as string));
+    },
+  });
+}
+
 export function useJurnalDetail(jurnalId?: string) {
   return useQuery({
     queryKey: ["jurnal", "detail", jurnalId],
