@@ -61,6 +61,7 @@ export default function JurnalUmum() {
   const [tanggalKoreksi, setTanggalKoreksi] = useState(format(new Date(), "yyyy-MM-dd"));
   const [alasanKoreksi, setAlasanKoreksi] = useState("");
   const [buatPengganti, setBuatPengganti] = useState(false);
+  const [tanggalPengganti, setTanggalPengganti] = useState(format(new Date(), "yyyy-MM-dd"));
   const [penggantiKeterangan, setPenggantiKeterangan] = useState("");
   const [penggantiReferensi, setPenggantiReferensi] = useState("");
   const [penggantiDetails, setPenggantiDetails] = useState<DetailRow[]>([
@@ -75,6 +76,7 @@ export default function JurnalUmum() {
     setTanggalKoreksi(format(new Date(), "yyyy-MM-dd"));
     setAlasanKoreksi("");
     setBuatPengganti(false);
+    setTanggalPengganti(item.tanggal || format(new Date(), "yyyy-MM-dd"));
     setPenggantiKeterangan(`KOREKSI ${item.keterangan}`);
     setPenggantiReferensi(item.nomor || "");
     setPenggantiDetails([
@@ -96,6 +98,7 @@ export default function JurnalUmum() {
       alasan: alasanKoreksi,
       ...(buatPengganti && isPenggantiBalanced ? {
         pengganti: {
+          tanggal: tanggalPengganti,
           keterangan: penggantiKeterangan,
           referensi: penggantiReferensi,
           details: penggantiDetails.filter(d => d.akun_id).map((d, i) => ({ ...d, urutan: i + 1 })),
@@ -728,7 +731,11 @@ export default function JurnalUmum() {
             {buatPengganti && (
               <div className="rounded-md border bg-muted/20 p-3 space-y-3">
                 <p className="text-sm font-semibold">Jurnal Pengganti (akan disimpan sebagai Draft)</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <Label>Tanggal Jurnal Pengganti *</Label>
+                    <Input type="date" value={tanggalPengganti} onChange={(e) => setTanggalPengganti(e.target.value)} />
+                  </div>
                   <div>
                     <Label>Keterangan Jurnal Pengganti *</Label>
                     <Input value={penggantiKeterangan} onChange={(e) => setPenggantiKeterangan(e.target.value)} />
@@ -811,7 +818,7 @@ export default function JurnalUmum() {
               disabled={
                 !alasanKoreksi.trim() ||
                 koreksiMut.isPending ||
-                (buatPengganti && !isPenggantiBalanced)
+                (buatPengganti && (!isPenggantiBalanced || !tanggalPengganti))
               }
             >
               <RotateCcw className="h-4 w-4 mr-2" />

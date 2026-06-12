@@ -472,6 +472,7 @@ export function useKoreksiJurnal() {
       tanggal_koreksi: string;
       alasan: string;
       pengganti?: {
+        tanggal?: string;
         keterangan: string;
         referensi?: string;
         details: { akun_id: string; keterangan?: string; debit: number; kredit: number; urutan: number }[];
@@ -544,14 +545,18 @@ export function useKoreksiJurnal() {
 
       let jurnalPengganti: any = null;
       if (values.pengganti && values.pengganti.details.length > 0) {
+        const tanggalPengganti = values.pengganti.tanggal || values.tanggal_koreksi;
+        if (tanggalPengganti !== values.tanggal_koreksi) {
+          await checkPeriodeLocked(tanggalPengganti);
+        }
         const totalPengganti = values.pengganti.details.reduce((s, d) => s + d.debit, 0);
-        const nomorPengganti = await generateNomorJurnal(tahun);
+        const nomorPengganti = await generateNomorJurnal(new Date(tanggalPengganti).getFullYear());
 
         const { data: jp, error: e5 } = await supabase
           .from("jurnal")
           .insert({
             nomor: nomorPengganti,
-            tanggal: values.tanggal_koreksi,
+            tanggal: tanggalPengganti,
             keterangan: values.pengganti.keterangan,
             referensi: values.pengganti.referensi || (jurnalAsal as any).nomor,
             departemen_id: (jurnalAsal as any).departemen_id,
