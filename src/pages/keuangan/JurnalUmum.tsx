@@ -15,7 +15,7 @@ import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
 import { Badge } from "@/components/ui/badge";
 import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDeleteJurnal, usePostJurnal, useAkunRekening, useKoreksiJurnal } from "@/hooks/useJurnal";
 import { AkunCombobox } from "@/components/shared/AkunCombobox";
-import { formatRupiah, BULAN_NAMES, BULAN_ORDER_AKADEMIK, namaBulan, useLembaga } from "@/hooks/useKeuangan";
+import { formatRupiah, useLembaga } from "@/hooks/useKeuangan";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { Plus, Eye, Pencil, Trash2, Lock, Send, Search, BookOpen, CheckCircle, FileEdit, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
@@ -28,20 +28,18 @@ interface DetailRow {
   kredit: number;
 }
 
-const currentMonth = new Date().getMonth() + 1;
-const currentYear = new Date().getFullYear();
+const defaultDari = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
+const defaultSampai = format(new Date(), "yyyy-MM-dd");
 
 export default function JurnalUmum() {
-  const [bulan, setBulan] = useState(currentMonth);
-  const [tahun, setTahun] = useState(currentYear);
   const [departemenId, setDepartemenId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"semua" | "draft" | "posted">("semua");
   const [akunFilter, setAkunFilter] = useState("");
-  const [tanggalDari, setTanggalDari] = useState("");
-  const [tanggalSampai, setTanggalSampai] = useState("");
+  const [tanggalDari, setTanggalDari] = useState(defaultDari);
+  const [tanggalSampai, setTanggalSampai] = useState(defaultSampai);
   const { data: lembagaList } = useLembaga();
-  const { data: jurnalList, isLoading } = useJurnalList(bulan, tahun, departemenId || undefined);
+  const { data: jurnalList, isLoading } = useJurnalList(tanggalDari || undefined, tanggalSampai || undefined, departemenId || undefined);
   const { data: akunList } = useAkunRekening();
   const createMut = useCreateJurnal();
   const updateMut = useUpdateJurnal();
@@ -226,13 +224,11 @@ export default function JurnalUmum() {
     if (statusFilter !== "semua") {
       list = list.filter((j: any) => j.status === statusFilter);
     }
-    if (tanggalDari) list = list.filter((j: any) => j.tanggal >= tanggalDari);
-    if (tanggalSampai) list = list.filter((j: any) => j.tanggal <= tanggalSampai);
     if (akunFilter && jurnalIdsByAkun) {
       list = list.filter((j: any) => jurnalIdsByAkun.has(j.id));
     }
     return list;
-  }, [jurnalList, searchQuery, statusFilter, tanggalDari, tanggalSampai, akunFilter, jurnalIdsByAkun]);
+  }, [jurnalList, searchQuery, statusFilter, akunFilter, jurnalIdsByAkun]);
 
   const totalJurnal = filteredJurnal.length;
   const jurnalPosted = filteredJurnal.filter((j: any) => j.status === "posted").length;
@@ -255,12 +251,8 @@ export default function JurnalUmum() {
     ...(tanggalDari || tanggalSampai ? [{
       key: "rentang", label: "Rentang",
       value: `${tanggalDari || "…"} → ${tanggalSampai || "…"}`,
-      onClear: () => { setTanggalDari(""); setTanggalSampai(""); },
+      onClear: () => { setTanggalDari(defaultDari); setTanggalSampai(defaultSampai); },
     }] : []),
-    {
-      key: "periode", label: "Periode", value: `${BULAN_NAMES[bulan - 1]} ${tahun}`,
-      onClear: () => { setBulan(currentMonth); setTahun(currentYear); },
-    },
   ];
 
   const columns: DataTableColumn<any>[] = [
@@ -439,19 +431,6 @@ export default function JurnalUmum() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Bulan</Label>
-              <Select value={String(bulan)} onValueChange={v => setBulan(Number(v))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {BULAN_ORDER_AKADEMIK.map((m) => <SelectItem key={m} value={String(m)}>{namaBulan(m)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tahun</Label>
-              <Input type="number" className="h-8 text-xs" value={tahun} onChange={e => setTahun(Number(e.target.value))} />
-            </div>
-            <div className="space-y-1">
               <Label className="text-xs">Dari Tanggal</Label>
               <Input type="date" className="h-8 text-xs" value={tanggalDari} onChange={(e) => setTanggalDari(e.target.value)} />
             </div>
@@ -471,7 +450,7 @@ export default function JurnalUmum() {
         pageSize={20}
         searchable={false}
         exportable
-        exportFilename={`jurnal-${BULAN_NAMES[bulan - 1]}-${tahun}`}
+        exportFilename={`jurnal-${tanggalDari || "awal"}-sd-${tanggalSampai || "akhir"}`}
       />
 
       {/* Form Dialog */}

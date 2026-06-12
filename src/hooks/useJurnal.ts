@@ -84,21 +84,16 @@ export function useDeleteAkunRekening() {
 }
 
 // ─── Jurnal ───
-export function useJurnalList(bulan?: number, tahun?: number, departemenId?: string) {
+export function useJurnalList(tanggalDari?: string, tanggalSampai?: string, departemenId?: string) {
   return useQuery({
-    queryKey: ["jurnal", bulan, tahun, departemenId],
+    queryKey: ["jurnal", tanggalDari, tanggalSampai, departemenId],
     queryFn: async () => {
       let q = supabase
         .from("jurnal")
         .select("*, departemen:departemen_id(nama, kode)")
         .order("tanggal", { ascending: false });
-      if (bulan != null && tahun != null) {
-        const start = `${tahun}-${String(bulan).padStart(2, "0")}-01`;
-        const endMonth = bulan === 12 ? 1 : bulan + 1;
-        const endYear = bulan === 12 ? tahun + 1 : tahun;
-        const end = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
-        q = q.gte("tanggal", start).lt("tanggal", end);
-      }
+      if (tanggalDari) q = q.gte("tanggal", tanggalDari);
+      if (tanggalSampai) q = q.lte("tanggal", tanggalSampai);
       if (departemenId) {
         q = q.eq("departemen_id", departemenId);
       }
