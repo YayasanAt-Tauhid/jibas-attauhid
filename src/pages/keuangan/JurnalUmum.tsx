@@ -676,7 +676,24 @@ export default function JurnalUmum() {
               <input
                 type="checkbox"
                 checked={buatPengganti}
-                onChange={(e) => setBuatPengganti(e.target.checked)}
+                onChange={(e) => {
+                  setBuatPengganti(e.target.checked);
+                  // Prefill dari jurnal asli supaya tidak perlu tulis ulang
+                  if (
+                    e.target.checked &&
+                    koreksiTargetDetail?.details?.length &&
+                    penggantiDetails.every((d) => !d.akun_id && !d.debit && !d.kredit)
+                  ) {
+                    setPenggantiDetails(
+                      koreksiTargetDetail.details.map((d: any) => ({
+                        akun_id: d.akun_id || "",
+                        keterangan: d.keterangan || "",
+                        debit: Number(d.debit) || 0,
+                        kredit: Number(d.kredit) || 0,
+                      }))
+                    );
+                  }
+                }}
                 className="h-4 w-4 rounded mt-0.5"
               />
               <span className="text-sm">
