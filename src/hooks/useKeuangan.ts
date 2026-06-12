@@ -323,6 +323,15 @@ export function useTransaksiTabungan() {
 
       if (newSaldo < 0) throw new Error("Saldo tidak mencukupi");
 
+      // Jurnal ikut lembaga siswa agar masuk laporan per gabungan unit
+      const { data: siswaRow } = await supabase
+        .from("siswa")
+        .select("departemen_id")
+        .eq("id", values.siswa_id)
+        .maybeSingle();
+      const departemenId = (siswaRow as any)?.departemen_id ?? null;
+      await checkPeriodeLocked(values.tanggal, departemenId);
+
       // Auto-jurnal
       let jurnalId: string | null = null;
       const { data: pengaturan } = await supabase.from("pengaturan_akun").select("kode_setting, akun_id");
@@ -338,7 +347,7 @@ export function useTransaksiTabungan() {
           const ket = `Tabungan siswa ${values.jenis} - ${values.keterangan || ""}`.trim();
 
           const { data: jurnal } = await supabase.from("jurnal").insert({
-            nomor, tanggal: values.tanggal, keterangan: ket,
+            nomor, tanggal: values.tanggal, keterangan: ket, departemen_id: departemenId,
             total_debit: values.jumlah, total_kredit: values.jumlah, status: "posted",
           }).select().single();
 
@@ -437,6 +446,15 @@ export function useTransaksiTabunganPegawai() {
 
       if (newSaldo < 0) throw new Error("Saldo tidak mencukupi");
 
+      // Jurnal ikut lembaga pegawai agar masuk laporan per gabungan unit
+      const { data: pegawaiRow } = await supabase
+        .from("pegawai")
+        .select("departemen_id")
+        .eq("id", values.pegawai_id)
+        .maybeSingle();
+      const departemenId = (pegawaiRow as any)?.departemen_id ?? null;
+      await checkPeriodeLocked(values.tanggal, departemenId);
+
       // Auto-jurnal
       let jurnalId: string | null = null;
       const { data: pengaturan } = await supabase.from("pengaturan_akun").select("kode_setting, akun_id");
@@ -452,7 +470,7 @@ export function useTransaksiTabunganPegawai() {
           const ket = `Tabungan pegawai ${values.jenis} - ${values.keterangan || ""}`.trim();
 
           const { data: jurnal } = await supabase.from("jurnal").insert({
-            nomor, tanggal: values.tanggal, keterangan: ket,
+            nomor, tanggal: values.tanggal, keterangan: ket, departemen_id: departemenId,
             total_debit: values.jumlah, total_kredit: values.jumlah, status: "posted",
           }).select().single();
 

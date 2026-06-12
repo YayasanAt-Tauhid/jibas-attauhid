@@ -29,27 +29,17 @@ const KATEGORI_ICON: Record<string, React.ReactNode> = {
 
 const EXCLUDED_KATEGORI = ["unit_pendidikan", "unit_yayasan"];
 
-// Saldo awal akun neraca (hardcoded dari database)
-const SALDO_AWAL_NERACA: Record<string, { nama: string; jenis: "aset" | "liabilitas" | "ekuitas"; saldo_normal: "D" | "K"; saldo_awal: number }> = {
-  "1101": { nama: "KAS BENDAHARA YAYASAN",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 11241900 },
-  "1102": { nama: "KAS PEMBANTU BENDAHARA ICT",             jenis: "aset",       saldo_normal: "D", saldo_awal: 2962500 },
-  "1110": { nama: "KAS KABID UMUM",                         jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1111": { nama: "KAS DAPOER ATTAUHID",                    jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1201": { nama: "BANK OPERASIONAL",                       jenis: "aset",       saldo_normal: "D", saldo_awal: 178140537 },
-  "1205": { nama: "BANK LAUNDRY ICT",                       jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1206": { nama: "BANK BELANJE MART ICT",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1207": { nama: "BANK DAPOER AT-TAUHID",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1208": { nama: "BANK KANTIN AT-TAUHID",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1209": { nama: "BANK KOPERASI AT-TAUHID",                jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1601": { nama: "UANG MUKA OPERASIONAL",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 19113000 },
-  "1602": { nama: "UANG MUKA PEMBANGUNAN",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 500000 },
-  "1803": { nama: "PEKERJAAN DALAM PELAKSANAAN MASJID ICT", jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "1902": { nama: "REKENING ANTAR BAGIAN",                  jenis: "aset",       saldo_normal: "D", saldo_awal: 0 },
-  "2102": { nama: "HUTANG KEPADA LEMBAGA LAIN",             jenis: "liabilitas", saldo_normal: "K", saldo_awal: 36133102 },
-  "2103": { nama: "TITIPAN TRANSFER (NO CLEAR)",            jenis: "liabilitas", saldo_normal: "K", saldo_awal: 1825000 },
-  "2105": { nama: "HUTANG USAHA",                           jenis: "liabilitas", saldo_normal: "K", saldo_awal: 0 },
-  "3101": { nama: "ASSET NETTO (MODAL)",                    jenis: "ekuitas",    saldo_normal: "K", saldo_awal: 9377623636 },
-};
+// Saldo awal akun neraca per 1 Jan dari saldo_awal_isak35 (hasil tutup buku),
+// dijumlahkan untuk departemen yang dikonsolidasi
+async function fetchSaldoAwalNeraca(tahun: number, deptIds: string[]) {
+  const { data, error } = await supabase
+    .from("saldo_awal_isak35")
+    .select("saldo, akun:akun_id(kode, nama, jenis, saldo_normal)")
+    .eq("tahun", tahun)
+    .in("departemen_id", deptIds);
+  if (error) throw error;
+  return data || [];
+}
 
 // ─── Fetch jurnal detail per departemen ─────────────────────────
 async function fetchJurnalDetail(tahun: number, departemenId: string) {
@@ -115,47 +105,62 @@ function hitungRingkasan(rows: any[]) {
     .sort((a, b) => a.kode.localeCompare(b.kode));
 }
 
-// ─── Hitung neraca dari mutasi jurnal ────────────────────────────
-function hitungNeraca(rows: any[]) {
-  // Mulai dari saldo awal
+// ─── Hitung neraca: saldo awal isak35 + mutasi jurnal tahun berjalan ──
+function hitungNeraca(saldoAwalRows: any[], rows: any[]) {
   const map = new Map<string, { kode: string; nama: string; jenis: "aset" | "liabilitas" | "ekuitas"; saldo_normal: "D" | "K"; saldo: number }>();
 
-  // Inisialisasi dari SALDO_AWAL_NERACA
-  Object.entries(SALDO_AWAL_NERACA).forEach(([kode, akun]) => {
-    map.set(kode, { kode, ...akun, saldo: akun.saldo_awal });
-  });
-
-  // Tambahkan mutasi dari jurnal
-  rows.forEach((row: any) => {
-    const akun = row.akun;
-    if (!akun || !["aset", "liabilitas", "ekuitas"].includes(akun.jenis)) return;
+  const ambilEntry = (akun: any) => {
     const kode = akun.kode;
-
     if (!map.has(kode)) {
-      // Akun baru yang tidak ada di saldo awal
-      const saldo_normal = akun.saldo_normal || (akun.jenis === "aset" ? "D" : "K");
       map.set(kode, {
         kode,
         nama: akun.nama,
         jenis: akun.jenis as "aset" | "liabilitas" | "ekuitas",
-        saldo_normal,
+        saldo_normal: akun.saldo_normal === "K" ? "K" : "D",
         saldo: 0,
       });
     }
+    return map.get(kode)!;
+  };
 
-    const entry = map.get(kode)!;
+  // Saldo awal per 1 Januari (sudah bertanda sesuai saldo normal)
+  saldoAwalRows.forEach((row: any) => {
+    const akun = row.akun;
+    if (!akun || !["aset", "liabilitas", "ekuitas"].includes(akun.jenis)) return;
+    ambilEntry(akun).saldo += Number(row.saldo || 0);
+  });
+
+  // Mutasi tahun berjalan; sekaligus akumulasi surplus dari akun pendapatan/beban
+  let surplusBerjalan = 0;
+  rows.forEach((row: any) => {
+    const akun = row.akun;
+    if (!akun) return;
     const debit  = Number(row.debit  || 0);
     const kredit = Number(row.kredit || 0);
 
+    if (akun.jenis === "pendapatan") { surplusBerjalan += kredit - debit; return; }
+    if (akun.jenis === "beban")      { surplusBerjalan -= debit - kredit; return; }
+    if (!["aset", "liabilitas", "ekuitas"].includes(akun.jenis)) return;
+
+    const entry = ambilEntry(akun);
     // Saldo naik jika transaksi searah saldo normal
-    if (entry.saldo_normal === "D") {
-      entry.saldo += debit - kredit;
-    } else {
-      entry.saldo += kredit - debit;
-    }
+    entry.saldo += entry.saldo_normal === "D" ? debit - kredit : kredit - debit;
   });
 
-  return Array.from(map.values()).sort((a, b) => a.kode.localeCompare(b.kode));
+  // Surplus berjalan masuk ekuitas agar neraca balance sebelum tutup buku
+  if (Math.abs(surplusBerjalan) > 0.005) {
+    map.set("9999", {
+      kode: "",
+      nama: "SURPLUS / (DEFISIT) TAHUN BERJALAN",
+      jenis: "ekuitas",
+      saldo_normal: "K",
+      saldo: surplusBerjalan,
+    });
+  }
+
+  return Array.from(map.values())
+    .filter(a => Math.abs(a.saldo) > 0.005)
+    .sort((a, b) => (a.kode || "9999").localeCompare(b.kode || "9999"));
 }
 
 // ─── Komponen kartu ringkasan per departemen ──────────────────────
@@ -365,8 +370,11 @@ function NeracaKonsolidasi({
     queryKey: ["neraca_konsolidasi", tahun, deptIds.sort().join(",")],
     queryFn: async () => {
       if (deptIds.length === 0) return [];
-      const rows = await fetchJurnalKonsolidasi(tahun, deptIds);
-      return hitungNeraca(rows);
+      const [saldoAwalRows, rows] = await Promise.all([
+        fetchSaldoAwalNeraca(tahun, deptIds),
+        fetchJurnalKonsolidasi(tahun, deptIds),
+      ]);
+      return hitungNeraca(saldoAwalRows, rows);
     },
     enabled: deptIds.length > 0,
   });

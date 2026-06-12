@@ -22,8 +22,10 @@ async function fetchAllJurnalDetail(tahun: number, departemenId?: string) {
   while (true) {
     let q = supabase
       .from("jurnal_detail")
-      .select("debit, kredit, jurnal:jurnal_id!inner(tanggal, status, departemen_id), akun:akun_id(kode, nama, jenis, saldo_normal)")
+      .select("debit, kredit, jurnal:jurnal_id!inner(tanggal, status, tipe, departemen_id), akun:akun_id(kode, nama, jenis, saldo_normal)")
       .eq("jurnal.status", "posted")
+      // Jurnal penutup menolkan pendapatan/beban — jangan ikut dihitung di laba rugi
+      .neq("jurnal.tipe", "penutup")
       .gte("jurnal.tanggal", `${tahun}-01-01`)
       .lte("jurnal.tanggal", `${tahun}-12-31`);
     if (departemenId) q = q.eq("jurnal.departemen_id", departemenId);
