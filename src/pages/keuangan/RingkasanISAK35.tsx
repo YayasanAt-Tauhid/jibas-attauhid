@@ -14,7 +14,7 @@ export default function RingkasanISAK35() {
   const [tahun, setTahun] = useState(currentYear);
   const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
-  const [filterUnit, setFilterUnit] = useState("semua");
+  const [filterUnit, setFilterUnit] = useState("pendidikan");
   const { data: taList = [] } = useTahunAjaran();
   const { data: deptGroups } = useDepartemenGroups();
   const navigate = useNavigate();
@@ -39,7 +39,7 @@ export default function RingkasanISAK35() {
   }).filter(Boolean)])).sort((a: any, b: any) => b - a);
 
   const labelUnit =
-    filterUnit === "semua" ? "Gabungan Semua Unit" :
+    filterUnit === "semua" ? "Konsolidasi Semua Unit" :
     filterUnit === "pendidikan" ? "Unit Pendidikan (Gabungan)" :
     filterUnit === "usaha" ? "Unit Usaha & Dana (Gabungan)" :
     allDepts.find(d => d.id === filterUnit)?.nama ?? filterUnit;
@@ -104,7 +104,7 @@ export default function RingkasanISAK35() {
           <Select value={filterUnit} onValueChange={v => setFilterUnit(v)}>
             <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="semua">Gabungan Semua Unit</SelectItem>
+              <SelectItem value="semua">Konsolidasi Semua Unit (Internal)</SelectItem>
               <SelectSeparator />
               <SelectGroup>
                 <SelectLabel>Unit Pendidikan</SelectLabel>

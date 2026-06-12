@@ -687,33 +687,65 @@ export function useAkunByJenis(jenis: string) {
 }
 
 // ─── Buku Besar ───
-export function useBukuBesar(akunId?: string, bulanDari?: number, bulanSampai?: number, tahun?: number, departemenId?: string) {
+export interface BukuBesarMutasiRow {
+  tanggal: string;
+  nomor: string;
+  lembaga: string;
+  keterangan: string;
+  debit: number;
+  kredit: number;
+  tipe: string;
+}
+
+export interface BukuBesarData {
+  saldoAwal: number;
+  mutasi: BukuBesarMutasiRow[];
+}
+
+/** Buku besar per akun: saldo awal periode + mutasi dihitung di server
+ *  (RPC buku_besar_saldo_awal & buku_besar_mutasi, exclude jurnal penutup
+ *  kecuali diminta). Mutasi diambil per 1000 baris karena batas PostgREST. */
+export function useBukuBesar(
+  akunId?: string,
+  tglAwal?: string,
+  tglAkhir?: string,
+  departemenIds?: string[],
+  includePenutup?: boolean,
+) {
   return useQuery({
-    queryKey: ["buku_besar", akunId, bulanDari, bulanSampai, tahun, departemenId],
-    enabled: !!akunId,
-    queryFn: async () => {
-      const y = tahun || new Date().getFullYear();
-      let q = supabase
-        .from("jurnal_detail")
-        .select("*, jurnal:jurnal_id(nomor, tanggal, keterangan, status, departemen_id, departemen:departemen_id(nama, kode))")
-        .eq("akun_id", akunId!);
+    queryKey: ["buku_besar", akunId, tglAwal, tglAkhir, departemenIds, includePenutup],
+    enabled: !!akunId && !!tglAwal && !!tglAkhir,
+    queryFn: async (): Promise<BukuBesarData> => {
+      const depts = departemenIds && departemenIds.length > 0 ? departemenIds : null;
 
-      const { data, error } = await q.order("jurnal_id");
-      if (error) throw error;
+      const { data: saldoAwalData, error: saErr } = await (supabase as any).rpc("buku_besar_saldo_awal", {
+        p_akun_id: akunId,
+        p_tgl_awal: tglAwal,
+        p_departemen_ids: depts,
+      });
+      if (saErr) throw saErr;
 
-      const startMonth = bulanDari || 1;
-      const endMonth = bulanSampai || 12;
-      const startDate = `${y}-${String(startMonth).padStart(2, "0")}-01`;
-      const endMonthNext = endMonth === 12 ? 1 : endMonth + 1;
-      const endYearNext = endMonth === 12 ? y + 1 : y;
-      const endDate = `${endYearNext}-${String(endMonthNext).padStart(2, "0")}-01`;
+      const pageSize = 1000;
+      const mutasi: BukuBesarMutasiRow[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await (supabase as any)
+          .rpc("buku_besar_mutasi", {
+            p_akun_id: akunId,
+            p_tgl_awal: tglAwal,
+            p_tgl_akhir: tglAkhir,
+            p_departemen_ids: depts,
+            p_include_penutup: includePenutup ?? false,
+          })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const rows = (data || []) as any[];
+        for (const r of rows) {
+          mutasi.push({ ...r, debit: Number(r.debit || 0), kredit: Number(r.kredit || 0) });
+        }
+        if (rows.length < pageSize) break;
+      }
 
-      return (data as any[]).filter((d: any) => {
-        const j = d.jurnal;
-        if (!j || j.status !== "posted") return false;
-        if (departemenId && j.departemen_id !== departemenId) return false;
-        return j.tanggal >= startDate && j.tanggal < endDate;
-      }).sort((a: any, b: any) => a.jurnal.tanggal.localeCompare(b.jurnal.tanggal));
+      return { saldoAwal: Number(saldoAwalData || 0), mutasi };
     },
   });
 }

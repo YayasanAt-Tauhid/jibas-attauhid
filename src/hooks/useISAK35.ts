@@ -26,8 +26,10 @@ export function posisiLabel(filter: PeriodeFilter): string {
   return `Per ${filter.tglAkhir}`;
 }
 
-// Kode departemen yang termasuk Unit Pendidikan
-export const UNIT_PENDIDIKAN_KODE = ["TK", "SD", "SMP", "SMA", "MTA", "KEPONDOKAN", "UMUM"];
+// Kategori departemen yang termasuk Unit Usaha & Dana — harus sama dengan
+// pengelompokan tutup buku (TutupBuku.tsx) dan checkPeriodeLocked.
+// Departemen tanpa kategori dianggap Unit Pendidikan (default ketat).
+export const KATEGORI_USAHA_DANA = ["unit_usaha", "unit_dana_terikat", "unit_yayasan"];
 
 export function useDepartemenGroups() {
   return useQuery({
@@ -35,14 +37,14 @@ export function useDepartemenGroups() {
     queryFn: async () => {
       const { data } = await supabase
         .from("departemen")
-        .select("id, kode, nama")
+        .select("id, kode, nama, kategori")
         .eq("aktif", true);
       const rows = (data as any[]) || [];
       const pendidikanDepts: { id: string; kode: string; nama: string }[] = rows
-        .filter(d => UNIT_PENDIDIKAN_KODE.includes(d.kode))
+        .filter(d => !KATEGORI_USAHA_DANA.includes(d.kategori))
         .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
       const usahaDepts: { id: string; kode: string; nama: string }[] = rows
-        .filter(d => !UNIT_PENDIDIKAN_KODE.includes(d.kode))
+        .filter(d => KATEGORI_USAHA_DANA.includes(d.kategori))
         .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
       const pendidikanIds = pendidikanDepts.map(d => d.id);
       const usahaIds = usahaDepts.map(d => d.id);
