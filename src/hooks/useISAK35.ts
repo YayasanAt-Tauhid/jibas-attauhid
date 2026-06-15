@@ -64,7 +64,7 @@ interface SaldoAkun {
   saldo: number;
 }
 
-async function hitungSaldoAkun(filter: PeriodeFilter, departemenIds?: string[]): Promise<SaldoAkun[]> {
+async function hitungSaldoAkun(filter: PeriodeFilter, departemenIds?: string[], includeDraf = false): Promise<SaldoAkun[]> {
   const { data: akunList, error: akunErr } = await supabase
     .from("akun_rekening")
     .select("id, kode, nama, pos_isak35, saldo_normal, urutan_isak35, saldo_awal")
@@ -76,15 +76,17 @@ async function hitungSaldoAkun(filter: PeriodeFilter, departemenIds?: string[]):
   // ── Hitung mutasi sesuai mode filter ─────────────────────────
   let mutasiRows: any[];
   if (filter.type === "tahun") {
+    const rpcName = includeDraf ? "hitung_mutasi_akun_incl_draft" : "hitung_mutasi_akun";
     const rpcParams: any = { p_tahun: filter.tahun };
     if (departemenIds && departemenIds.length > 0) rpcParams.p_departemen_ids = departemenIds;
-    const { data, error } = await (supabase as any).rpc("hitung_mutasi_akun", rpcParams);
+    const { data, error } = await (supabase as any).rpc(rpcName, rpcParams);
     if (error) throw error;
     mutasiRows = data || [];
   } else {
+    const rpcName = includeDraf ? "hitung_mutasi_akun_range_incl_draft" : "hitung_mutasi_akun_range";
     const rpcParams: any = { p_tgl_awal: filter.tglAwal, p_tgl_akhir: filter.tglAkhir };
     if (departemenIds && departemenIds.length > 0) rpcParams.p_departemen_ids = departemenIds;
-    const { data, error } = await (supabase as any).rpc("hitung_mutasi_akun_range", rpcParams);
+    const { data, error } = await (supabase as any).rpc(rpcName, rpcParams);
     if (error) throw error;
     mutasiRows = data || [];
   }
@@ -438,7 +440,28 @@ export function useLaporanKomprehensif(filter: PeriodeFilter, departemenIds?: st
   });
 }
 
-export function useLaporanPosisiKeuangan(filter: PeriodeFilter, departemenIds?: string[]) {
+export function useJumlahDraftJurnal(filter: PeriodeFilter, departemenIds?: string[]) {
+  const tglAwal = filter.type === "tahun" ? `${filter.tahun}-01-01` : filter.tglAwal;
+  const tglAkhir = filter.type === "tahun" ? `${filter.tahun}-12-31` : filter.tglAkhir;
+  return useQuery({
+    queryKey: ["jumlah_draft_jurnal", tglAwal, tglAkhir, departemenIds],
+    queryFn: async () => {
+      let q = supabase
+        .from("jurnal")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "draft")
+        .gte("tanggal", tglAwal)
+        .lte("tanggal", tglAkhir);
+      if (departemenIds && departemenIds.length > 0)
+        q = (q as any).in("departemen_id", departemenIds);
+      const { count } = await q;
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useLaporanPosisiKeuangan(filter: PeriodeFilter, departemenIds?: string[], includeDraf = false) {
   // Untuk mode range: laporan posisi keuangan (neraca) menyajikan saldo KUMULATIF
   // s.d. tglAkhir. Agar hasilnya benar, mutasi dihitung dari 1 Jan tahun tglAkhir
   // hingga tglAkhir (bukan dari tglAwal yang mungkin di tengah tahun).
@@ -448,9 +471,9 @@ export function useLaporanPosisiKeuangan(filter: PeriodeFilter, departemenIds?: 
       : filter;
 
   return useQuery({
-    queryKey: ["isak35_posisi", filter, departemenIds],
+    queryKey: ["isak35_posisi", filter, departemenIds, includeDraf],
     queryFn: async () => {
-      const saldo = await hitungSaldoAkun(normalizedFilter, departemenIds);
+      const saldo = await hitungSaldoAkun(normalizedFilter, departemenIds, includeDraf);
 
       const asetLancarItems = byPos(saldo, "aset_lancar");
       const totalAL = sumSaldo(asetLancarItems);

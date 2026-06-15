@@ -4,11 +4,13 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useLaporanPosisiKeuangan, useDepartemenGroups, useRekonRekeningAntar, useRekonRekeningAntarDetail, RekonAntarRow, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
+import { useLaporanPosisiKeuangan, useJumlahDraftJurnal, useDepartemenGroups, useRekonRekeningAntar, useRekonRekeningAntarDetail, RekonAntarRow, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import KopLaporan from "@/components/keuangan/KopLaporan";
 import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
-import { Printer, AlertTriangle, ChevronRight, ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Printer, AlertTriangle, ChevronRight, ChevronDown, FlaskConical } from "lucide-react";
 
 function Row({ label, value, bold, indent, contraAsset }: { label: string; value: number; bold?: boolean; indent?: boolean; contraAsset?: boolean }) {
   const neg = value < 0;
@@ -100,6 +102,7 @@ export default function LaporanPosisiKeuangan() {
   const [tglAwal, setTglAwal] = useState(`${currentYear}-01-01`);
   const [tglAkhir, setTglAkhir] = useState(`${currentYear}-12-31`);
   const [filterUnit, setFilterUnit] = useState("pendidikan");
+  const [includeDraf, setIncludeDraf] = useState(false);
   const { data: taList = [] } = useTahunBuku();
   const { data: deptGroups } = useDepartemenGroups();
 
@@ -122,8 +125,9 @@ export default function LaporanPosisiKeuangan() {
     ? { type: "range", tglAwal: selectedTA.tanggal_mulai, tglAkhir: selectedTA.tanggal_selesai }
     : { type: "range", tglAwal, tglAkhir };
 
-  const { data, isLoading, isError, error } = useLaporanPosisiKeuangan(filter, departemenIds);
+  const { data, isLoading, isError, error } = useLaporanPosisiKeuangan(filter, departemenIds, includeDraf);
   const { data: rekonAntar } = useRekonRekeningAntar(filter);
+  const { data: jumlahDraft = 0 } = useJumlahDraftJurnal(filter, departemenIds);
 
   const labelUnit =
     filterUnit === "semua" ? "Konsolidasi Semua Unit" :
@@ -181,9 +185,31 @@ export default function LaporanPosisiKeuangan() {
               </SelectGroup>
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+            <Checkbox
+              id="incl-draf"
+              checked={includeDraf}
+              onCheckedChange={v => setIncludeDraf(!!v)}
+            />
+            <Label htmlFor="incl-draf" className="cursor-pointer select-none font-normal">
+              Sertakan jurnal draf
+            </Label>
+          </div>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" /> Cetak</Button>
         </div>
       </div>
+
+      {includeDraf && (
+        <Alert className="print:hidden border-blue-500/60 bg-blue-50 dark:bg-blue-950/30 [&>svg]:text-blue-600">
+          <FlaskConical className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-medium">Laporan Percobaan</span> — angka bersifat sementara dan belum dapat dijadikan laporan resmi.{" "}
+            {jumlahDraft > 0
+              ? <>{jumlahDraft} jurnal draf ikut dihitung dalam periode ini.</>
+              : <>Tidak ada jurnal draf di periode ini — angka sama dengan laporan resmi.</>}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {rekonAntar && rekonAntar.rows.length > 0 && (
         <Alert className="print:hidden border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 [&>svg]:text-amber-600">
@@ -209,7 +235,9 @@ export default function LaporanPosisiKeuangan() {
       <Card className="print:border-0 print:shadow-none">
         <KopLaporan />
         <CardHeader className="text-center">
-          <CardTitle className="text-lg">LAPORAN POSISI KEUANGAN</CardTitle>
+          <CardTitle className="text-lg">
+            LAPORAN POSISI KEUANGAN{includeDraf && <span className="ml-2 text-blue-600 text-base font-semibold">(PERCOBAAN)</span>}
+          </CardTitle>
           <p className="text-sm text-muted-foreground">{labelUnit} — {modePeriode === "tahun" ? namaTampil : posisiLabel(filter)}</p>
         </CardHeader>
         <CardContent>
