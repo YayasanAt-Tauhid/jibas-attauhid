@@ -110,6 +110,15 @@ export default function JurnalUmum() {
     setKoreksiTarget(null);
   };
 
+  const gabungPenggantiKeterangan = () => {
+    const combined = penggantiDetails
+      .map((d) => d.keterangan.trim())
+      .filter(Boolean)
+      .join("; ");
+    if (combined) setPenggantiKeterangan(combined);
+    else toast.info("Isi dulu keterangan pada baris akun untuk digabungkan");
+  };
+
   const addPenggantiRow = () =>
     setPenggantiDetails([...penggantiDetails, { akun_id: "", keterangan: "", debit: 0, kredit: 0 }]);
   const removePenggantiRow = (i: number) => {
@@ -191,6 +200,16 @@ export default function JurnalUmum() {
       await createMut.mutateAsync(payload);
     }
     setFormOpen(false);
+  };
+
+  // Gabungkan keterangan tiap baris (yang terisi) menjadi keterangan header
+  const gabungKeterangan = () => {
+    const combined = details
+      .map((d) => d.keterangan.trim())
+      .filter(Boolean)
+      .join("; ");
+    if (combined) setKeterangan(combined);
+    else toast.info("Isi dulu keterangan pada baris akun untuk digabungkan");
   };
 
   const addRow = () => setDetails([...details, { akun_id: "", keterangan: "", debit: 0, kredit: 0 }]);
@@ -546,7 +565,20 @@ export default function JurnalUmum() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div><Label>Tanggal</Label><Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} /></div>
-              <div><Label>Keterangan *</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan jurnal" /></div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Keterangan *</Label>
+                  <button
+                    type="button"
+                    onClick={gabungKeterangan}
+                    disabled={!details.some((d) => d.keterangan.trim())}
+                    className="text-xs text-primary hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                  >
+                    Gabung dari baris
+                  </button>
+                </div>
+                <Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan jurnal" />
+              </div>
               <div><Label>Referensi</Label><Input value={referensi} onChange={e => setReferensi(e.target.value)} placeholder="No. dokumen sumber" /></div>
               <div>
                 <Label>Lembaga</Label>
@@ -791,7 +823,17 @@ export default function JurnalUmum() {
                     <Input type="date" value={tanggalPengganti} onChange={(e) => setTanggalPengganti(e.target.value)} />
                   </div>
                   <div>
-                    <Label>Keterangan Jurnal Pengganti *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Keterangan Jurnal Pengganti *</Label>
+                      <button
+                        type="button"
+                        onClick={gabungPenggantiKeterangan}
+                        disabled={!penggantiDetails.some((d) => d.keterangan.trim())}
+                        className="text-xs text-primary hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                      >
+                        Gabung dari baris
+                      </button>
+                    </div>
                     <Input value={penggantiKeterangan} onChange={(e) => setPenggantiKeterangan(e.target.value)} />
                   </div>
                   <div>
