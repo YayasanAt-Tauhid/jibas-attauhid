@@ -8,6 +8,8 @@ interface StatsCardProps {
   icon: LucideIcon;
   trend?: { value: number; label?: string };
   color?: "primary" | "success" | "warning" | "destructive" | "info";
+  onClick?: () => void;
+  active?: boolean;
 }
 
 const colorMap = {
@@ -18,9 +20,12 @@ const colorMap = {
   info: "bg-info/10 text-info",
 };
 
-export function StatsCard({ title, value, icon: Icon, trend, color = "primary" }: StatsCardProps) {
+export function StatsCard({ title, value, icon: Icon, trend, color = "primary", onClick, active }: StatsCardProps) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card
+      className={`hover:shadow-md transition-shadow ${onClick ? "cursor-pointer" : ""} ${active ? "ring-2 ring-warning" : ""}`}
+      onClick={onClick}
+    >
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="space-y-1.5">

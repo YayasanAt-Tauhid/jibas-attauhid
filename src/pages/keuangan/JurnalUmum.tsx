@@ -454,7 +454,14 @@ export default function JurnalUmum() {
       <div className="grid gap-3 sm:grid-cols-3 mb-4">
         <StatsCard title="Total Jurnal" value={totalJurnal} icon={BookOpen} color="info" />
         <StatsCard title="Sudah Diposting" value={jurnalPosted} icon={CheckCircle} color="success" />
-        <StatsCard title="Masih Draft" value={jurnalDraft} icon={FileEdit} color="warning" />
+        <StatsCard
+          title="Masih Draft"
+          value={jurnalDraft}
+          icon={FileEdit}
+          color="warning"
+          active={statusFilter === "draft"}
+          onClick={() => setStatusFilter(f => f === "draft" ? "semua" : "draft")}
+        />
       </div>
 
       {/* Filter toolbar */}
