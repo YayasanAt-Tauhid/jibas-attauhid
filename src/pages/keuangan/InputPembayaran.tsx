@@ -14,6 +14,8 @@ import {
 } from "@/hooks/useKeuangan";
 import { useTarifSiswa } from "@/hooks/useTarifTagihan";
 import { useTagihanBySiswa } from "@/hooks/useTagihan";
+import { logAuditKeuangan } from "@/hooks/useJurnal";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search, Printer, Check, X } from "lucide-react";
@@ -51,6 +53,38 @@ function useProsesPembayaran() {
       qc.invalidateQueries({ queryKey: ["pembayaran"] });
       qc.invalidateQueries({ queryKey: ["tagihan"] });
       qc.invalidateQueries({ queryKey: ["jurnal"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+function useBatalkanPembayaran() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { pembayaran_id: string; alasan: string; jumlah: number; keterangan: string }) => {
+      const { data, error } = await supabase.functions.invoke("batalkan-pembayaran", {
+        body: { pembayaran_id: payload.pembayaran_id, alasan: payload.alasan },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error ?? "Pembatalan gagal");
+      // catat ke audit (best-effort, di sisi klien agar nama pengguna terekam)
+      await logAuditKeuangan({
+        tabel_sumber: "pembayaran",
+        record_id: payload.pembayaran_id,
+        aksi: "DELETE",
+        data_lama: { jumlah: payload.jumlah, keterangan: payload.keterangan },
+        data_baru: { dibatalkan: true, alasan: payload.alasan, jurnal_pembalik_id: data.jurnal_pembalik_id },
+        keterangan: `Pembatalan pembayaran ${payload.keterangan} ${formatRupiah(payload.jumlah)} — ${payload.alasan}`,
+      });
+      return data as { pembayaran_id: string; jurnal_pembalik_id: string | null };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pembayaran"] });
+      qc.invalidateQueries({ queryKey: ["pembayaran_siswa"] });
+      qc.invalidateQueries({ queryKey: ["tagihan"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      qc.invalidateQueries({ queryKey: ["tunggakan"] });
+      toast.success("Pembayaran berhasil dibatalkan & jurnal dibalik");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -246,6 +280,11 @@ export default function InputPembayaran() {
   const lembagaNama    = lembagaList?.find(l => l.id === departemenId)?.nama ?? "-";
 
   const prosesMutation = useProsesPembayaran();
+  const batalMutation  = useBatalkanPembayaran();
+  const { role } = useAuth();
+  const canBatal = role === "admin" || role === "kepala_sekolah" || role === "keuangan";
+  const [batalTarget, setBatalTarget] = useState<PembayaranWithJenis | null>(null);
+  const [batalAlasan, setBatalAlasan] = useState("");
 
   const handleSelectSiswa = useCallback((s: SiswaWithKelas) => {
     setSelectedSiswa(s);
@@ -294,6 +333,14 @@ export default function InputPembayaran() {
     { key: "bulan",   label: "Bulan",   render: v => v ? namaBulan(v as number) : <span className="text-muted-foreground text-xs">Sekali Bayar</span> },
     { key: "jumlah",  label: "Jumlah",  render: v => formatRupiah(Number(v)) },
     { key: "tanggal_bayar", label: "Tanggal", render: v => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },
+    ...(canBatal ? [{
+      key: "aksi", label: "", render: (_: unknown, r: PembayaranWithJenis) => (
+        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive"
+          onClick={() => { setBatalTarget(r); setBatalAlasan(""); }}>
+          <X className="h-3.5 w-3.5 mr-1" />Batalkan
+        </Button>
+      ),
+    } as DataTableColumn<PembayaranWithJenis>] : []),
   ];
 
   return (
@@ -584,6 +631,55 @@ export default function InputPembayaran() {
           />
         </div>
       )}
+
+      {/* ── Dialog Batalkan Pembayaran ──────────────────────────────────────────── */}
+      <Dialog open={!!batalTarget} onOpenChange={(o) => { if (!o) { setBatalTarget(null); setBatalAlasan(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <X className="h-5 w-5" />Batalkan Pembayaran
+            </DialogTitle>
+          </DialogHeader>
+          {batalTarget && (
+            <div className="space-y-3">
+              <div className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs text-destructive">
+                Hanya untuk <strong>koreksi salah-input</strong> (uang belum benar-benar berpindah/disetor).
+                Jurnal kas akan dibalik & tagihan terkait dikembalikan ke status belum bayar. Tercatat di Audit.
+              </div>
+              <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">
+                <p>Jenis: <span className="font-medium">{batalTarget.jenis_pembayaran?.nama ?? "-"}</span>
+                  {batalTarget.bulan ? ` (${namaBulan(batalTarget.bulan)})` : ""}</p>
+                <p>Jumlah: <span className="font-semibold text-destructive">{formatRupiah(Number(batalTarget.jumlah))}</span></p>
+                <p>Tanggal: <span className="font-medium">{batalTarget.tanggal_bayar ? format(new Date(batalTarget.tanggal_bayar), "dd MMM yyyy", { locale: idLocale }) : "-"}</span></p>
+              </div>
+              <div>
+                <Label>Alasan Pembatalan *</Label>
+                <Textarea rows={2} placeholder="mis. Salah pilih siswa / salah bulan / dobel input..."
+                  value={batalAlasan} onChange={(e) => setBatalAlasan(e.target.value)} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBatalTarget(null); setBatalAlasan(""); }}>Batal</Button>
+            <Button variant="destructive"
+              disabled={!batalAlasan.trim() || batalMutation.isPending}
+              onClick={() => {
+                if (!batalTarget) return;
+                batalMutation.mutate(
+                  {
+                    pembayaran_id: batalTarget.id,
+                    alasan: batalAlasan,
+                    jumlah: Number(batalTarget.jumlah),
+                    keterangan: `${batalTarget.jenis_pembayaran?.nama ?? ""}${batalTarget.bulan ? ` (${namaBulan(batalTarget.bulan)})` : ""}`,
+                  },
+                  { onSuccess: () => { setBatalTarget(null); setBatalAlasan(""); } }
+                );
+              }}>
+              {batalMutation.isPending ? "Memproses..." : "Batalkan & Balik Jurnal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialog Kuitansi ────────────────────────────────────────────────────── */}
       {lastPayment && (
