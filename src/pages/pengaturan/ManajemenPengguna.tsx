@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
-import { Pencil, Info } from "lucide-react";
+import { Pencil, Info, UserPlus } from "lucide-react";
 import Unauthorized from "@/pages/Unauthorized";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
@@ -61,6 +61,7 @@ function UserManager() {
   const [departemenList, setDepartemenList] = useState<DepartemenOption[]>([]);
   const [pegawaiList, setPegawaiList] = useState<PegawaiOption[]>([]);
   const [editing, setEditing] = useState<UserRow | null>(null);
+  const [tambahOpen, setTambahOpen] = useState(false);
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
   const fetchAll = async () => {
@@ -124,18 +125,24 @@ function UserManager() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Manajemen Pengguna</h1>
-        <p className="text-sm text-muted-foreground">Kelola profil dan hak akses pengguna</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Manajemen Pengguna</h1>
+          <p className="text-sm text-muted-foreground">Kelola profil dan hak akses pengguna</p>
+        </div>
+        <Button onClick={() => setTambahOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Tambah Pengguna
+        </Button>
       </div>
 
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Pembuatan akun baru dilakukan melalui{" "}
-          <a href="https://supabase.com/dashboard/project/jywjiivyvohojveoecat/auth/users" target="_blank" rel="noopener noreferrer" className="font-medium underline">
+          Buat akun login baru lewat tombol <strong>Tambah Pengguna</strong>. Atau lewat{" "}
+          <a href="https://supabase.com/dashboard/project/leyfwwmroijwnkrcblxe/auth/users" target="_blank" rel="noopener noreferrer" className="font-medium underline">
             Supabase Dashboard → Authentication → Invite User
-          </a>. Halaman ini hanya mengelola profil user yang sudah ada.
+          </a>.
         </AlertDescription>
       </Alert>
 
@@ -170,7 +177,121 @@ function UserManager() {
           onSaved={() => { setEditing(null); fetchAll(); }}
         />
       )}
+
+      <DialogTambahUser
+        open={tambahOpen}
+        onOpenChange={setTambahOpen}
+        departemenList={departemenList}
+        pegawaiList={pegawaiList}
+        onSaved={() => { setTambahOpen(false); fetchAll(); }}
+      />
     </div>
+  );
+}
+
+function DialogTambahUser({ open, onOpenChange, departemenList, pegawaiList, onSaved }: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  departemenList: DepartemenOption[];
+  pegawaiList: PegawaiOption[];
+  onSaved: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [userRole, setUserRole] = useState<string>("siswa");
+  const [deptId, setDeptId] = useState("__none");
+  const [pegId, setPegId] = useState("__none");
+  const [saving, setSaving] = useState(false);
+
+  // Reset form tiap kali dibuka
+  useEffect(() => {
+    if (open) {
+      setEmail(""); setPassword(""); setUserRole("siswa");
+      setDeptId("__none"); setPegId("__none");
+    }
+  }, [open]);
+
+  const handleSave = async () => {
+    if (!email.trim()) { toast.error("Email wajib diisi"); return; }
+    if (password.length < 8) { toast.error("Password minimal 8 karakter"); return; }
+    setSaving(true);
+    const { data, error } = await supabase.functions.invoke("admin-create-user", {
+      body: {
+        email: email.trim().toLowerCase(),
+        password,
+        role: userRole,
+        departemen_id: deptId === "__none" ? null : deptId,
+        pegawai_id: pegId === "__none" ? null : pegId,
+        aktif: true,
+      },
+    });
+    setSaving(false);
+    if (error || (data as any)?.error) {
+      toast.error("Gagal membuat akun: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    toast.success("Akun berhasil dibuat");
+    onSaved();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Tambah Pengguna</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@contoh.com" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Password</Label>
+            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+            <p className="text-xs text-muted-foreground">Minimal 8 karakter. Sampaikan ke pengguna untuk diganti setelah login.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role</Label>
+            <Select value={userRole} onValueChange={setUserRole}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Lembaga / Unit Kerja</Label>
+            <p className="text-xs text-muted-foreground">Kosongkan jika lintas lembaga (yayasan)</p>
+            <Select value={deptId} onValueChange={setDeptId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">— Tidak ada —</SelectItem>
+                {departemenList.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>{d.kode ? `${d.kode} - ${d.nama}` : d.nama}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Pegawai</Label>
+            <Select value={pegId} onValueChange={setPegId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">— Tidak ada —</SelectItem>
+                {pegawaiList.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.nama}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Buat Akun"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
