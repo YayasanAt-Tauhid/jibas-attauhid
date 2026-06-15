@@ -135,6 +135,7 @@ export const KODE_REKENING_ANTAR = ["1900", "1901", "1902"];
 
 export interface RekonAntarRow {
   departemen_id: string | null;
+  akun_id: string;
   departemen: string;
   kode: string;
   nama: string;
@@ -209,6 +210,7 @@ export function useRekonRekeningAntar(filter: PeriodeFilter) {
         const a = akunById[akunId];
         result.push({
           departemen_id: deptId === "-" ? null : deptId,
+          akun_id: akunId,
           departemen: deptId === "-" ? "(Tanpa Departemen)" : (deptById[deptId] ?? deptId),
           kode: a?.kode ?? "?",
           nama: a?.nama ?? "?",
@@ -218,6 +220,101 @@ export function useRekonRekeningAntar(filter: PeriodeFilter) {
       }
       result.sort((x, y) => x.kode.localeCompare(y.kode) || x.departemen.localeCompare(y.departemen));
       return { rows: result, total };
+    },
+  });
+}
+
+export interface RekonAntarDetailRow {
+  tanggal: string;
+  nomor: string;
+  keterangan: string;
+  tipe: string;
+  debit: number;
+  kredit: number;
+  saldoRunning: number;
+}
+
+/** Rincian transaksi satu rekening antar lembaga/bagian pada satu unit,
+ *  untuk menelusuri transfer mana yang belum berpasangan. Dimuat lazy
+ *  (saat baris rekonsiliasi di-expand). */
+export function useRekonRekeningAntarDetail(
+  filter: PeriodeFilter,
+  akunId: string,
+  departemenId: string | null,
+  enabled: boolean,
+) {
+  const tglAkhir = filter.type === "tahun" ? `${filter.tahun}-12-31` : filter.tglAkhir;
+  const tahun = parseInt(tglAkhir.substring(0, 4));
+
+  return useQuery({
+    enabled,
+    queryKey: ["rekon_antar_detail", tglAkhir, akunId, departemenId ?? "-"],
+    queryFn: async () => {
+      const { data: akun } = await supabase
+        .from("akun_rekening")
+        .select("saldo_normal")
+        .eq("id", akunId)
+        .maybeSingle();
+      const arah = (akun as any)?.saldo_normal === "K" ? -1 : 1;
+
+      // saldo awal tahun berjalan (carry dari tahun sebelumnya)
+      let saldoAwalQ = supabase
+        .from("saldo_awal_isak35" as any)
+        .select("saldo")
+        .eq("tahun", tahun)
+        .eq("akun_id", akunId);
+      saldoAwalQ = departemenId
+        ? (saldoAwalQ as any).eq("departemen_id", departemenId)
+        : (saldoAwalQ as any).is("departemen_id", null);
+      const { data: saldoAwalRows } = await (saldoAwalQ as any);
+      const saldoAwal = ((saldoAwalRows as any[]) || []).reduce(
+        (s, r) => s + Number(r.saldo || 0), 0,
+      );
+
+      // mutasi tahun berjalan, paginasi (PostgREST max 1000 baris)
+      const pageSize = 1000;
+      const raw: any[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let q = supabase
+          .from("jurnal_detail")
+          .select("debit, kredit, jurnal!inner(nomor, keterangan, tanggal, status, tipe, departemen_id)")
+          .eq("akun_id", akunId)
+          .eq("jurnal.status", "posted")
+          .gte("jurnal.tanggal", `${tahun}-01-01`)
+          .lte("jurnal.tanggal", tglAkhir);
+        q = departemenId
+          ? (q as any).eq("jurnal.departemen_id", departemenId)
+          : (q as any).is("jurnal.departemen_id", null);
+        const { data: rows, error } = await (q as any).range(from, from + pageSize - 1);
+        if (error) throw error;
+        for (const r of (rows as any[]) || []) {
+          if ((r.jurnal?.tipe ?? "") === "penutup") continue;
+          raw.push(r);
+        }
+        if (((rows as any[]) || []).length < pageSize) break;
+      }
+
+      raw.sort((a, b) =>
+        String(a.jurnal?.tanggal).localeCompare(String(b.jurnal?.tanggal)) ||
+        String(a.jurnal?.nomor ?? "").localeCompare(String(b.jurnal?.nomor ?? "")));
+
+      let running = saldoAwal;
+      const rows: RekonAntarDetailRow[] = raw.map((r) => {
+        const debit = Number(r.debit || 0);
+        const kredit = Number(r.kredit || 0);
+        running += arah * (debit - kredit);
+        return {
+          tanggal: r.jurnal?.tanggal,
+          nomor: r.jurnal?.nomor ?? "-",
+          keterangan: r.jurnal?.keterangan ?? "",
+          tipe: r.jurnal?.tipe ?? "",
+          debit,
+          kredit,
+          saldoRunning: running,
+        };
+      });
+
+      return { saldoAwal, rows, saldoAkhir: running };
     },
   });
 }

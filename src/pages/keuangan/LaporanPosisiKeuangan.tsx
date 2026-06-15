@@ -4,11 +4,11 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useLaporanPosisiKeuangan, useDepartemenGroups, useRekonRekeningAntar, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
+import { useLaporanPosisiKeuangan, useDepartemenGroups, useRekonRekeningAntar, useRekonRekeningAntarDetail, RekonAntarRow, PeriodeFilter, posisiLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunBuku } from "@/hooks/useKeuangan";
 import KopLaporan from "@/components/keuangan/KopLaporan";
 import TandaTanganLaporan from "@/components/keuangan/TandaTanganLaporan";
-import { Printer, AlertTriangle } from "lucide-react";
+import { Printer, AlertTriangle, ChevronRight, ChevronDown } from "lucide-react";
 
 function Row({ label, value, bold, indent, contraAsset }: { label: string; value: number; bold?: boolean; indent?: boolean; contraAsset?: boolean }) {
   const neg = value < 0;
@@ -23,6 +23,75 @@ function Row({ label, value, bold, indent, contraAsset }: { label: string; value
 
 function Divider() { return <div className="border-t my-1" />; }
 function DoubleDivider() { return <div className="border-t-2 border-foreground my-2" />; }
+
+function RekonRow({ row, filter }: { row: RekonAntarRow; filter: PeriodeFilter }) {
+  const [open, setOpen] = useState(false);
+  const { data: detail, isLoading } = useRekonRekeningAntarDetail(
+    filter, row.akun_id, row.departemen_id, open,
+  );
+
+  return (
+    <div className="rounded border border-amber-500/30 bg-background/40">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between gap-4 px-2 py-1 text-left hover:bg-amber-100/40 dark:hover:bg-amber-900/20"
+      >
+        <span className="flex items-center gap-1">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          {row.kode} {row.nama} — {row.departemen}
+        </span>
+        <span className="font-medium tabular-nums">{formatRupiah(Math.round(row.saldo))}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-amber-500/20 px-2 py-2 text-xs">
+          {isLoading || !detail ? (
+            <p className="text-muted-foreground">Memuat rincian...</p>
+          ) : (
+            <table className="w-full tabular-nums">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="py-1 pr-2 font-medium">Tanggal</th>
+                  <th className="py-1 pr-2 font-medium">No. Jurnal</th>
+                  <th className="py-1 pr-2 font-medium">Keterangan</th>
+                  <th className="py-1 pr-2 text-right font-medium">Debit</th>
+                  <th className="py-1 pr-2 text-right font-medium">Kredit</th>
+                  <th className="py-1 text-right font-medium">Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t">
+                  <td className="py-1 pr-2" colSpan={5}>Saldo awal periode</td>
+                  <td className="py-1 text-right">{formatRupiah(Math.round(detail.saldoAwal))}</td>
+                </tr>
+                {detail.rows.map((d, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="py-1 pr-2 whitespace-nowrap">{d.tanggal}</td>
+                    <td className="py-1 pr-2 whitespace-nowrap">{d.nomor}</td>
+                    <td className="py-1 pr-2">{d.keterangan}</td>
+                    <td className="py-1 pr-2 text-right">{d.debit ? formatRupiah(Math.round(d.debit)) : "-"}</td>
+                    <td className="py-1 pr-2 text-right">{d.kredit ? formatRupiah(Math.round(d.kredit)) : "-"}</td>
+                    <td className="py-1 text-right">{formatRupiah(Math.round(d.saldoRunning))}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-foreground/40 font-medium">
+                  <td className="py-1 pr-2" colSpan={5}>Saldo akhir (perlu dinolkan)</td>
+                  <td className="py-1 text-right">{formatRupiah(Math.round(detail.saldoAkhir))}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+          {detail && detail.rows.length === 0 && (
+            <p className="mt-1 text-muted-foreground italic">
+              Tidak ada mutasi tahun berjalan — saldo berasal dari saldo awal/tahun sebelumnya.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LaporanPosisiKeuangan() {
   const currentYear = new Date().getFullYear();
@@ -124,14 +193,11 @@ export default function LaporanPosisiKeuangan() {
               Saldo rekening antar lembaga/bagian belum nol (total {formatRupiah(Math.round(rekonAntar.total))}) —
               perlu jurnal penyelesaian/reklasifikasi sebelum menyusun laporan eksternal.
             </p>
-            <ul className="mt-2 space-y-0.5 text-sm">
+            <div className="mt-2 space-y-0.5 text-sm">
               {rekonAntar.rows.map((r, i) => (
-                <li key={i} className="flex justify-between gap-4">
-                  <span>{r.kode} {r.nama} — {r.departemen}</span>
-                  <span className="font-medium tabular-nums">{formatRupiah(Math.round(r.saldo))}</span>
-                </li>
+                <RekonRow key={i} row={r} filter={filter} />
               ))}
-            </ul>
+            </div>
             <p className="mt-2 text-xs text-muted-foreground">
               Saldo tersisa berarti ada transfer yang baru dicatat satu sisi: buat jurnal di unit penerima
               (debit kas/bank, kredit rekening antar), atau reklasifikasi ke piutang/hutang antar lembaga.

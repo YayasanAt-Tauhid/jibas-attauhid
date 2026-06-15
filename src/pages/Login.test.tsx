@@ -30,7 +30,7 @@ describe("Login", () => {
 
   it("renders login form with email and password fields", () => {
     renderLogin();
-    expect(screen.getByText("JIBAS")).toBeInTheDocument();
+    expect(screen.getByText("Hijrah At-Tauhid")).toBeInTheDocument();
     expect(screen.getByText("Masuk ke Akun")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
