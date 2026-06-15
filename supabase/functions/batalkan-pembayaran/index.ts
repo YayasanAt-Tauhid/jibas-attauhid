@@ -6,7 +6,7 @@
  *   1. Cek pendapatan di muka (tolak bila sudah diakui, hapus bila pending)
  *   2. Buat jurnal pembalik (posted) dari jurnal pembayaran
  *   3. Kembalikan tagihan terkait → belum_bayar
- *   4. Soft-cancel pembayaran (status=dibatalkan) + jejak alasan
+ *   4. Hapus baris pembayaran (jejak di audit_keuangan + jurnal pembalik)
  *
  * Khusus koreksi salah-input — TIDAK menangani refund kas fisik.
  */
