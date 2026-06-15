@@ -13,7 +13,7 @@ import { toast } from "sonner";
 //   unit_usaha_dana   → ['unit_usaha', 'unit_dana_terikat', 'unit_yayasan']
 //
 // Jika departemen_id tidak diberikan (atau null), anggap unit_pendidikan (lebih ketat).
-async function checkPeriodeLocked(tanggal: string, departemenId?: string | null): Promise<void> {
+export async function checkPeriodeLocked(tanggal: string, departemenId?: string | null): Promise<void> {
   // 1. Cari tahun_buku yang mencakup tanggal ini
   const { data: tbList } = await supabase
     .from("tahun_buku" as any)

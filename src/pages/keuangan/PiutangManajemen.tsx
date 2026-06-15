@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { useLembaga, formatRupiah, BULAN_ORDER_AKADEMIK, namaBulan } from "@/hooks/useKeuangan";
 import { usePengaturanAkun, logAuditKeuangan } from "@/hooks/useJurnal";
+import { useKoreksiTagihan } from "@/hooks/useTagihan";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -99,6 +100,31 @@ function useTagihanBelumLunas(departemenId?: string) {
   });
 }
 
+// Tagihan yang sudah dibatalkan (untuk panel riwayat)
+function useTagihanDibatalkanList(departemenId?: string) {
+  return useQuery({
+    queryKey: ["tagihan_dibatalkan", departemenId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tagihan")
+        .select(`
+          id, nominal, bulan, status, dibatalkan_alasan, dibatalkan_at,
+          siswa:siswa_id(id, nis, nama, departemen_id),
+          jenis:jenis_id(nama),
+          tahun_ajaran:tahun_ajaran_id(nama),
+          jurnal_pembalik:jurnal_pembalik_id(nomor)
+        `)
+        .eq("status", "dibatalkan")
+        .order("dibatalkan_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      let rows = (data || []) as any[];
+      if (departemenId) rows = rows.filter((r: any) => r.siswa?.departemen_id === departemenId);
+      return rows;
+    },
+  });
+}
+
 async function generateNomorJurnal(prefix: string, tahun: number) {
   const { data, error } = await supabase.rpc("generate_nomor_jurnal", { p_prefix: prefix, p_tahun: tahun });
   if (error) throw error;
@@ -132,6 +158,15 @@ export default function PiutangManajemen() {
   const [woFormDept, setWoFormDept] = useState("");
   const [woSearch, setWoSearch] = useState("");
 
+  // Koreksi / Pembatalan tagihan state
+  const [koreksiOpen, setKoreksiOpen] = useState(false);
+  const [krMode, setKrMode] = useState<"batal" | "koreksi_nominal">("batal");
+  const [krTagihanId, setKrTagihanId] = useState("");
+  const [krSearch, setKrSearch] = useState("");
+  const [krAlasan, setKrAlasan] = useState("");
+  const [krNominalBaru, setKrNominalBaru] = useState("");
+  const [krTanggal, setKrTanggal] = useState(format(now, "yyyy-MM-dd"));
+
   const { data: lembagaList } = useLembaga();
   const { data: pengaturanAkun } = usePengaturanAkun();
   const { data: penyisihanList, isLoading: loadPs } = usePenyisihanList(tahun, departemenId || undefined);
@@ -151,6 +186,49 @@ export default function PiutangManajemen() {
   }, [tagihanList, woSearch]);
 
   const selectedTagihan = tagihanList?.find((t: any) => t.id === woTagihanId);
+
+  // ── Koreksi / Pembatalan tagihan ──
+  const koreksiTagihan = useKoreksiTagihan();
+  const { data: dibatalkanList, isLoading: loadDibatalkan } = useTagihanDibatalkanList(departemenId || undefined);
+  // hanya tagihan belum_bayar yang boleh dikoreksi/dibatalkan (bukan sebagian/lunas)
+  const tagihanBelumBayar = useMemo(
+    () => (tagihanList || []).filter((t: any) => t.status === "belum_bayar"),
+    [tagihanList]
+  );
+  const tagihanKrFiltered = useMemo(() => {
+    if (!krSearch.trim()) return tagihanBelumBayar.slice(0, 50);
+    const q = krSearch.toLowerCase();
+    return tagihanBelumBayar.filter((t: any) =>
+      t.siswa?.nis?.toLowerCase().includes(q) ||
+      t.siswa?.nama?.toLowerCase().includes(q) ||
+      t.jenis?.nama?.toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [tagihanBelumBayar, krSearch]);
+  const selectedKrTagihan = tagihanBelumBayar.find((t: any) => t.id === krTagihanId);
+
+  const resetKoreksi = () => {
+    setKoreksiOpen(false); setKrTagihanId(""); setKrSearch("");
+    setKrAlasan(""); setKrNominalBaru(""); setKrMode("batal");
+  };
+  const submitKoreksi = () => {
+    if (!krTagihanId) { toast.error("Pilih tagihan dulu"); return; }
+    if (!krAlasan.trim()) { toast.error("Alasan wajib diisi"); return; }
+    koreksiTagihan.mutate(
+      {
+        mode: krMode,
+        tagihan_id: krTagihanId,
+        alasan: krAlasan,
+        nominal_baru: krMode === "koreksi_nominal" ? Number(krNominalBaru) : undefined,
+        tanggal: krTanggal,
+      },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ["tagihan_dibatalkan"] });
+          resetKoreksi();
+        },
+      }
+    );
+  };
 
   // Stats
   const totalPenyisihan = (penyisihanList || []).reduce((s: number, r: any) => s + Number(r.nominal || 0), 0);
@@ -356,6 +434,26 @@ export default function PiutangManajemen() {
       }},
   ];
 
+  // ─── Kolom Tabel Tagihan Dibatalkan ───────────────────────────────────────
+  const colsDibatalkan: DataTableColumn<any>[] = [
+    { key: "dibatalkan_at", label: "Dibatalkan", sortable: true,
+      render: (v) => v ? format(new Date(v as string), "d MMM yyyy HH:mm", { locale: idLocale }) : "-" },
+    { key: "siswa", label: "Siswa", render: (_, r) => `${(r as any).siswa?.nis || "-"} — ${(r as any).siswa?.nama || "-"}` },
+    { key: "jenis", label: "Jenis", render: (_, r) => {
+        const bln = (r as any).bulan ? namaBulan((r as any).bulan) : "";
+        return <span className="text-xs">{(r as any).jenis?.nama || "-"}{bln ? ` (${bln})` : ""}</span>;
+      }},
+    { key: "nominal", label: "Nominal", render: (v) => formatRupiah(Number(v)) },
+    { key: "dibatalkan_alasan", label: "Alasan", render: (v) => (v as string) || "-" },
+    { key: "jurnal_pembalik", label: "Jurnal Pembalik",
+      render: (_, r) => {
+        const j = (r as any).jurnal_pembalik;
+        return j?.nomor
+          ? <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">{j.nomor}</Badge>
+          : <Badge variant="outline" className="bg-muted text-muted-foreground">Tanpa jurnal</Badge>;
+      }},
+  ];
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4 animate-fade-in">
@@ -408,6 +506,7 @@ export default function PiutangManajemen() {
         <TabsList>
           <TabsTrigger value="penyisihan">Penyisihan Piutang</TabsTrigger>
           <TabsTrigger value="writeoff">Write-Off Piutang</TabsTrigger>
+          <TabsTrigger value="koreksi">Koreksi / Pembatalan Tagihan</TabsTrigger>
         </TabsList>
 
         {/* ── Tab Penyisihan ── */}
@@ -431,6 +530,23 @@ export default function PiutangManajemen() {
           </div>
           <DataTable columns={colsWriteOff} data={writeOffList || []} loading={loadWo}
             pageSize={20} exportable exportFilename={`writeoff-piutang-${tahun}`} />
+        </TabsContent>
+
+        {/* ── Tab Koreksi / Pembatalan Tagihan ── */}
+        <TabsContent value="koreksi" className="space-y-3 mt-3">
+          <div className="rounded-md border border-info/30 bg-info/5 p-3 text-xs text-muted-foreground">
+            Untuk memperbaiki <strong>kesalahan input tagihan yang belum dibayar</strong>. Tagihan yang sudah dibayar
+            (lunas/sebagian) tidak muncul di sini — perlu proses refund. Setiap pembatalan/koreksi otomatis membuat
+            <strong> jurnal pembalik (posted)</strong> dan tercatat di <strong>Audit Perubahan Data</strong>.
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" className="h-8 text-xs" variant="outline"
+              onClick={() => setKoreksiOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />Koreksi / Batalkan Tagihan
+            </Button>
+          </div>
+          <DataTable columns={colsDibatalkan} data={dibatalkanList || []} loading={loadDibatalkan}
+            pageSize={20} exportable exportFilename={`tagihan-dibatalkan-${tahun}`} />
         </TabsContent>
       </Tabs>
 
@@ -584,6 +700,102 @@ export default function PiutangManajemen() {
             <Button variant="destructive" onClick={() => createWriteOff.mutate()}
               disabled={!woTagihanId || !woAlasan.trim() || createWriteOff.isPending}>
               {createWriteOff.isPending ? "Memproses..." : "Hapusbuku & Buat Jurnal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Koreksi / Pembatalan Tagihan */}
+      <Dialog open={koreksiOpen} onOpenChange={(o) => { if (!o) resetKoreksi(); else setKoreksiOpen(true); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-info" />
+              Koreksi / Pembatalan Tagihan (Belum Dibayar)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Tindakan *</Label>
+              <Select value={krMode} onValueChange={(v) => setKrMode(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="batal">Batalkan tagihan (tidak seharusnya ada)</SelectItem>
+                  <SelectItem value="koreksi_nominal">Koreksi nominal (angka salah)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Tanggal Koreksi *</Label>
+              <Input type="date" value={krTanggal} onChange={(e) => setKrTanggal(e.target.value)} />
+            </div>
+
+            <div>
+              <Label>Cari & Pilih Tagihan *</Label>
+              <Input placeholder="Ketik NIS atau nama siswa..." value={krSearch}
+                onChange={(e) => { setKrSearch(e.target.value); setKrTagihanId(""); }}
+                className="mb-1" />
+              <div className="border rounded-md max-h-40 overflow-y-auto text-xs">
+                {tagihanKrFiltered.length === 0
+                  ? <p className="p-2 text-muted-foreground">Tidak ada tagihan belum dibayar</p>
+                  : tagihanKrFiltered.map((t: any) => (
+                    <button key={t.id}
+                      className={`w-full text-left px-3 py-2 border-b last:border-0 hover:bg-muted/60 transition-colors ${krTagihanId === t.id ? "bg-primary/10 font-semibold" : ""}`}
+                      onClick={() => { setKrTagihanId(t.id); setKrSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
+                      <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
+                      <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                      <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
+                    </button>
+                  ))
+                }
+              </div>
+            </div>
+
+            {selectedKrTagihan && (
+              <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">
+                <p className="font-semibold">Detail Tagihan Dipilih:</p>
+                <p>Siswa: <span className="font-medium">{selectedKrTagihan.siswa?.nama}</span></p>
+                <p>Jenis: <span className="font-medium">{selectedKrTagihan.jenis?.nama}</span></p>
+                <p>Nominal saat ini: <span className="font-semibold">{formatRupiah(Number(selectedKrTagihan.nominal))}</span></p>
+                <div className="border-t pt-1 mt-1">
+                  <p className="font-medium text-foreground">Jurnal yang akan dibuat (otomatis, Posted):</p>
+                  {krMode === "batal" ? (
+                    <>
+                      <p>Dr. Pendapatan &nbsp;{formatRupiah(Number(selectedKrTagihan.nominal))}</p>
+                      <p>Cr. Piutang Siswa &nbsp;{formatRupiah(Number(selectedKrTagihan.nominal))}</p>
+                      <p className="text-muted-foreground">(membalik jurnal piutang asal)</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>1. Balik jurnal piutang lama {formatRupiah(Number(selectedKrTagihan.nominal))}</p>
+                      <p>2. Jurnal piutang baru {krNominalBaru ? formatRupiah(Number(krNominalBaru)) : "(isi nominal baru)"}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {krMode === "koreksi_nominal" && (
+              <div>
+                <Label>Nominal Baru (Rp) *</Label>
+                <Input type="number" placeholder="0" value={krNominalBaru}
+                  onChange={(e) => setKrNominalBaru(e.target.value)} />
+                {krNominalBaru && <p className="text-xs text-muted-foreground mt-1">{formatRupiah(Number(krNominalBaru))}</p>}
+              </div>
+            )}
+
+            <div>
+              <Label>Alasan *</Label>
+              <Textarea rows={2} placeholder="mis. Salah pilih siswa / tagihan dobel / tarif keliru..." value={krAlasan}
+                onChange={(e) => setKrAlasan(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetKoreksi}>Batal</Button>
+            <Button onClick={submitKoreksi}
+              disabled={!krTagihanId || !krAlasan.trim() || (krMode === "koreksi_nominal" && !krNominalBaru) || koreksiTagihan.isPending}>
+              {koreksiTagihan.isPending ? "Memproses..." : (krMode === "batal" ? "Batalkan & Buat Jurnal" : "Koreksi & Buat Jurnal")}
             </Button>
           </DialogFooter>
         </DialogContent>

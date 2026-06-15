@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { logAuditKeuangan } from "./useJurnal";
+import { checkPeriodeLocked, formatRupiah } from "./useKeuangan";
 
 export function useTagihanList(filters?: {
   tahun_ajaran_id?: string;
@@ -77,6 +79,223 @@ export function useGenerateTagihan() {
       qc.invalidateQueries({ queryKey: ["tagihan"] });
       qc.invalidateQueries({ queryKey: ["jurnal"] });
       toast.success(`Tagihan berhasil di-generate: ${data.generated} tagihan baru, ${data.skipped} sudah ada`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ─── Koreksi / Pembatalan Tagihan ────────────────────────────────────────────
+// Membuat jurnal pembalik (posted) dari sebuah jurnal asal, mengembalikan id-nya.
+async function buatJurnalPembalik(jurnalAsalId: string, tanggal: string): Promise<string> {
+  const { data: jurnalAsal, error: e1 } = await supabase
+    .from("jurnal")
+    .select("*")
+    .eq("id", jurnalAsalId)
+    .single();
+  if (e1) throw e1;
+  const ja = jurnalAsal as any;
+  if (ja.status !== "posted")
+    throw new Error("Jurnal piutang asal belum diposting; tidak bisa dibalik otomatis.");
+
+  const { data: detailAsal, error: e2 } = await supabase
+    .from("jurnal_detail")
+    .select("*")
+    .eq("jurnal_id", jurnalAsalId)
+    .order("urutan");
+  if (e2) throw e2;
+
+  const tahun = new Date(tanggal).getFullYear();
+  const { data: nomor, error: eN } = await supabase.rpc("generate_nomor_jurnal", {
+    p_prefix: "JU",
+    p_tahun: tahun,
+  });
+  if (eN) throw eN;
+
+  const totalAsal = Number(ja.total_debit) || 0;
+  const { data: pembalik, error: e3 } = await (supabase.from("jurnal").insert({
+    nomor,
+    tanggal,
+    keterangan: `KOREKSI/BATAL: ${ja.keterangan}`,
+    referensi: ja.nomor,
+    departemen_id: ja.departemen_id,
+    program_dana_id: ja.program_dana_id,
+    total_debit: totalAsal,
+    total_kredit: totalAsal,
+    status: "posted",
+    tipe: "pembalik",
+    jurnal_asal_id: jurnalAsalId,
+  } as any) as any).select("id").single();
+  if (e3) throw e3;
+
+  const detailPembalik = (detailAsal as any[]).map((d, i) => ({
+    jurnal_id: (pembalik as any).id,
+    akun_id: d.akun_id,
+    debit: Number(d.kredit) || 0,
+    kredit: Number(d.debit) || 0,
+    keterangan: d.keterangan ? `[BALIK] ${d.keterangan}` : "[BALIK]",
+    urutan: i + 1,
+  }));
+  const { error: e4 } = await supabase.from("jurnal_detail").insert(detailPembalik);
+  if (e4) throw e4;
+
+  return (pembalik as any).id;
+}
+
+// Membuat jurnal piutang baru (D Piutang / K Pendapatan) untuk koreksi nominal.
+async function buatJurnalPiutang(params: {
+  tanggal: string;
+  nominal: number;
+  keterangan: string;
+  departemen_id: string | null;
+  piutangAkunId: string;
+  pendapatanAkunId: string;
+}): Promise<string> {
+  const tahun = new Date(params.tanggal).getFullYear();
+  const { data: nomor, error: eN } = await supabase.rpc("generate_nomor_jurnal", {
+    p_prefix: "JPI",
+    p_tahun: tahun,
+  });
+  if (eN) throw eN;
+
+  const { data: jurnal, error: eJ } = await (supabase.from("jurnal").insert({
+    nomor,
+    tanggal: params.tanggal,
+    keterangan: params.keterangan,
+    departemen_id: params.departemen_id,
+    total_debit: params.nominal,
+    total_kredit: params.nominal,
+    status: "posted",
+  } as any) as any).select("id").single();
+  if (eJ) throw eJ;
+
+  const { error: eD } = await supabase.from("jurnal_detail").insert([
+    { jurnal_id: (jurnal as any).id, akun_id: params.piutangAkunId,    debit: params.nominal, kredit: 0,             keterangan: "Piutang (koreksi nominal)",    urutan: 1 },
+    { jurnal_id: (jurnal as any).id, akun_id: params.pendapatanAkunId, debit: 0,             kredit: params.nominal, keterangan: "Pendapatan (koreksi nominal)", urutan: 2 },
+  ]);
+  if (eD) throw eD;
+
+  return (jurnal as any).id;
+}
+
+export function useKoreksiTagihan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      mode: "batal" | "koreksi_nominal";
+      tagihan_id: string;
+      alasan: string;
+      nominal_baru?: number; // wajib untuk koreksi_nominal
+      tanggal?: string;      // default hari ini
+    }) => {
+      const tanggal = params.tanggal || new Date().toISOString().split("T")[0];
+      if (!params.alasan?.trim()) throw new Error("Alasan wajib diisi.");
+
+      const { data: tagihan, error: eT } = await supabase
+        .from("tagihan")
+        .select("*, jenis:jenis_id(id, nama, akun_pendapatan_id), siswa:siswa_id(departemen_id)")
+        .eq("id", params.tagihan_id)
+        .single();
+      if (eT) throw eT;
+      const t = tagihan as any;
+      const deptId: string | null = t.siswa?.departemen_id ?? null;
+
+      if (t.status !== "belum_bayar")
+        throw new Error(
+          "Hanya tagihan berstatus 'belum bayar' yang bisa dibatalkan/dikoreksi lewat menu ini. Tagihan yang sudah dibayar perlu proses refund."
+        );
+
+      let nominalBaru = 0;
+      if (params.mode === "koreksi_nominal") {
+        nominalBaru = Number(params.nominal_baru);
+        if (!nominalBaru || nominalBaru <= 0) throw new Error("Nominal baru harus lebih dari 0.");
+        if (nominalBaru === Number(t.nominal)) throw new Error("Nominal baru sama dengan nominal lama.");
+      }
+
+      await checkPeriodeLocked(tanggal, deptId);
+
+      // Balik jurnal piutang lama bila ada
+      let jurnalPembalikId: string | null = null;
+      if (t.jurnal_piutang_id) {
+        jurnalPembalikId = await buatJurnalPembalik(t.jurnal_piutang_id, tanggal);
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (params.mode === "batal") {
+        const { error: eU } = await (supabase.from("tagihan").update({
+          status: "dibatalkan",
+          dibatalkan_alasan: params.alasan,
+          dibatalkan_at: new Date().toISOString(),
+          dibatalkan_oleh: user?.id ?? null,
+          jurnal_pembalik_id: jurnalPembalikId,
+        } as any) as any).eq("id", t.id);
+        if (eU) throw eU;
+
+        await logAuditKeuangan({
+          tabel_sumber: "tagihan",
+          record_id: t.id,
+          aksi: "UPDATE",
+          data_lama: { status: t.status, nominal: t.nominal, jurnal_piutang_id: t.jurnal_piutang_id },
+          data_baru: { status: "dibatalkan", alasan: params.alasan, jurnal_pembalik_id: jurnalPembalikId },
+          keterangan: `Pembatalan tagihan ${t.jenis?.nama ?? ""} ${formatRupiah(Number(t.nominal))} — ${params.alasan}`,
+          departemen_id: deptId,
+        });
+        return { mode: "batal" as const };
+      }
+
+      // koreksi_nominal: buat jurnal piutang baru senilai nominal benar
+      const { data: peng } = await supabase
+        .from("pengaturan_akun")
+        .select("akun_id")
+        .eq("kode_setting", "piutang_siswa")
+        .maybeSingle();
+      const piutangAkunId = (peng as any)?.akun_id as string | undefined;
+      const pendapatanAkunId = t.jenis?.akun_pendapatan_id as string | undefined;
+
+      let jurnalBaruId: string | null = null;
+      if (jurnalPembalikId && piutangAkunId && pendapatanAkunId) {
+        jurnalBaruId = await buatJurnalPiutang({
+          tanggal,
+          nominal: nominalBaru,
+          keterangan: `Piutang ${t.jenis?.nama ?? ""} (koreksi) - siswa ${t.siswa_id}`,
+          departemen_id: deptId,
+          piutangAkunId,
+          pendapatanAkunId,
+        });
+      }
+
+      const { error: eU } = await (supabase.from("tagihan").update({
+        nominal: nominalBaru,
+        jurnal_piutang_id: jurnalBaruId ?? null,
+      } as any) as any).eq("id", t.id);
+      if (eU) throw eU;
+
+      await logAuditKeuangan({
+        tabel_sumber: "tagihan",
+        record_id: t.id,
+        aksi: "UPDATE",
+        data_lama: { nominal: t.nominal, jurnal_piutang_id: t.jurnal_piutang_id },
+        data_baru: { nominal: nominalBaru, jurnal_piutang_id: jurnalBaruId, alasan: params.alasan },
+        keterangan: `Koreksi nominal tagihan ${t.jenis?.nama ?? ""}: ${formatRupiah(Number(t.nominal))} → ${formatRupiah(nominalBaru)} — ${params.alasan}`,
+        departemen_id: deptId,
+      });
+
+      const warnNoJurnal = jurnalPembalikId && !jurnalBaruId;
+      return { mode: "koreksi_nominal" as const, warnNoJurnal };
+    },
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["tagihan"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      qc.invalidateQueries({ queryKey: ["buku_besar"] });
+      qc.invalidateQueries({ queryKey: ["tunggakan"] });
+      qc.invalidateQueries({ queryKey: ["tagihan_belum_lunas_writeoff"] });
+      if (res?.mode === "batal") {
+        toast.success("Tagihan berhasil dibatalkan & jurnal piutang dibalik.");
+      } else if (res?.warnNoJurnal) {
+        toast.warning("Nominal dikoreksi, tapi jurnal piutang baru tidak dibuat — cek akun piutang siswa / akun pendapatan jenis.");
+      } else {
+        toast.success("Nominal tagihan berhasil dikoreksi & jurnal disesuaikan.");
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
