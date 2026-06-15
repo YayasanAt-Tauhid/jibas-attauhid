@@ -3,7 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Button } from "@/components/ui/button";
+import { ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useAkunRekening, useBukuBesar } from "@/hooks/useJurnal";
@@ -21,10 +26,12 @@ function akhirBulan(tahun: number, bulan: number): string {
 
 export default function BukuBesar() {
   const [akunId, setAkunId] = useState<string>("");
+  const [akunOpen, setAkunOpen] = useState(false);
   const [bulanDari, setBulanDari] = useState(1);
   const [bulanSampai, setBulanSampai] = useState(12);
   const [tahun, setTahun] = useState(currentYear);
   const [filterUnit, setFilterUnit] = useState("semua");
+  const [unitOpen, setUnitOpen] = useState(false);
   const [tampilkanPenutup, setTampilkanPenutup] = useState(false);
 
   const { data: akunList } = useAkunRekening();
@@ -97,41 +104,73 @@ export default function BukuBesar() {
       </div>
 
       <div className="flex gap-3 items-end flex-wrap">
-        <div className="min-w-[250px]">
+        <div className="min-w-[260px]">
           <Label>Akun Rekening</Label>
-          <Select value={akunId} onValueChange={setAkunId}>
-            <SelectTrigger><SelectValue placeholder="Pilih akun..." /></SelectTrigger>
-            <SelectContent>
-              {akunList?.map((a: any) => (
-                <SelectItem key={a.id} value={a.id}>{a.kode} - {a.nama}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={akunOpen} onOpenChange={setAkunOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" aria-expanded={akunOpen} className="w-full justify-between font-normal">
+                {akunId ? (() => { const a = akunList?.find((a: any) => a.id === akunId); return a ? `${a.kode} - ${a.nama}` : "Pilih akun..."; })() : "Pilih akun..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Cari kode atau nama akun..." />
+                <CommandList>
+                  <CommandEmpty>Akun tidak ditemukan.</CommandEmpty>
+                  {akunList?.map((a: any) => (
+                    <CommandItem key={a.id} value={`${a.kode} ${a.nama}`} onSelect={() => { setAkunId(a.id); setAkunOpen(false); }}>
+                      <Check className={cn("mr-2 h-4 w-4", akunId === a.id ? "opacity-100" : "opacity-0")} />
+                      {a.kode} - {a.nama}
+                    </CommandItem>
+                  ))}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
-        <div className="min-w-[220px]">
+        <div className="min-w-[240px]">
           <Label>Unit / Lembaga</Label>
-          <Select value={filterUnit} onValueChange={setFilterUnit}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="semua">Semua Unit</SelectItem>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>Unit Pendidikan</SelectLabel>
-                <SelectItem value="pendidikan">— Gabungan Pendidikan</SelectItem>
-                {deptGroups?.pendidikanDepts?.map(d => (
-                  <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>Unit Usaha & Dana</SelectLabel>
-                <SelectItem value="usaha">— Gabungan Usaha & Dana</SelectItem>
-                {deptGroups?.usahaDepts?.map(d => (
-                  <SelectItem key={d.id} value={d.id}>{d.nama}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <Popover open={unitOpen} onOpenChange={setUnitOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" aria-expanded={unitOpen} className="w-full justify-between font-normal">
+                {labelUnit}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Cari unit / lembaga..." />
+                <CommandList>
+                  <CommandEmpty>Unit tidak ditemukan.</CommandEmpty>
+                  <CommandItem value="Semua Unit" onSelect={() => { setFilterUnit("semua"); setUnitOpen(false); }}>
+                    <Check className={cn("mr-2 h-4 w-4", filterUnit === "semua" ? "opacity-100" : "opacity-0")} />
+                    Semua Unit
+                  </CommandItem>
+                  <CommandItem value="Gabungan Pendidikan" onSelect={() => { setFilterUnit("pendidikan"); setUnitOpen(false); }}>
+                    <Check className={cn("mr-2 h-4 w-4", filterUnit === "pendidikan" ? "opacity-100" : "opacity-0")} />
+                    Gabungan Pendidikan
+                  </CommandItem>
+                  {deptGroups?.pendidikanDepts?.map(d => (
+                    <CommandItem key={d.id} value={d.nama} onSelect={() => { setFilterUnit(d.id); setUnitOpen(false); }}>
+                      <Check className={cn("mr-2 h-4 w-4", filterUnit === d.id ? "opacity-100" : "opacity-0")} />
+                      {d.nama}
+                    </CommandItem>
+                  ))}
+                  <CommandItem value="Gabungan Usaha Dana" onSelect={() => { setFilterUnit("usaha"); setUnitOpen(false); }}>
+                    <Check className={cn("mr-2 h-4 w-4", filterUnit === "usaha" ? "opacity-100" : "opacity-0")} />
+                    Gabungan Usaha & Dana
+                  </CommandItem>
+                  {deptGroups?.usahaDepts?.map(d => (
+                    <CommandItem key={d.id} value={d.nama} onSelect={() => { setFilterUnit(d.id); setUnitOpen(false); }}>
+                      <Check className={cn("mr-2 h-4 w-4", filterUnit === d.id ? "opacity-100" : "opacity-0")} />
+                      {d.nama}
+                    </CommandItem>
+                  ))}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <div>
           <Label>Bulan Dari</Label>
