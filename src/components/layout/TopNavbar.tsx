@@ -1,16 +1,22 @@
 import { useState, useEffect } from "react";
-import { Bell, User, LogOut, CheckCheck, FileText, CreditCard, Megaphone } from "lucide-react";
+import { Bell, User, LogOut, CheckCheck, FileText, CreditCard, Megaphone, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { AppBreadcrumb } from "./AppBreadcrumb";
 import { useNotifikasi, NotifikasiItem } from "@/hooks/useNotifikasi";
 import { cn } from "@/lib/utils";
@@ -38,6 +44,56 @@ export function TopNavbar() {
   const navigate = useNavigate();
   const [namaSekolah, setNamaSekolah] = useState("");
   const { items, loading, unreadCount, tandaiBaca, tandaiBacaSemua } = useNotifikasi();
+
+  // Dialog ubah password
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwLama, setPwLama] = useState("");
+  const [pwBaru, setPwBaru] = useState("");
+  const [pwKonfirmasi, setPwKonfirmasi] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const handleUbahPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwBaru.length < 8) {
+      toast.error("Password baru minimal 8 karakter");
+      return;
+    }
+    if (pwBaru !== pwKonfirmasi) {
+      toast.error("Konfirmasi password tidak cocok");
+      return;
+    }
+    if (pwBaru === pwLama) {
+      toast.error("Password baru harus berbeda dari password lama");
+      return;
+    }
+    setPwLoading(true);
+    try {
+      // Verifikasi password lama
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user!.email!,
+        password: pwLama,
+      });
+      if (signInError) {
+        toast.error("Password lama salah");
+        setPwLoading(false);
+        return;
+      }
+      // Set password baru
+      const { error: updateError } = await supabase.auth.updateUser({ password: pwBaru });
+      if (updateError) {
+        toast.error("Gagal ganti password: " + updateError.message);
+        setPwLoading(false);
+        return;
+      }
+      toast.success("Password berhasil diubah. Silakan login ulang.");
+      setPwOpen(false);
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch (err: any) {
+      toast.error(err.message);
+      setPwLoading(false);
+    }
+  };
 
   useEffect(() => {
     supabase.from("sekolah").select("nama").maybeSingle().then(({ data }) => {
@@ -148,8 +204,17 @@ export function TopNavbar() {
               <p className="text-sm font-medium text-foreground truncate">{user?.email}</p>
               <p className="text-xs text-muted-foreground">{role ? roleLabels[role] : "—"}</p>
             </div>
-            <DropdownMenuItem>Profil Saya</DropdownMenuItem>
-            <DropdownMenuItem>Ubah Password</DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                setPwLama("");
+                setPwBaru("");
+                setPwKonfirmasi("");
+                setPwOpen(true);
+              }}
+            >
+              <KeyRound className="h-4 w-4 mr-2" />
+              Ubah Password
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -158,6 +223,62 @@ export function TopNavbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Dialog Ubah Password */}
+      <Dialog open={pwOpen} onOpenChange={setPwOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ubah Password</DialogTitle>
+            <DialogDescription>
+              Masukkan password lama untuk verifikasi, lalu password baru. Setelah berhasil Anda akan diminta login ulang.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUbahPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="pw-lama">Password Lama</Label>
+              <Input
+                id="pw-lama"
+                type="password"
+                autoComplete="current-password"
+                value={pwLama}
+                onChange={(e) => setPwLama(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pw-baru">Password Baru</Label>
+              <Input
+                id="pw-baru"
+                type="password"
+                autoComplete="new-password"
+                value={pwBaru}
+                onChange={(e) => setPwBaru(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">Minimal 8 karakter.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pw-konfirmasi">Konfirmasi Password Baru</Label>
+              <Input
+                id="pw-konfirmasi"
+                type="password"
+                autoComplete="new-password"
+                value={pwKonfirmasi}
+                onChange={(e) => setPwKonfirmasi(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPwOpen(false)} disabled={pwLoading}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={pwLoading}>
+                {pwLoading ? "Menyimpan…" : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }
