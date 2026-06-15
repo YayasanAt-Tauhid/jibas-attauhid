@@ -534,10 +534,12 @@ export default function PiutangManajemen() {
 
         {/* ── Tab Koreksi / Pembatalan Tagihan ── */}
         <TabsContent value="koreksi" className="space-y-3 mt-3">
-          <div className="rounded-md border border-info/30 bg-info/5 p-3 text-xs text-muted-foreground">
-            Untuk memperbaiki <strong>kesalahan input tagihan yang belum dibayar</strong>. Tagihan yang sudah dibayar
-            (lunas/sebagian) tidak muncul di sini — perlu proses refund. Setiap pembatalan/koreksi otomatis membuat
-            <strong> jurnal pembalik (posted)</strong> dan tercatat di <strong>Audit Perubahan Data</strong>.
+          <div className="rounded-md border border-info/30 bg-info/5 p-3 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium text-foreground">Panduan: perbaiki kesalahan input tagihan yang BELUM dibayar.</p>
+            <p>• <strong>Batalkan tagihan</strong> — jika tagihan tidak seharusnya ada (salah siswa, dobel, salah jenis).</p>
+            <p>• <strong>Koreksi nominal</strong> — jika tagihan benar tapi angkanya salah; isi nominal yang benar.</p>
+            <p>Keduanya otomatis membuat <strong>jurnal pembalik (posted)</strong>, wajib isi alasan, dan tercatat di <strong>Audit Perubahan Data</strong>.</p>
+            <p>Tagihan yang <strong>sudah dibayar</strong> tidak muncul di sini — perbaiki lewat <strong>Input Pembayaran → tabel Riwayat → Batalkan</strong>.</p>
           </div>
           <div className="flex justify-end">
             <Button size="sm" className="h-8 text-xs" variant="outline"

@@ -623,6 +623,13 @@ export default function InputPembayaran() {
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Semua Riwayat Pembayaran
           </h4>
+          {canBatal && (
+            <div className="mb-3 rounded-md border border-info/30 bg-info/5 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">Salah input pembayaran? Gunakan tombol "Batalkan" di baris yang salah.</p>
+              <p>Sistem otomatis membalik jurnal kas, mengembalikan tagihan ke status belum bayar, lalu menghapus baris pembayaran sehingga bisa diinput ulang yang benar. Pembayaran di muka (termasuk yang sudah diakui) ditangani otomatis. Wajib isi alasan; tercatat di Audit Perubahan Data.</p>
+              <p>Catatan: pembayaran pada periode yang sudah tutup buku tidak bisa dibatalkan. Hanya admin/keuangan yang dapat membatalkan (kasir cukup melapor).</p>
+            </div>
+          )}
           <DataTable
             columns={riwayatColumns}
             data={riwayat ?? []}
