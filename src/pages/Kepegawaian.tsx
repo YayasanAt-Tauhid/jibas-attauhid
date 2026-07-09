@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { Users, UserCheck, Building2, ClipboardList, Award, ListOrdered } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLembaga } from "@/hooks/useKeuangan";

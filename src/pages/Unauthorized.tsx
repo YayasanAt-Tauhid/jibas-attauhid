@@ -1,6 +1,6 @@
 import { ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 
 export default function Unauthorized() {
   const navigate = useNavigate();

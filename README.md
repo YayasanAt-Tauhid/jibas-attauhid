@@ -54,11 +54,31 @@ npm run dev
 
 This project is built with:
 
-- Vite
+- [TanStack Start](https://tanstack.com/start) (full-stack React framework with SSR)
+- [TanStack Router](https://tanstack.com/router) (file-based routing, `src/routes`)
+- Vite + Nitro
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase
+
+### Routing
+
+Routes are file-based under `src/routes` and the TanStack Router plugin
+generates `src/routeTree.gen.ts` on `dev`/`build`. A small compatibility
+layer at `src/lib/router-compat.tsx` keeps the familiar react-router API
+(`useNavigate`, `useParams`, `useSearchParams`, `Link`, …) on top of
+TanStack Router.
+
+### Scripts
+
+```sh
+npm run dev      # start the dev server (SSR) on http://localhost:8080
+npm run build    # production build into .output
+npm run start    # run the built server (node .output/server/index.mjs)
+npm test         # run unit tests (vitest)
+```
 
 ## How can I deploy this project?
 

@@ -1,21 +1,27 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import viteReact from "@vitejs/plugin-react";
+import { nitro } from "nitro/vite";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+// https://tanstack.com/start
+export default defineConfig({
   server: {
     host: "::",
     port: 8080,
-    hmr: {
-      overlay: false,
-    },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
-}));
+  plugins: [
+    // File-based routing: routes live in src/routes and the plugin generates
+    // src/routeTree.gen.ts consumed by src/router.tsx.
+    tanstackStart({
+      srcDirectory: "src",
+    }),
+    viteReact(),
+    nitro(),
+  ],
+});

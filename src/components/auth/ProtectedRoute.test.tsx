@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import { ProtectedRoute } from "./ProtectedRoute";
 
 const mockUseAuth = vi.fn();
@@ -9,12 +8,15 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Stub TanStack Router's Navigate/Outlet so ProtectedRoute can render
+// outside of a RouterProvider in unit tests.
+vi.mock("@tanstack/react-router", () => ({
+  Navigate: () => null,
+  Outlet: () => null,
+}));
+
 function renderWithRouter(allowedRoles?: any[]) {
-  return render(
-    <MemoryRouter initialEntries={["/protected"]}>
-      <ProtectedRoute allowedRoles={allowedRoles} />
-    </MemoryRouter>
-  );
+  return render(<ProtectedRoute allowedRoles={allowedRoles} />);
 }
 
 describe("ProtectedRoute", () => {

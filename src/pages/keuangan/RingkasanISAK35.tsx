@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLaporanKomprehensif, useLaporanPosisiKeuangan, useDepartemenGroups, PeriodeFilter, periodeLabel } from "@/hooks/useISAK35";
 import { formatRupiah, useTahunAjaran } from "@/hooks/useKeuangan";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { TrendingUp, TrendingDown, DollarSign, Building, FileBarChart, ArrowLeft } from "lucide-react";
 
 export default function RingkasanISAK35() {

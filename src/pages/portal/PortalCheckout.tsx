@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMidtrans } from "@/hooks/useMidtrans";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
