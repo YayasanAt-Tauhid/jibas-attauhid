@@ -12,6 +12,7 @@ import { useJenisPembayaran, useLembaga, useTahunBukuAktif, useTahunBuku, format
 import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { useKelas } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { prosesPembayaran } from "@/server/pembayaran";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@/lib/router-compat";
 import { AlertTriangle, Users, X, CheckCircle2 } from "lucide-react";
@@ -204,8 +205,8 @@ export default function TunggakanPembayaran() {
     for (let i = 0; i < allTx.length; i++) {
       const tx = allTx[i];
       try {
-        const { data, error } = await supabase.functions.invoke("proses-pembayaran", {
-          body: {
+        await prosesPembayaran({
+          data: {
             siswa_id: tx.siswaId,
             jenis_id: jenisId,
             bulan: tx.bulan,
@@ -216,12 +217,7 @@ export default function TunggakanPembayaran() {
             is_bayar_dimuka: false,
           },
         });
-        if (error || !data?.success) {
-          const namaRow = selectedRows.find((r) => r.id === tx.siswaId)?.nama ?? tx.siswaId;
-          gagalList.push(`${namaRow} (${tx.bulan ? namaBulan(tx.bulan) : "sekali"}): ${data?.error ?? error?.message ?? "gagal"}`);
-        } else {
-          berhasil++;
-        }
+        berhasil++;
       } catch (e: any) {
         const namaRow = selectedRows.find((r) => r.id === tx.siswaId)?.nama ?? tx.siswaId;
         gagalList.push(`${namaRow}: ${e.message}`);

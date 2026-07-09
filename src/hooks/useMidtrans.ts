@@ -1,11 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
-interface MidtransConfig {
-  client_key: string;
-  is_sandbox: boolean;
-  snap_url: string;
-}
+import { useState, useCallback } from "react";
+import { getMidtransConfig, type MidtransConfig } from "@/server/payment";
 
 let cachedConfig: MidtransConfig | null = null;
 let scriptLoaded = false;
@@ -26,13 +20,9 @@ export function useMidtrans() {
     setError(null);
 
     try {
-      // Fetch config from edge function (cache it)
+      // Fetch config from server function (cache it)
       if (!cachedConfig) {
-        const { data, error: fnError } = await supabase.functions.invoke(
-          "get-midtrans-config"
-        );
-        if (fnError) throw new Error(fnError.message);
-        cachedConfig = data as MidtransConfig;
+        cachedConfig = await getMidtransConfig();
       }
 
       if (!cachedConfig?.client_key) {

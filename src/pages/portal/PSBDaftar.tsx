@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "@/lib/router-compat";
-import { supabase } from "@/integrations/supabase/client";
+import { psbOptions, psbDaftar } from "@/server/psb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -37,10 +37,14 @@ export default function PSBDaftar() {
   const [form, setForm] = useState({ ...initialForm });
 
   useEffect(() => {
-    supabase.functions.invoke("psb-daftar", { method: "GET" }).then(({ data, error }) => {
-      if (!error && data?.departemen) setDepartemenList(data.departemen);
-      if (!error && data?.angkatan) setAllAngkatan(data.angkatan);
-    });
+    psbOptions()
+      .then((data) => {
+        if (data?.departemen) setDepartemenList(data.departemen);
+        if (data?.angkatan) setAllAngkatan(data.angkatan);
+      })
+      .catch(() => {
+        /* form tetap tampil; opsi kosong bila gagal */
+      });
   }, []);
 
   const angkatanList = useMemo(
@@ -61,18 +65,14 @@ export default function PSBDaftar() {
     if (!form.departemen_id) { toast.error("Lembaga/departemen wajib dipilih"); return; }
 
     setLoading(true);
-    const { data, error } = await supabase.functions.invoke("psb-daftar", {
-      method: "POST", body: form,
-    });
-
-    if (error || data?.error) {
-      toast.error(data?.error || "Gagal mendaftar. Coba lagi.");
+    try {
+      await psbDaftar({ data: form });
+      setSuccess(true);
+    } catch (err: any) {
+      toast.error(err?.message || "Gagal mendaftar. Coba lagi.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSuccess(true);
-    setLoading(false);
   };
 
   if (success) {
