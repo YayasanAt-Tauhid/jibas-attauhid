@@ -148,7 +148,7 @@ export default function PSB() {
     }
 
     try {
-      const { nis } = await generateNISViaEdgeFunction(supabase, {
+      const { nis } = await generateNISViaEdgeFunction({
         siswa_id: siswaId,
         departemen_id: departemenId,
         angkatan_id: angkatanId,

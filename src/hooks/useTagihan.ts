@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { generateTagihan } from "@/server/tagihan";
 import { toast } from "sonner";
 import { logAuditKeuangan } from "./useJurnal";
 import { checkPeriodeLocked, formatRupiah } from "./useKeuangan";
@@ -68,12 +69,7 @@ export function useGenerateTagihan() {
       siswa_id?: string;   // T1 fix: expose ke type — edge function sudah support ini
       kelas_id?: string;   // T1 fix: expose ke type — edge function sudah support ini
     }) => {
-      const { data, error } = await supabase.functions.invoke("generate-tagihan", {
-        body: params,
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      return await generateTagihan({ data: params });
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["tagihan"] });

@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSiswaDetail, useSiswaDetailOrangtua, useCreateSiswa, useUpdateSiswa } from "@/hooks/useSiswa";
 import { useAngkatan, useDepartemen, useTingkat, useKelas, useTahunAjaran } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
+import { generateNis } from "@/server/nis";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,11 +118,10 @@ export default function FormSiswa() {
   const invokeGenerateNis = async (siswaId: string, deptId: string, angkatanId: string, kelasId: string) => {
     setIsGeneratingNis(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-nis", {
-        body: { siswa_id: siswaId, departemen_id: deptId, angkatan_id: angkatanId, kelas_id: kelasId },
+      const data = await generateNis({
+        data: { siswa_id: siswaId, departemen_id: deptId, angkatan_id: angkatanId, kelas_id: kelasId },
       });
-      if (error || !data?.success) throw new Error(data?.error || error?.message || "Gagal generate NIS");
-      return data.nis as string;
+      return data.nis;
     } finally {
       setIsGeneratingNis(false);
     }

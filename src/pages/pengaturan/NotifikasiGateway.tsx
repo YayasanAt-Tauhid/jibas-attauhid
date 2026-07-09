@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { sendTelegram, sendWhatsapp } from "@/server/notifikasi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,35 +29,11 @@ export default function NotifikasiGateway() {
     setTestResult(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Sesi habis, login ulang");
-        return;
-      }
-
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-telegram`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            chat_id: telegramChatId,
-            message: telegramMessage,
-          }),
-        }
-      );
-
-      const result = await res.json();
-      if (result.success) {
-        toast.success(`Pesan terkirim! (${result.sent} berhasil)`);
-        setTestResult(`✅ Berhasil: ${result.sent} pesan terkirim`);
-      } else {
-        toast.error(result.error || "Gagal mengirim pesan");
-        setTestResult(`❌ Gagal: ${result.error}`);
-      }
+      const result = await sendTelegram({
+        data: { chat_id: telegramChatId, message: telegramMessage },
+      });
+      toast.success(`Pesan terkirim! (${result.sent} berhasil)`);
+      setTestResult(`✅ Berhasil: ${result.sent} pesan terkirim`);
     } catch (err: any) {
       toast.error(err.message);
       setTestResult(`❌ Error: ${err.message}`);
@@ -76,35 +52,11 @@ export default function NotifikasiGateway() {
     setTestResult(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Sesi habis, login ulang");
-        return;
-      }
-
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-whatsapp`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            phone: whatsappPhone,
-            message: whatsappMessage,
-          }),
-        }
-      );
-
-      const result = await res.json();
-      if (result.success) {
-        toast.success(`Pesan terkirim! (${result.sent} berhasil)`);
-        setTestResult(`✅ Berhasil: ${result.sent} pesan terkirim`);
-      } else {
-        toast.error(result.error || "Gagal mengirim pesan");
-        setTestResult(`❌ Gagal: ${result.error}`);
-      }
+      const result = await sendWhatsapp({
+        data: { phone: whatsappPhone, message: whatsappMessage },
+      });
+      toast.success(`Pesan terkirim! (${result.sent} berhasil)`);
+      setTestResult(`✅ Berhasil: ${result.sent} pesan terkirim`);
     } catch (err: any) {
       toast.error(err.message);
       setTestResult(`❌ Error: ${err.message}`);
@@ -145,7 +97,7 @@ export default function NotifikasiGateway() {
                 <p className="font-medium">Cara Setup Telegram Bot:</p>
                 <ol className="list-decimal ml-4 space-y-1 text-muted-foreground">
                   <li>Buat bot via <code>@BotFather</code> di Telegram</li>
-                  <li>Simpan token bot sebagai secret <code>TELEGRAM_BOT_TOKEN</code> di Supabase</li>
+                  <li>Simpan token bot sebagai environment variable <code>TELEGRAM_BOT_TOKEN</code> di server aplikasi</li>
                   <li>Orang tua harus /start bot tersebut dan catat Chat ID mereka</li>
                   <li>Simpan Chat ID orang tua di profil mereka untuk broadcast</li>
                 </ol>
@@ -214,7 +166,7 @@ export default function NotifikasiGateway() {
                 <ol className="list-decimal ml-4 space-y-1 text-muted-foreground">
                   <li>Deploy WA-Gateway di VPS (mis: <code>https://github.com/WhatsApp-Gateway/WA-Gateway</code>)</li>
                   <li>Scan QR code dengan nomor WhatsApp Anda</li>
-                  <li>Simpan URL gateway sebagai secret <code>WA_GATEWAY_URL</code> di Supabase</li>
+                  <li>Simpan URL gateway sebagai environment variable <code>WA_GATEWAY_URL</code> di server aplikasi</li>
                   <li>Jika ada token, simpan sebagai <code>WA_GATEWAY_TOKEN</code></li>
                   <li>Pastikan endpoint <code>/send-message</code> berfungsi</li>
                 </ol>

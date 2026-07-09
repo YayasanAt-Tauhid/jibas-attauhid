@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { supabase } from "@/integrations/supabase/client";
+import { prosesPembayaran, batalkanPembayaran } from "@/server/pembayaran";
 import {
   useJenisPembayaran, useLembaga, useTahunBukuAktif,
   useTahunBuku, formatRupiah, terbilang, namaBulan, BULAN_ORDER_AKADEMIK,
@@ -44,10 +45,7 @@ function useProsesPembayaran() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ProsesPembayaranRequest) => {
-      const { data, error } = await supabase.functions.invoke("proses-pembayaran", { body: payload });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error ?? "Pembayaran gagal");
-      return data as { pembayaran_id: string; jurnal_id: string; nomor_jurnal: string; jumlah: number };
+      return await prosesPembayaran({ data: payload });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pembayaran"] });
@@ -62,11 +60,9 @@ function useBatalkanPembayaran() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { pembayaran_id: string; alasan: string; jumlah: number; keterangan: string }) => {
-      const { data, error } = await supabase.functions.invoke("batalkan-pembayaran", {
-        body: { pembayaran_id: payload.pembayaran_id, alasan: payload.alasan },
+      const data = await batalkanPembayaran({
+        data: { pembayaran_id: payload.pembayaran_id, alasan: payload.alasan },
       });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error ?? "Pembatalan gagal");
       // catat ke audit (best-effort, di sisi klien agar nama pengguna terekam)
       await logAuditKeuangan({
         tabel_sumber: "pembayaran",
@@ -76,7 +72,7 @@ function useBatalkanPembayaran() {
         data_baru: { dibatalkan: true, alasan: payload.alasan, jurnal_pembalik_id: data.jurnal_pembalik_id },
         keterangan: `Pembatalan pembayaran ${payload.keterangan} ${formatRupiah(payload.jumlah)} — ${payload.alasan}`,
       });
-      return data as { pembayaran_id: string; jurnal_pembalik_id: string | null };
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pembayaran"] });

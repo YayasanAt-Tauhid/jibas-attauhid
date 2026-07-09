@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { generateNis } from "@/server/nis";
 
 export interface NISComponents {
   npsn4: string;
@@ -52,21 +52,14 @@ export function generateNISPreview(
 }
 
 /**
- * Panggil edge function generate-nis untuk generate & simpan NIS.
+ * Panggil server function generateNis untuk generate & simpan NIS.
  */
-export async function generateNISViaEdgeFunction(
-  supabase: SupabaseClient,
-  payload: {
-    siswa_id: string;
-    departemen_id: string;
-    angkatan_id: string;
-    kelas_id: string;
-  }
-): Promise<{ nis: string }> {
-  const { data, error } = await supabase.functions.invoke("generate-nis", {
-    body: payload,
-  });
-  if (error) throw new Error(error.message || "Gagal generate NIS");
-  if (data?.error) throw new Error(data.error);
+export async function generateNISViaEdgeFunction(payload: {
+  siswa_id: string;
+  departemen_id: string;
+  angkatan_id: string;
+  kelas_id: string;
+}): Promise<{ nis: string }> {
+  const data = await generateNis({ data: payload });
   return { nis: data.nis };
 }

@@ -3,6 +3,7 @@ import { useMidtrans } from "@/hooks/useMidtrans";
 import { useNavigate } from "@/lib/router-compat";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { createPayment } from "@/server/payment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,29 +109,26 @@ export default function PortalCheckout() {
         return;
       }
 
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
+      let result: Awaited<ReturnType<typeof createPayment>>;
+      try {
+        result = await createPayment({
+          data: {
             items: keranjang,
             customer: {
               user_id: user!.id,
               email: user!.email || "",
               nama: user!.email?.split("@")[0] || "User",
             },
-          }),
-        }
-      );
+          },
+        });
+      } catch (err: any) {
+        toast.error(err?.message || "Gagal membuat transaksi");
+        setIsLoading(false);
+        return;
+      }
 
-      const result = await res.json();
-
-      if (!result.success || !result.snap_token) {
-        toast.error(result.error || "Gagal membuat transaksi");
+      if (!result.snap_token) {
+        toast.error("Gagal membuat transaksi");
         setIsLoading(false);
         return;
       }

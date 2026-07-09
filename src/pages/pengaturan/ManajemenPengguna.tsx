@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { adminCreateUser } from "@/server/users";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -214,23 +215,24 @@ function DialogTambahUser({ open, onOpenChange, departemenList, pegawaiList, onS
     if (!email.trim()) { toast.error("Email wajib diisi"); return; }
     if (password.length < 8) { toast.error("Password minimal 8 karakter"); return; }
     setSaving(true);
-    const { data, error } = await supabase.functions.invoke("admin-create-user", {
-      body: {
-        email: email.trim().toLowerCase(),
-        password,
-        role: userRole,
-        departemen_id: deptId === "__none" ? null : deptId,
-        pegawai_id: pegId === "__none" ? null : pegId,
-        aktif: true,
-      },
-    });
-    setSaving(false);
-    if (error || (data as any)?.error) {
-      toast.error("Gagal membuat akun: " + (error?.message || (data as any)?.error));
-      return;
+    try {
+      await adminCreateUser({
+        data: {
+          email: email.trim().toLowerCase(),
+          password,
+          role: userRole,
+          departemen_id: deptId === "__none" ? null : deptId,
+          pegawai_id: pegId === "__none" ? null : pegId,
+          aktif: true,
+        },
+      });
+      toast.success("Akun berhasil dibuat");
+      onSaved();
+    } catch (e: any) {
+      toast.error("Gagal membuat akun: " + (e?.message || "unknown"));
+    } finally {
+      setSaving(false);
     }
-    toast.success("Akun berhasil dibuat");
-    onSaved();
   };
 
   return (
