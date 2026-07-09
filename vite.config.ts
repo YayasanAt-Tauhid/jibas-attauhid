@@ -22,6 +22,11 @@ export default defineConfig({
       srcDirectory: "src",
     }),
     viteReact(),
-    nitro(),
+    // Target Cloudflare Workers by default. Override with the SERVER_PRESET
+    // env var (e.g. SERVER_PRESET=node-server) to build for another target.
+    nitro({
+      preset: process.env.SERVER_PRESET ?? "cloudflare-module",
+      compatibilityDate: "2026-07-09",
+    }),
   ],
 });

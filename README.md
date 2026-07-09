@@ -75,14 +75,36 @@ TanStack Router.
 
 ```sh
 npm run dev      # start the dev server (SSR) on http://localhost:8080
-npm run build    # production build into .output
+npm run build    # production build into .output (Cloudflare Workers by default)
 npm run start    # run the built server (node .output/server/index.mjs)
 npm test         # run unit tests (vitest)
 ```
 
-## How can I deploy this project?
+## Deploy to Cloudflare Workers
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+`npm run build` targets Cloudflare Workers by default (Nitro
+`cloudflare-module` preset). The build emits `.output/server/` with a ready
+`wrangler.json` (`nodejs_compat` flag + an `ASSETS` binding that serves the
+client bundle from `.output/public`).
+
+```sh
+npm run build                        # produces .output for Cloudflare Workers
+npx wrangler deploy -c .output/server/wrangler.json
+# or: npx nitro deploy --prebuilt
+```
+
+Notes:
+
+- The Supabase URL/anon key are baked into `src/integrations/supabase/client.ts`,
+  so no Worker secrets are required for the app to run. Add any extra secrets
+  with `npx wrangler secret put <NAME>`.
+- Set the Worker `name`/route in `.output/server/wrangler.json` (or edit
+  `compatibilityDate` / preset in `vite.config.ts`).
+- To build a plain Node server instead, override the preset:
+  `SERVER_PRESET=node-server npm run build`.
+
+Other Nitro targets (Node, Vercel, Netlify, Deno, …) work the same way via
+`SERVER_PRESET=<preset> npm run build`.
 
 ## Can I connect a custom domain to my Lovable project?
 
