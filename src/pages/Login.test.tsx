@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import Login from "./Login";
 
 const mockSignIn = vi.fn();
@@ -10,17 +9,12 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ signIn: mockSignIn }),
 }));
 
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
-  return { ...actual, useNavigate: () => mockNavigate };
-});
+vi.mock("@/lib/router-compat", () => ({
+  useNavigate: () => mockNavigate,
+}));
 
 function renderLogin() {
-  return render(
-    <MemoryRouter>
-      <Login />
-    </MemoryRouter>
-  );
+  return render(<Login />);
 }
 
 describe("Login", () => {

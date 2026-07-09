@@ -4,7 +4,7 @@ import { Wallet, TrendingUp, TrendingDown, PiggyBank, Building2 } from "lucide-r
 import { useRekapPembayaranBulanan, useRekapPengeluaranBulanan, useTotalTabungan, useRekapKeuanganPerLembaga, formatRupiah, BULAN_NAMES, BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { Button } from "@/components/ui/button";
 
 const now = new Date();

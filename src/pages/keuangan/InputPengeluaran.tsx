@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, TrendingDown, Calendar, Printer, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 
 const now = new Date();
 

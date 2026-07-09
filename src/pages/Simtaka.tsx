@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, BookOpen, BookMarked, Users, AlertTriangle, RotateCcw } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { useParams } from "react-router-dom";
+import { useParams } from "@/lib/router-compat";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const KATEGORI_BUKU = ["Fiksi", "Non-Fiksi", "Sains", "Agama", "Sejarah", "Referensi", "Lainnya"];

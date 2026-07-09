@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { useSiswaList, useDeleteSiswa, SiswaWithRelations } from "@/hooks/useSiswa";
 import { useDepartemen, useTingkat, useKelas } from "@/hooks/useAkademikData";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";

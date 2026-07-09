@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "@tanstack/react-router";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {

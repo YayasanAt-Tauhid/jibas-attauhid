@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { Building2, CheckCircle, GraduationCap, FileBarChart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "@/lib/router-compat";
 
 
 const now = new Date();

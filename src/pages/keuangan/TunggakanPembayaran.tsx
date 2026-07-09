@@ -13,7 +13,7 @@ import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { useKelas } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import { AlertTriangle, Users, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 

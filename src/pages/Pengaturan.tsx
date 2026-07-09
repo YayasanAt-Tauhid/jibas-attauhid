@@ -1,7 +1,7 @@
-import { useParams } from "react-router-dom";
+import { useParams } from "@/lib/router-compat";
 import { Card, CardContent } from "@/components/ui/card";
 import { School, Users, Database, Info, UserCheck, Download, Bell } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router-compat";
 import ProfilYayasan from "./pengaturan/ProfilYayasan";
 import ManajemenPengguna from "./pengaturan/ManajemenPengguna";
 

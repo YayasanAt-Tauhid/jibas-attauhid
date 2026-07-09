@@ -19,7 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { useParams } from "@/lib/router-compat";
 import LaporanPencapaian from "./cbe/LaporanPencapaian";
 import RemedialPengayaan from "./cbe/RemedialPengayaan";
 

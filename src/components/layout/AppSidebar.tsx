@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
-import { useLocation } from "react-router-dom";
+import { useLocation } from "@/lib/router-compat";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
