@@ -51,13 +51,14 @@ const NAMA_BULAN = [
 const DEFAULT_ENABLED_PAYMENTS = [
   "credit_card",
   "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
-  "gopay", "shopeepay", "qris",
+  "gopay", "shopeepay", "other_qris",
   "indomaret", "alfamart",
 ];
 
-// MIDTRANS_ENABLED_PAYMENTS: daftar channel dipisah koma (mis. "credit_card,gopay,qris").
+// MIDTRANS_ENABLED_PAYMENTS: daftar channel dipisah koma (mis. "credit_card,gopay,other_qris").
 // Dipakai untuk menonaktifkan channel yang belum didukung Midtrans untuk fitur
 // split fee, tanpa perlu redeploy. Kosongkan/hapus env var untuk pakai default.
+// Catatan: channel key QRIS generik di Snap adalah "other_qris", BUKAN "qris".
 function getEnabledPayments(): string[] {
   const raw = readEnv("MIDTRANS_ENABLED_PAYMENTS");
   if (!raw) return DEFAULT_ENABLED_PAYMENTS;
@@ -83,9 +84,9 @@ function hitungBiayaAdmin(category: PaymentCategory, totalAmount: number): numbe
 function getEnabledPaymentsForCategory(category: PaymentCategory): string[] {
   const all = getEnabledPayments();
   if (category === "qris_gopay") {
-    return all.filter((p) => p === "gopay" || p === "qris");
+    return all.filter((p) => p === "gopay" || p === "other_qris");
   }
-  return all.filter((p) => p !== "gopay" && p !== "qris");
+  return all.filter((p) => p !== "gopay" && p !== "other_qris");
 }
 
 export const createPayment = createServerFn({ method: "POST" })
@@ -247,7 +248,7 @@ export const createPayment = createServerFn({ method: "POST" })
       });
     }
 
-    const midtransPayload = {
+    const midtransPayload: Record<string, unknown> = {
       transaction_details: {
         order_id: orderId,
         gross_amount: Math.round(totalAmount + biayaAdmin),
@@ -266,6 +267,10 @@ export const createPayment = createServerFn({ method: "POST" })
       expiry: { unit: "hours", duration: 24 },
       enabled_payments: getEnabledPaymentsForCategory(payment_category),
     };
+    if (payment_category === "qris_gopay") {
+      // "other_qris" (channel QRIS generik) wajib disertai acquirer di Snap.
+      midtransPayload.qris = { acquirer: "gopay" };
+    }
 
     const midtransRes = await fetch(`${baseUrl}/snap/v1/transactions`, {
       method: "POST",
