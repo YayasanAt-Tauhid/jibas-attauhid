@@ -692,13 +692,16 @@ export default function InputPembayaran() {
               <DialogTitle>Kuitansi Pembayaran</DialogTitle>
             </DialogHeader>
             <PrintKuitansi
-              pembayaranId={lastPayment.pembayaran_id}
-              siswa={lastPayment.siswa}
-              jenisNama={lastPayment.jenisNama}
-              jenisTipe={lastPayment.jenisTipe}
-              bulan={lastPayment.bulan}
-              jumlah={lastPayment.jumlah}
-              tanggalBayar={lastPayment.tanggal_bayar}
+              payment={{
+                id: lastPayment.pembayaran_id,
+                jumlah: lastPayment.jumlah,
+                bulan: lastPayment.bulan,
+                tanggal_bayar: lastPayment.tanggal_bayar,
+                jenisNama: lastPayment.jenisNama,
+                siswa: lastPayment.siswa,
+              }}
+              kelasNama={kelasNama}
+              lembagaNama={lembagaNama}
             />
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowKuitansi(false)}>Tutup</Button>
