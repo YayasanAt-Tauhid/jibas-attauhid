@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
         p_jenis_id: item.jenis_id,
         p_siswa_id: item.siswa_id,
         p_kelas_id: kelasInfo?.kelas_id || null,
-        p_tahun_ajaran_id: kelasInfo?.tahun_ajaran_id || item.tahun_ajaran_id || null,
+        p_tahun_ajaran_id: item.tahun_ajaran_id || kelasInfo?.tahun_ajaran_id || null,
       });
 
       const nominalDB = Number(tarifNominal) || 0;
