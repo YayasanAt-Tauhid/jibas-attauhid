@@ -132,6 +132,21 @@ async function handleNotification(request: Request): Promise<Response> {
           .from("transaksi_midtrans_item")
           .update({ pembayaran_id: newPembayaran.id })
           .eq("id", item.id);
+
+        // Tandai tagihan terkait lunas agar hilang dari /portal/tagihan
+        let tagihanQuery = admin
+          .from("tagihan")
+          .update({ status: "lunas", pembayaran_id: newPembayaran.id })
+          .eq("siswa_id", item.siswa_id)
+          .eq("jenis_id", item.jenis_id)
+          .eq("status", "belum_bayar");
+        tagihanQuery = item.tahun_ajaran_id
+          ? tagihanQuery.eq("tahun_ajaran_id", item.tahun_ajaran_id)
+          : tagihanQuery;
+        tagihanQuery = item.bulan
+          ? tagihanQuery.eq("bulan", item.bulan)
+          : tagihanQuery.is("bulan", null);
+        await tagihanQuery;
       }
 
       // ─── Auto-jurnal ───
