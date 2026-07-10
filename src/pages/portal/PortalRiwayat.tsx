@@ -46,6 +46,7 @@ interface RiwayatItem {
   payment_type: string | null;
   status: string;
   total_amount: number;
+  biaya_admin: number;
   items: { id: string; nama_item: string; jumlah: number }[];
 }
 
@@ -84,19 +85,27 @@ export default function PortalRiwayat() {
           : Promise.resolve({ data: [] }),
       ]);
 
-      const onlineItems: RiwayatItem[] = (online || []).map((tx: any) => ({
-        key: tx.id,
-        order_id: tx.order_id,
-        tanggal: tx.created_at,
-        payment_type: tx.payment_type,
-        status: tx.status,
-        total_amount: Number(tx.total_amount),
-        items: (tx.transaksi_midtrans_item || []).map((i: any) => ({
+      const onlineItems: RiwayatItem[] = (online || []).map((tx: any) => {
+        const biayaAdmin = Number(tx.biaya_admin) || 0;
+        const items = (tx.transaksi_midtrans_item || []).map((i: any) => ({
           id: i.id,
           nama_item: i.nama_item,
           jumlah: Number(i.jumlah),
-        })),
-      }));
+        }));
+        if (biayaAdmin > 0) {
+          items.push({ id: `${tx.id}-biaya-admin`, nama_item: "Biaya Admin", jumlah: biayaAdmin });
+        }
+        return {
+          key: tx.id,
+          order_id: tx.order_id,
+          tanggal: tx.created_at,
+          payment_type: tx.payment_type,
+          status: tx.status,
+          total_amount: Number(tx.total_amount) + biayaAdmin,
+          biaya_admin: biayaAdmin,
+          items,
+        };
+      });
 
       // Pembayaran yang dicatat manual oleh kasir/keuangan (bayar tunai/transfer di kantor)
       const manualItems: RiwayatItem[] = (manual || []).map((p: any) => ({
@@ -106,6 +115,7 @@ export default function PortalRiwayat() {
         payment_type: "Kasir",
         status: "paid",
         total_amount: Number(p.jumlah),
+        biaya_admin: 0,
         items: [{ id: p.id, nama_item: p.keterangan || "Pembayaran", jumlah: Number(p.jumlah) }],
       }));
 

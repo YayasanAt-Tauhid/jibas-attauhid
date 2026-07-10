@@ -18,6 +18,8 @@ interface TagihanItem {
   departemen_nama?: string;
 }
 
+type PaymentCategory = "qris_gopay" | "lainnya";
+
 interface CreatePaymentBody {
   items: TagihanItem[];
   customer: {
@@ -26,6 +28,7 @@ interface CreatePaymentBody {
     nama: string;
     telepon?: string;
   };
+  payment_category: PaymentCategory;
 }
 
 const NAMA_BULAN = [
@@ -61,6 +64,29 @@ function getEnabledPayments(): string[] {
   return list.length > 0 ? list : DEFAULT_ENABLED_PAYMENTS;
 }
 
+// Midtrans belum bisa split fee ke customer di akun ini (channel VA & lain-lain
+// dinonaktifkan Midtrans saat opsi itu diaktifkan). Sebagai gantinya, biaya admin
+// dibebankan manual ke customer via item tambahan di Snap, dipisah per kategori
+// channel — nilainya menutup potongan fee Midtrans saat payout, jadi TIDAK dijurnal
+// sebagai pendapatan (lihat migrasi kolom biaya_admin).
+const QRIS_GOPAY_FEE_RATE = 0.007; // 0.7%
+const FLAT_ADMIN_FEE = 4400; // Rp 4.400, untuk channel selain QRIS/GoPay
+
+function hitungBiayaAdmin(category: PaymentCategory, totalAmount: number): number {
+  if (category === "qris_gopay") {
+    return Math.round(totalAmount * QRIS_GOPAY_FEE_RATE);
+  }
+  return FLAT_ADMIN_FEE;
+}
+
+function getEnabledPaymentsForCategory(category: PaymentCategory): string[] {
+  const all = getEnabledPayments();
+  if (category === "qris_gopay") {
+    return all.filter((p) => p === "gopay" || p === "qris");
+  }
+  return all.filter((p) => p !== "gopay" && p !== "qris");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -89,10 +115,13 @@ Deno.serve(async (req) => {
 
     // 2. Parse body
     const body: CreatePaymentBody = await req.json();
-    const { items, customer } = body;
+    const { items, customer, payment_category } = body;
 
     if (!items || items.length === 0) {
       throw new Error("Tidak ada tagihan yang dipilih");
+    }
+    if (payment_category !== "qris_gopay" && payment_category !== "lainnya") {
+      throw new Error("Kategori pembayaran tidak valid");
     }
 
     // 3. Validasi: cek semua siswa_id memang anak dari user ini
@@ -163,6 +192,7 @@ Deno.serve(async (req) => {
     }
 
     const totalAmount = validatedItems.reduce((sum, item) => sum + item.jumlah, 0);
+    const biayaAdmin = hitungBiayaAdmin(payment_category, totalAmount);
 
     // 6. Generate order_id unik
     const now = new Date();
@@ -177,6 +207,7 @@ Deno.serve(async (req) => {
         order_id: orderId,
         user_id: user.id,
         total_amount: totalAmount,
+        biaya_admin: biayaAdmin,
         status: "pending",
         expired_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       })
@@ -211,22 +242,32 @@ Deno.serve(async (req) => {
 
     const authString = btoa(`${MIDTRANS_SERVER_KEY}:`);
 
+    const itemDetails = validatedItems.map((item, idx) => ({
+      id: `ITEM-${idx + 1}-${item.bulan}`,
+      price: Math.round(item.jumlah),
+      quantity: 1,
+      name: `${item.jenis_nama} ${NAMA_BULAN[item.bulan]} - ${item.nama_siswa}`.substring(0, 50),
+    }));
+    if (biayaAdmin > 0) {
+      itemDetails.push({
+        id: "BIAYA-ADMIN",
+        price: biayaAdmin,
+        quantity: 1,
+        name: "Biaya Admin",
+      });
+    }
+
     const midtransPayload = {
       transaction_details: {
         order_id: orderId,
-        gross_amount: Math.round(totalAmount),
+        gross_amount: Math.round(totalAmount + biayaAdmin),
       },
       customer_details: {
         first_name: customer.nama,
         email: customer.email,
         phone: customer.telepon || "",
       },
-      item_details: validatedItems.map((item, idx) => ({
-        id: `ITEM-${idx + 1}-${item.bulan}`,
-        price: Math.round(item.jumlah),
-        quantity: 1,
-        name: `${item.jenis_nama} ${NAMA_BULAN[item.bulan]} - ${item.nama_siswa}`.substring(0, 50),
-      })),
+      item_details: itemDetails,
       callbacks: {
         finish: `${req.headers.get("origin") || "http://localhost:5173"}/portal/pembayaran?order=${orderId}`,
         unfinish: `${req.headers.get("origin") || "http://localhost:5173"}/portal/tagihan`,
@@ -236,7 +277,7 @@ Deno.serve(async (req) => {
         unit: "hours",
         duration: 24,
       },
-      enabled_payments: getEnabledPayments(),
+      enabled_payments: getEnabledPaymentsForCategory(payment_category),
     };
 
     const midtransRes = await fetch(
@@ -279,6 +320,7 @@ Deno.serve(async (req) => {
         order_id: orderId,
         transaksi_id: transaksi.id,
         total_amount: totalAmount,
+        biaya_admin: biayaAdmin,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
