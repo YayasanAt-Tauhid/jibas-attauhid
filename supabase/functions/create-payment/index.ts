@@ -44,6 +44,23 @@ const NAMA_BULAN = [
   "Desember",
 ];
 
+const DEFAULT_ENABLED_PAYMENTS = [
+  "credit_card",
+  "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
+  "gopay", "shopeepay", "qris",
+  "indomaret", "alfamart",
+];
+
+// MIDTRANS_ENABLED_PAYMENTS: daftar channel dipisah koma (mis. "credit_card,gopay,qris").
+// Dipakai untuk menonaktifkan channel yang belum didukung Midtrans untuk fitur
+// split fee, tanpa perlu redeploy. Kosongkan/hapus env var untuk pakai default.
+function getEnabledPayments(): string[] {
+  const raw = Deno.env.get("MIDTRANS_ENABLED_PAYMENTS");
+  if (!raw) return DEFAULT_ENABLED_PAYMENTS;
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : DEFAULT_ENABLED_PAYMENTS;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -219,12 +236,7 @@ Deno.serve(async (req) => {
         unit: "hours",
         duration: 24,
       },
-      enabled_payments: [
-        "credit_card",
-        "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
-        "gopay", "shopeepay", "qris",
-        "indomaret", "alfamart",
-      ],
+      enabled_payments: getEnabledPayments(),
     };
 
     const midtransRes = await fetch(

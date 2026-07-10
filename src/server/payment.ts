@@ -44,6 +44,23 @@ const NAMA_BULAN = [
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 
+const DEFAULT_ENABLED_PAYMENTS = [
+  "credit_card",
+  "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
+  "gopay", "shopeepay", "qris",
+  "indomaret", "alfamart",
+];
+
+// MIDTRANS_ENABLED_PAYMENTS: daftar channel dipisah koma (mis. "credit_card,gopay,qris").
+// Dipakai untuk menonaktifkan channel yang belum didukung Midtrans untuk fitur
+// split fee, tanpa perlu redeploy. Kosongkan/hapus env var untuk pakai default.
+function getEnabledPayments(): string[] {
+  const raw = readEnv("MIDTRANS_ENABLED_PAYMENTS");
+  if (!raw) return DEFAULT_ENABLED_PAYMENTS;
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : DEFAULT_ENABLED_PAYMENTS;
+}
+
 export const createPayment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .inputValidator((d: CreatePaymentInput) => d)
@@ -205,12 +222,7 @@ export const createPayment = createServerFn({ method: "POST" })
         error: `${origin}/portal/tagihan`,
       },
       expiry: { unit: "hours", duration: 24 },
-      enabled_payments: [
-        "credit_card",
-        "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
-        "gopay", "shopeepay", "qris",
-        "indomaret", "alfamart",
-      ],
+      enabled_payments: getEnabledPayments(),
     };
 
     const midtransRes = await fetch(`${baseUrl}/snap/v1/transactions`, {
