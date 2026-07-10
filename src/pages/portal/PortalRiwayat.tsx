@@ -39,27 +39,88 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   expired: { label: "Kedaluwarsa", variant: "outline" },
 };
 
+interface RiwayatItem {
+  key: string;
+  order_id: string | null; // hanya ada untuk transaksi online
+  tanggal: string | null;
+  payment_type: string | null;
+  status: string;
+  total_amount: number;
+  items: { id: string; nama_item: string; jumlah: number }[];
+}
+
 export default function PortalRiwayat() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const highlightOrder = searchParams.get("order");
 
-  const { data: transaksi = [], isLoading } = useQuery({
-    queryKey: ["portal-riwayat", user?.id],
+  const { data: anakIds = [] } = useQuery({
+    queryKey: ["portal-anak-ids", user?.id],
     queryFn: async () => {
       const { data } = await supabase
-        .from("transaksi_midtrans")
-        .select("*, transaksi_midtrans_item(*)")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
-      return data || [];
+        .from("ortu_siswa")
+        .select("siswa_id")
+        .eq("user_id", user!.id);
+      return (data || []).map((d: any) => d.siswa_id);
+    },
+    enabled: !!user,
+  });
+
+  const { data: transaksi = [], isLoading } = useQuery({
+    queryKey: ["portal-riwayat", user?.id, anakIds],
+    queryFn: async (): Promise<RiwayatItem[]> => {
+      const [{ data: online }, { data: manual }] = await Promise.all([
+        supabase
+          .from("transaksi_midtrans")
+          .select("*, transaksi_midtrans_item(*)")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false }),
+        anakIds.length > 0
+          ? supabase
+              .from("pembayaran")
+              .select("id, jumlah, tanggal_bayar, keterangan")
+              .in("siswa_id", anakIds)
+              .order("tanggal_bayar", { ascending: false })
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const onlineItems: RiwayatItem[] = (online || []).map((tx: any) => ({
+        key: tx.id,
+        order_id: tx.order_id,
+        tanggal: tx.created_at,
+        payment_type: tx.payment_type,
+        status: tx.status,
+        total_amount: Number(tx.total_amount),
+        items: (tx.transaksi_midtrans_item || []).map((i: any) => ({
+          id: i.id,
+          nama_item: i.nama_item,
+          jumlah: Number(i.jumlah),
+        })),
+      }));
+
+      // Pembayaran yang dicatat manual oleh kasir/keuangan (bayar tunai/transfer di kantor)
+      const manualItems: RiwayatItem[] = (manual || []).map((p: any) => ({
+        key: p.id,
+        order_id: null,
+        tanggal: p.tanggal_bayar,
+        payment_type: "Kasir",
+        status: "paid",
+        total_amount: Number(p.jumlah),
+        items: [{ id: p.id, nama_item: p.keterangan || "Pembayaran", jumlah: Number(p.jumlah) }],
+      }));
+
+      return [...onlineItems, ...manualItems].sort((a, b) => {
+        const ta = a.tanggal ? new Date(a.tanggal).getTime() : 0;
+        const tb = b.tanggal ? new Date(b.tanggal).getTime() : 0;
+        return tb - ta;
+      });
     },
     enabled: !!user,
   });
 
   useEffect(() => {
     if (highlightOrder && transaksi.length > 0) {
-      const found = transaksi.find((t: any) => t.order_id === highlightOrder);
+      const found = transaksi.find((t) => t.order_id === highlightOrder);
       if (found && found.status === "paid") {
         toast.success(`Transaksi ${highlightOrder} berhasil diproses`);
       }
@@ -67,12 +128,12 @@ export default function PortalRiwayat() {
   }, [highlightOrder, transaksi]);
 
   // Bug 5 fix: buka popup terpisah untuk cetak, bukan window.print() seluruh halaman
-  const printBukti = (tx: any) => {
-    const items = tx.transaksi_midtrans_item || [];
+  const printBukti = (tx: RiwayatItem) => {
+    const items = tx.items;
     const w = window.open("", "_blank", "width=620,height=650");
     if (!w) { toast.error("Popup diblokir. Izinkan popup untuk mencetak."); return; }
     w.document.write(`
-      <html><head><title>Bukti Pembayaran ${tx.order_id}</title>
+      <html><head><title>Bukti Pembayaran ${tx.order_id || tx.key}</title>
       <style>
         body{font-family:sans-serif;padding:24px;color:#111}
         h2{margin-bottom:4px}
@@ -85,13 +146,13 @@ export default function PortalRiwayat() {
       </style>
       </head><body>
       <h2>Bukti Pembayaran</h2>
-      <p><b>Order ID:</b> ${tx.order_id}</p>
-      <p><b>Tanggal:</b> ${tx.created_at ? new Date(tx.created_at).toLocaleString("id-ID") : "-"}</p>
+      ${tx.order_id ? `<p><b>Order ID:</b> ${tx.order_id}</p>` : ""}
+      <p><b>Tanggal:</b> ${tx.tanggal ? new Date(tx.tanggal).toLocaleString("id-ID") : "-"}</p>
       <p><b>Metode:</b> ${tx.payment_type || "-"}</p>
       <table>
         <thead><tr><th>Item</th><th style="text-align:right">Jumlah</th></tr></thead>
-        <tbody>${items.map((i: any) => `<tr><td>${i.nama_item}</td><td style="text-align:right">${Number(i.jumlah).toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr>`).join("")}</tbody>
-        <tfoot><tr class="total"><td>TOTAL</td><td style="text-align:right">${Number(tx.total_amount).toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr></tfoot>
+        <tbody>${items.map((i) => `<tr><td>${i.nama_item}</td><td style="text-align:right">${i.jumlah.toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr>`).join("")}</tbody>
+        <tfoot><tr class="total"><td>TOTAL</td><td style="text-align:right">${tx.total_amount.toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr></tfoot>
       </table>
       <p class="footer">Terima kasih telah melakukan pembayaran.</p>
       <br/><button onclick="window.print()">Cetak</button>
@@ -124,7 +185,7 @@ export default function PortalRiwayat() {
           Riwayat Pembayaran
         </h1>
         <p className="text-sm text-muted-foreground">
-          Daftar transaksi pembayaran online Anda
+          Daftar seluruh transaksi pembayaran Anda, baik online maupun di kasir sekolah
         </p>
       </div>
 
@@ -136,15 +197,15 @@ export default function PortalRiwayat() {
         </Card>
       ) : (
         <Accordion type="single" collapsible defaultValue={highlightOrder || undefined}>
-          {transaksi.map((tx: any) => {
+          {transaksi.map((tx) => {
             const status = statusConfig[tx.status] || statusConfig.pending;
-            const items = tx.transaksi_midtrans_item || [];
+            const items = tx.items;
             const isHighlighted = tx.order_id === highlightOrder;
 
             return (
               <AccordionItem
-                key={tx.id}
-                value={tx.order_id}
+                key={tx.key}
+                value={tx.order_id || tx.key}
                 className={isHighlighted ? "ring-2 ring-emerald-500 rounded-lg" : ""}
               >
                 <Card className="mb-3">
@@ -153,22 +214,24 @@ export default function PortalRiwayat() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
-                            {tx.order_id}
+                            {tx.order_id || "Bayar di Kasir"}
                           </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyOrderId(tx.order_id);
-                            }}
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
+                          {tx.order_id && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyOrderId(tx.order_id!);
+                              }}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {tx.created_at &&
+                          {tx.tanggal &&
                             format(
-                              new Date(tx.created_at),
+                              new Date(tx.tanggal),
                               "dd MMM yyyy HH:mm",
                               { locale: idLocale }
                             )}
@@ -181,7 +244,7 @@ export default function PortalRiwayat() {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="font-semibold text-sm">
-                          {formatRupiah(Number(tx.total_amount))}
+                          {formatRupiah(tx.total_amount)}
                         </span>
                         <Badge
                           variant={status.variant}
@@ -207,13 +270,13 @@ export default function PortalRiwayat() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {items.map((item: any) => (
+                        {items.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="text-sm">
                               {item.nama_item}
                             </TableCell>
                             <TableCell className="text-right text-sm">
-                              {formatRupiah(Number(item.jumlah))}
+                              {formatRupiah(item.jumlah)}
                             </TableCell>
                           </TableRow>
                         ))}
