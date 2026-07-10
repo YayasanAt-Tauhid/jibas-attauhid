@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
-import { getTarifBatch } from "@/hooks/useTarifTagihan";
 
 const NAMA_BULAN = [
   "",
@@ -80,24 +79,10 @@ export default function PortalTagihan() {
         .eq("sudah_bayar", false)
         .order("nama_siswa")
         .order("bulan");
-      
-      const items = (data || []) as TagihanItem[];
-      
-      // Get unique jenis_id+tahun_ajaran_id combos dan apply tarif secara paralel
-      const combos = [...new Set(items.map(t => `${t.jenis_id}|${t.tahun_ajaran_id}`))];
-      await Promise.all(combos.map(async (combo) => {
-        const [jId, taId] = combo.split("|");
-        const relevantItems = items.filter(t => t.jenis_id === jId && t.tahun_ajaran_id === taId);
-        const siswaIds = [...new Set(relevantItems.map(t => t.siswa_id))];
-        const tarifMap = await getTarifBatch(jId, siswaIds, undefined, taId);
-        relevantItems.forEach(t => {
-          const tarif = tarifMap.get(t.siswa_id);
-          if (tarif != null) t.nominal = tarif;
-        });
-      }));
-      
-      // Filter out items with no configured tarif (nominal === 0)
-      return items.filter(t => t.nominal > 0);
+
+      // nominal sudah final dari tabel tagihan (dihitung saat tagihan di-generate),
+      // tidak perlu dihitung ulang di klien.
+      return ((data || []) as TagihanItem[]).filter(t => t.nominal > 0);
     },
     enabled: anakIds.length > 0,
   });

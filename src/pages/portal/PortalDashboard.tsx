@@ -8,7 +8,6 @@ import { useNavigate } from "@/lib/router-compat";
 import { Users, FileText, CreditCard, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { getTarifBatch } from "@/hooks/useTarifTagihan";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -66,22 +65,9 @@ export default function PortalDashboard() {
         .in("siswa_id", siswaIds)
         .eq("sudah_bayar", false);
 
-      const items = (data || []) as any[];
-
-      // Bug 1 fix: parallel fetch tarif (sama dengan PortalTagihan)
-      const combos = [...new Set(items.map(t => `${t.jenis_id}|${t.tahun_ajaran_id}`))];
-      await Promise.all(combos.map(async (combo) => {
-        const [jId, taId] = combo.split("|");
-        const relevantItems = items.filter(t => t.jenis_id === jId && t.tahun_ajaran_id === taId);
-        const sIds = [...new Set(relevantItems.map(t => t.siswa_id))];
-        const tarifMap = await getTarifBatch(jId, sIds, undefined, taId);
-        relevantItems.forEach(t => {
-          const tarif = tarifMap.get(t.siswa_id);
-          if (tarif != null) t.nominal = tarif;
-        });
-      }));
-
-      return items.filter(t => t.nominal > 0).length;
+      // nominal sudah final dari tabel tagihan (dihitung saat tagihan di-generate),
+      // tidak perlu dihitung ulang di klien.
+      return ((data || []) as any[]).filter(t => t.nominal > 0).length;
     },
     enabled: siswaIds.length > 0,
   });
