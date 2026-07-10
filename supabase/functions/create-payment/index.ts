@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const midtransPayload: Record<string, unknown> = {
+    const midtransPayload = {
       transaction_details: {
         order_id: orderId,
         gross_amount: Math.round(totalAmount + biayaAdmin),
@@ -280,10 +280,6 @@ Deno.serve(async (req) => {
       },
       enabled_payments: getEnabledPaymentsForCategory(payment_category),
     };
-    if (payment_category === "qris_gopay") {
-      // "other_qris" (channel QRIS generik) wajib disertai acquirer di Snap.
-      midtransPayload.qris = { acquirer: "gopay" };
-    }
 
     const midtransRes = await fetch(
       `${MIDTRANS_BASE_URL}/snap/v1/transactions`,
