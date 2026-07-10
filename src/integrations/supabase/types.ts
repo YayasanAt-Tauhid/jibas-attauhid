@@ -4036,6 +4036,7 @@ export type Database = {
       }
       transaksi_midtrans: {
         Row: {
+          biaya_admin: number
           created_at: string | null
           expired_at: string | null
           fraud_status: string | null
@@ -4053,6 +4054,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          biaya_admin?: number
           created_at?: string | null
           expired_at?: string | null
           fraud_status?: string | null
@@ -4070,6 +4072,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          biaya_admin?: number
           created_at?: string | null
           expired_at?: string | null
           fraud_status?: string | null

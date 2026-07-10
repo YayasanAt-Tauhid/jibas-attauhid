@@ -21,6 +21,8 @@ interface TagihanItem {
   departemen_nama?: string;
 }
 
+export type PaymentCategory = "qris_gopay" | "lainnya";
+
 export interface CreatePaymentInput {
   items: TagihanItem[];
   customer: {
@@ -29,6 +31,7 @@ export interface CreatePaymentInput {
     nama: string;
     telepon?: string;
   };
+  payment_category: PaymentCategory;
 }
 
 export interface CreatePaymentResult {
@@ -37,12 +40,53 @@ export interface CreatePaymentResult {
   order_id: string;
   transaksi_id: string;
   total_amount: number;
+  biaya_admin: number;
 }
 
 const NAMA_BULAN = [
   "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
+
+const DEFAULT_ENABLED_PAYMENTS = [
+  "credit_card",
+  "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
+  "gopay", "shopeepay", "qris",
+  "indomaret", "alfamart",
+];
+
+// MIDTRANS_ENABLED_PAYMENTS: daftar channel dipisah koma (mis. "credit_card,gopay,qris").
+// Dipakai untuk menonaktifkan channel yang belum didukung Midtrans untuk fitur
+// split fee, tanpa perlu redeploy. Kosongkan/hapus env var untuk pakai default.
+function getEnabledPayments(): string[] {
+  const raw = readEnv("MIDTRANS_ENABLED_PAYMENTS");
+  if (!raw) return DEFAULT_ENABLED_PAYMENTS;
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : DEFAULT_ENABLED_PAYMENTS;
+}
+
+// Midtrans belum bisa split fee ke customer di akun ini (channel VA & lain-lain
+// dinonaktifkan Midtrans saat opsi itu diaktifkan). Sebagai gantinya, biaya admin
+// dibebankan manual ke customer via item tambahan di Snap, dipisah per kategori
+// channel — nilainya menutup potongan fee Midtrans saat payout, jadi TIDAK dijurnal
+// sebagai pendapatan (lihat migrasi kolom biaya_admin).
+const QRIS_GOPAY_FEE_RATE = 0.007; // 0.7%
+const FLAT_ADMIN_FEE = 4400; // Rp 4.400, untuk channel selain QRIS/GoPay
+
+function hitungBiayaAdmin(category: PaymentCategory, totalAmount: number): number {
+  if (category === "qris_gopay") {
+    return Math.round(totalAmount * QRIS_GOPAY_FEE_RATE);
+  }
+  return FLAT_ADMIN_FEE;
+}
+
+function getEnabledPaymentsForCategory(category: PaymentCategory): string[] {
+  const all = getEnabledPayments();
+  if (category === "qris_gopay") {
+    return all.filter((p) => p === "gopay" || p === "qris");
+  }
+  return all.filter((p) => p !== "gopay" && p !== "qris");
+}
 
 export const createPayment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -51,9 +95,12 @@ export const createPayment = createServerFn({ method: "POST" })
     const admin = createAdminClient();
     const userId = context.userId;
 
-    const { items, customer } = data;
+    const { items, customer, payment_category } = data;
     if (!items || items.length === 0) {
       throw new Error("Tidak ada tagihan yang dipilih");
+    }
+    if (payment_category !== "qris_gopay" && payment_category !== "lainnya") {
+      throw new Error("Kategori pembayaran tidak valid");
     }
 
     // Validasi: semua siswa_id memang anak dari user ini
@@ -130,6 +177,7 @@ export const createPayment = createServerFn({ method: "POST" })
     }
 
     const totalAmount = validatedItems.reduce((sum, i) => sum + i.jumlah, 0);
+    const biayaAdmin = hitungBiayaAdmin(payment_category, totalAmount);
 
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
@@ -142,6 +190,7 @@ export const createPayment = createServerFn({ method: "POST" })
         order_id: orderId,
         user_id: userId,
         total_amount: totalAmount,
+        biaya_admin: biayaAdmin,
         status: "pending",
         expired_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       })
@@ -180,37 +229,42 @@ export const createPayment = createServerFn({ method: "POST" })
       getRequestHeader("referer")?.replace(/\/$/, "") ||
       "http://localhost:8080";
 
+    const itemDetails = validatedItems.map((item, idx) => ({
+      id: `ITEM-${idx + 1}-${item.bulan}`,
+      price: Math.round(item.jumlah),
+      quantity: 1,
+      name: `${item.jenis_nama} ${NAMA_BULAN[item.bulan]} - ${item.nama_siswa}`.substring(
+        0,
+        50
+      ),
+    }));
+    if (biayaAdmin > 0) {
+      itemDetails.push({
+        id: "BIAYA-ADMIN",
+        price: biayaAdmin,
+        quantity: 1,
+        name: "Biaya Admin",
+      });
+    }
+
     const midtransPayload = {
       transaction_details: {
         order_id: orderId,
-        gross_amount: Math.round(totalAmount),
+        gross_amount: Math.round(totalAmount + biayaAdmin),
       },
       customer_details: {
         first_name: customer.nama,
         email: customer.email,
         phone: customer.telepon || "",
       },
-      item_details: validatedItems.map((item, idx) => ({
-        id: `ITEM-${idx + 1}-${item.bulan}`,
-        price: Math.round(item.jumlah),
-        quantity: 1,
-        name: `${item.jenis_nama} ${NAMA_BULAN[item.bulan]} - ${item.nama_siswa}`.substring(
-          0,
-          50
-        ),
-      })),
+      item_details: itemDetails,
       callbacks: {
         finish: `${origin}/portal/pembayaran?order=${orderId}`,
         unfinish: `${origin}/portal/tagihan`,
         error: `${origin}/portal/tagihan`,
       },
       expiry: { unit: "hours", duration: 24 },
-      enabled_payments: [
-        "credit_card",
-        "bca_va", "bni_va", "bri_va", "permata_va", "other_va",
-        "gopay", "shopeepay", "qris",
-        "indomaret", "alfamart",
-      ],
+      enabled_payments: getEnabledPaymentsForCategory(payment_category),
     };
 
     const midtransRes = await fetch(`${baseUrl}/snap/v1/transactions`, {
@@ -241,6 +295,7 @@ export const createPayment = createServerFn({ method: "POST" })
       order_id: orderId,
       transaksi_id: transaksi.id,
       total_amount: totalAmount,
+      biaya_admin: biayaAdmin,
     };
   });
 
