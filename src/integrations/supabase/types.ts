@@ -4583,6 +4583,7 @@ export type Database = {
       get_my_siswa_id: { Args: { _user_id: string }; Returns: string }
       get_tarif_siswa: {
         Args: {
+          p_angkatan_id?: string
           p_jenis_id: string
           p_kelas_id?: string
           p_siswa_id: string
