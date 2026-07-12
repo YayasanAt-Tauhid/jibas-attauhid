@@ -172,8 +172,14 @@ export const createPayment = createServerFn({ method: "POST" })
         ...item,
         jumlah: nominalDB,
         departemen_id: item.departemen_id || undefined,
+        // PENTING: prioritaskan tahun_ajaran_id dari tagihan yang dipilih (item),
+        // BUKAN dari kelas_siswa aktif siswa saat ini. Jika dibalik, pembayaran
+        // tunggakan tahun ajaran lama via portal ortu akan tersimpan dengan
+        // tahun_ajaran_id tahun berjalan — tidak match ke tagihan lama, sehingga
+        // tagihan lama tetap muncul belum lunas walau sudah dibayar (sama seperti
+        // bug tahun_ajaran_id nyangkut di InputPembayaran.tsx sisi kasir).
         tahun_ajaran_id:
-          kelasInfo?.tahun_ajaran_id || item.tahun_ajaran_id || undefined,
+          item.tahun_ajaran_id || kelasInfo?.tahun_ajaran_id || undefined,
       });
     }
 
