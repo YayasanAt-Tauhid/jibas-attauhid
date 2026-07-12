@@ -84,11 +84,23 @@ def insert_batches(table, rows, label, upsert=False):
         return
     batches = math.ceil(total / BATCH)
     print(f"  {label}: {total} baris → {batches} batch", end="", flush=True)
+    failed = 0
     for i in range(batches):
         chunk = rows[i * BATCH:(i + 1) * BATCH]
-        supa_post(table, chunk, upsert=upsert)
-        print(".", end="", flush=True)
-    print(f" OK")
+        try:
+            supa_post(table, chunk, upsert=upsert)
+            print(".", end="", flush=True)
+        except requests.exceptions.HTTPError as e:
+            # Jangan jatuhkan seluruh migrasi karena satu batch bentrok (mis. sudah
+            # tersinkron sebagian di run sebelumnya) — lewati batch ini, lanjut ke
+            # berikutnya. Baris yang gagal akan otomatis dicoba lagi di run berikutnya
+            # karena belum tercatat sebagai sudah tersinkron.
+            failed += 1
+            print(f"X({e.response.status_code})", end="", flush=True)
+    if failed:
+        print(f" SELESAI dengan {failed}/{batches} batch gagal (lihat log ERROR di atas)")
+    else:
+        print(f" OK")
 
 
 # ── Kategori mapping jbsfina → Supabase ──────────────────────────────────────
@@ -242,17 +254,36 @@ def sync_tahun_ajaran(conn, dept_map):
 # ── 4. Sync jurnal + jurnaldetail (delta) ────────────────────────────────────
 
 def get_max_replid_jurnal():
-    rows = supa_get("jurnal", {
-        "select":    "referensi",
-        "referensi": "like.MIGR-jbsfina-%",
-        "limit":     "50000",
-    })
-    if not rows:
-        return 0
-    try:
-        return max(int(r["referensi"].split("-")[-1]) for r in rows)
-    except Exception:
-        return 0
+    # PENTING: Supabase/PostgREST membatasi jumlah baris per response (db-max-rows di
+    # project settings), terlepas dari nilai `limit` yang kita minta. Kalau jumlah
+    # jurnal migrasi sudah melebihi batas itu, ambil satu kali saja akan memotong hasil
+    # secara diam-diam dan max_replid yang dihitung jadi lebih kecil dari nilai
+    # sebenarnya -> baris yang sebenarnya sudah tersinkron dicoba insert ulang -> 409
+    # (duplicate key jurnal_referensi_unique) berulang di baris yang sama setiap run.
+    # Makanya di sini kita paginasi pakai offset dan berhenti hanya kalau satu halaman
+    # benar-benar kosong (bukan sekadar "lebih pendek dari yang diminta"), supaya tetap
+    # benar walau server memotong tiap halaman ke angka yang lebih kecil dari page_size.
+    page_size = 1000
+    offset = 0
+    max_replid = 0
+    while True:
+        rows = supa_get("jurnal", {
+            "select":    "referensi",
+            "referensi": "like.MIGR-jbsfina-%",
+            "limit":     str(page_size),
+            "offset":    str(offset),
+        })
+        if not rows:
+            break
+        for r in rows:
+            try:
+                val = int(r["referensi"].split("-")[-1])
+                if val > max_replid:
+                    max_replid = val
+            except Exception:
+                continue
+        offset += len(rows)
+    return max_replid
 
 
 def fetch_periode_ditutup():
