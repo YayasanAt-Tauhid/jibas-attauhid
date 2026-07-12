@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Bell, User, LogOut, CheckCheck, FileText, CreditCard, Megaphone, KeyRound } from "lucide-react";
+import { Bell, User, LogOut, CheckCheck, FileText, CreditCard, Megaphone, KeyRound, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -19,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AppBreadcrumb } from "./AppBreadcrumb";
 import { useNotifikasi, NotifikasiItem } from "@/hooks/useNotifikasi";
+import { useTahunAjaran } from "@/hooks/useAkademikData";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -42,8 +44,11 @@ const tipeIcon: Record<NotifikasiItem["tipe"], React.ReactNode> = {
 export function TopNavbar() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   const [namaSekolah, setNamaSekolah] = useState("");
   const { items, loading, unreadCount, tandaiBaca, tandaiBacaSemua } = useNotifikasi();
+  const { data: tahunAjaranList } = useTahunAjaran();
+  const tahunAjaranAktif = tahunAjaranList?.find((ta) => ta.aktif);
 
   // Dialog ubah password
   const [pwOpen, setPwOpen] = useState(false);
@@ -112,17 +117,37 @@ export function TopNavbar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card px-4">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card/85 backdrop-blur-md px-4">
       <SidebarTrigger className="-ml-1" />
 
       <div className="flex-1 flex flex-col justify-center min-w-0">
         <AppBreadcrumb />
         <p className="text-[11px] text-muted-foreground leading-tight truncate">
-          {namaSekolah || "Sistem Manajemen Sekolah"} · Tahun Ajaran 2025/2026
+          {namaSekolah || "Sistem Manajemen Sekolah"}
+          {tahunAjaranAktif && ` · Tahun Ajaran ${tahunAjaranAktif.nama}`}
         </p>
       </div>
 
       <div className="flex items-center gap-2">
+        {tahunAjaranAktif && (
+          <div className="hidden md:flex items-center gap-1.5 rounded-full border bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            TA {tahunAjaranAktif.nama} · Aktif
+          </div>
+        )}
+
+        {/* Ganti Tema */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          title="Ganti tema"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        </Button>
+
         {/* Bell Notifikasi */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

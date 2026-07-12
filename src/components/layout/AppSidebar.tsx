@@ -268,7 +268,11 @@ function SubGroupCollapsible({
               const subActive = pathname === sub.url || pathname.startsWith(sub.url + "/");
               return (
                 <SidebarMenuSubItem key={sub.url}>
-                  <SidebarMenuSubButton asChild isActive={subActive} className="h-7 text-xs">
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={subActive}
+                    className="h-7 text-xs data-[active=true]:shadow-[inset_2px_0_0_0_hsl(var(--sidebar-primary))]"
+                  >
                     <NavLink
                       to={sub.url}
                       className="hover:bg-sidebar-accent/50"
@@ -330,7 +334,11 @@ export function AppSidebar() {
                     <Collapsible key={item.title} defaultOpen={isActive} className="group/collapsible">
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton isActive={isActive} tooltip={item.title} className="justify-between">
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            tooltip={item.title}
+                            className="justify-between data-[active=true]:shadow-[inset_3px_0_0_0_hsl(var(--sidebar-primary))]"
+                          >
                             <div className="flex items-center gap-2">
                               <item.icon className="h-4 w-4" />
                               <span>{item.title}</span>
@@ -373,7 +381,12 @@ export function AppSidebar() {
                 // ── Menu tanpa children (CBE, SIMTAKA, Buletin) ───────────
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.title}
+                      className="data-[active=true]:shadow-[inset_3px_0_0_0_hsl(var(--sidebar-primary))]"
+                    >
                       <NavLink
                         to={item.url}
                         end={item.url === "/"}

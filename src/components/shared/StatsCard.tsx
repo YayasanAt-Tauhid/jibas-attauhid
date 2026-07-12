@@ -23,33 +23,31 @@ const colorMap = {
 export function StatsCard({ title, value, icon: Icon, trend, color = "primary", onClick, active }: StatsCardProps) {
   return (
     <Card
-      className={`hover:shadow-md transition-shadow ${onClick ? "cursor-pointer" : ""} ${active ? "ring-2 ring-warning" : ""}`}
+      className={`transition-all hover:-translate-y-0.5 hover:shadow-md ${onClick ? "cursor-pointer" : ""} ${active ? "ring-2 ring-warning" : ""}`}
       onClick={onClick}
     >
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1.5">
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold tracking-tight">{value}</p>
-            {trend && (
-              <div className="flex items-center gap-1 text-xs">
-                {trend.value > 0 ? (
-                  <TrendingUp className="h-3 w-3 text-success" />
-                ) : trend.value < 0 ? (
-                  <TrendingDown className="h-3 w-3 text-destructive" />
-                ) : (
-                  <Minus className="h-3 w-3 text-muted-foreground" />
-                )}
-                <span className={trend.value > 0 ? "text-success" : trend.value < 0 ? "text-destructive" : "text-muted-foreground"}>
-                  {trend.value > 0 ? "+" : ""}{trend.value}%
-                </span>
-                {trend.label && <span className="text-muted-foreground">{trend.label}</span>}
-              </div>
-            )}
-          </div>
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorMap[color]}`}>
-            <Icon className="h-5 w-5" />
-          </div>
+      <CardContent className="p-4">
+        <div className={`mb-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colorMap[color]}`}>
+          <Icon className="h-[18px] w-[18px]" />
+        </div>
+        <p className="text-[22px] font-extrabold tracking-tight">{value}</p>
+        <div className="mt-0.5 flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-muted-foreground">{title}</p>
+          {trend && (
+            <div className="flex items-center gap-1 text-xs">
+              {trend.value > 0 ? (
+                <TrendingUp className="h-3 w-3 text-success" />
+              ) : trend.value < 0 ? (
+                <TrendingDown className="h-3 w-3 text-destructive" />
+              ) : (
+                <Minus className="h-3 w-3 text-muted-foreground" />
+              )}
+              <span className={trend.value > 0 ? "text-success" : trend.value < 0 ? "text-destructive" : "text-muted-foreground"}>
+                {trend.value > 0 ? "+" : ""}{trend.value}%
+              </span>
+              {trend.label && <span className="text-muted-foreground">{trend.label}</span>}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

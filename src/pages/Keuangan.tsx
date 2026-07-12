@@ -63,18 +63,25 @@ export default function Keuangan() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard Keuangan Yayasan</h1>
-        <p className="text-sm text-muted-foreground">Ringkasan keuangan seluruh lembaga — {currentYear}</p>
-      </div>
-
-      {/* Quick links */}
-      <div className="flex flex-wrap gap-2">
-        {links.map((l) => (
-          <Button key={l.url} variant="outline" size="sm" onClick={() => navigate(l.url)}>
-            {l.label}
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard Keuangan Yayasan</h1>
+          <p className="text-sm text-muted-foreground">Ringkasan keuangan seluruh lembaga — {currentYear}</p>
+        </div>
+        {/* Quick links */}
+        <div className="flex flex-wrap justify-end gap-2">
+          {links.map((l) => (
+            <Button
+              key={l.url}
+              variant="outline"
+              size="sm"
+              className="rounded-lg font-semibold"
+              onClick={() => navigate(l.url)}
+            >
+              {l.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Stats */}
@@ -107,7 +114,11 @@ export default function Keuangan() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rekapLembaga?.map((r) => (
-                <Card key={r.departemen_id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/keuangan/laporan?lembaga=${r.departemen_id}`)}>
+                <Card
+                  key={r.departemen_id}
+                  className="cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  onClick={() => navigate(`/keuangan/laporan?lembaga=${r.departemen_id}`)}
+                >
                   <CardContent className="p-4">
                     <p className="font-semibold text-sm mb-2">{r.kode} — {r.lembaga}</p>
                     <div className="space-y-1 text-xs">
