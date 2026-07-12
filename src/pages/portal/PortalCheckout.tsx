@@ -239,7 +239,7 @@ export default function PortalCheckout() {
                         <TableCell>
                           {item.bulan === 0
                             ? `Sekali Bayar${item.tahun_ajaran_nama ? ` — TA ${item.tahun_ajaran_nama}` : ""}`
-                            : NAMA_BULAN[item.bulan] || "-"}
+                            : `${NAMA_BULAN[item.bulan] || "-"}${item.tahun_ajaran_nama ? ` — TA ${item.tahun_ajaran_nama}` : ""}`}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatRupiah(item.jumlah)}
