@@ -97,163 +97,93 @@ async function handleNotification(request: Request): Promise<Response> {
       .eq("order_id", order_id);
     if (updateError) throw updateError;
 
-    // 5. Jika PAID → buat record pembayaran per item
+    // 5. Jika PAID → proses pembayaran + jurnal SECARA ATOMIK per item
+    //    via RPC proses_pembayaran_midtrans_atomik. Setiap item sukses/gagal
+    //    independen (dicatat di hasilItems), tidak lagi ada silent-catch:
+    //    kegagalan jurnal SELALU berarti pembayaran juga tidak tercatat untuk
+    //    item itu (rollback RPC), dan errornya disimpan ke metadata transaksi.
     if (newStatus === "paid") {
       const items = transaksi.transaksi_midtrans_item || [];
       const today = new Date().toISOString().split("T")[0];
 
-      for (const item of items) {
-        const { data: existing } = await admin
-          .from("pembayaran")
-          .select("id")
-          .eq("siswa_id", item.siswa_id)
-          .eq("jenis_id", item.jenis_id)
-          .eq("bulan", item.bulan)
-          .maybeSingle();
-        if (existing) continue;
-
-        const { data: newPembayaran, error: payError } = await admin
-          .from("pembayaran")
-          .insert({
-            siswa_id: item.siswa_id,
-            jenis_id: item.jenis_id,
-            bulan: item.bulan,
-            jumlah: item.jumlah,
-            tanggal_bayar: today,
-            departemen_id: item.departemen_id || null,
-            tahun_ajaran_id: item.tahun_ajaran_id || null,
-            keterangan: `Online Payment - ${order_id} via ${payment_type}`,
-          })
-          .select()
-          .single();
-        if (payError) continue;
-
-        await admin
-          .from("transaksi_midtrans_item")
-          .update({ pembayaran_id: newPembayaran.id })
-          .eq("id", item.id);
-
-        // Tandai tagihan terkait lunas agar hilang dari /portal/tagihan
-        let tagihanQuery = admin
-          .from("tagihan")
-          .update({ status: "lunas", pembayaran_id: newPembayaran.id })
-          .eq("siswa_id", item.siswa_id)
-          .eq("jenis_id", item.jenis_id)
-          .eq("status", "belum_bayar");
-        tagihanQuery = item.tahun_ajaran_id
-          ? tagihanQuery.eq("tahun_ajaran_id", item.tahun_ajaran_id)
-          : tagihanQuery;
-        tagihanQuery = item.bulan
-          ? tagihanQuery.eq("bulan", item.bulan)
-          : tagihanQuery.is("bulan", null);
-        await tagihanQuery;
-      }
-
-      // ─── Auto-jurnal ───
-      const { data: pengaturanAkunData } = await admin
+      // Ambil akun Bank Midtrans (debit) sekali di awal
+      const { data: bankMidtransSetting } = await admin
         .from("pengaturan_akun")
-        .select("kode_setting, akun_id");
-      const pengaturanAkun = pengaturanAkunData || [];
-      const bankMidtransId = pengaturanAkun.find(
-        (p) => p.kode_setting === "bank_midtrans"
-      )?.akun_id;
+        .select("akun_id")
+        .eq("kode_setting", "bank_midtrans")
+        .maybeSingle();
+      const bankMidtransId = bankMidtransSetting?.akun_id ?? null;
 
-      const itemsByJenis = new Map<
-        string,
-        { akun_id: string | null; total: number; nama: string }
-      >();
+      const hasilItems: Array<{
+        item_id: string;
+        success: boolean;
+        pembayaran_id?: string;
+        jurnal_id?: string;
+        error?: string;
+      }> = [];
+
       for (const item of items) {
+        // Skip jika item ini sudah pernah diproses (idempotent terhadap retry webhook)
+        if (item.pembayaran_id) {
+          hasilItems.push({ item_id: item.id, success: true, pembayaran_id: item.pembayaran_id });
+          continue;
+        }
+
         const { data: jenis } = await admin
           .from("jenis_pembayaran")
           .select("nama, akun_pendapatan_id")
           .eq("id", item.jenis_id)
           .single();
-        const existing = itemsByJenis.get(item.jenis_id);
-        if (existing) {
-          existing.total += Number(item.jumlah);
-        } else {
-          itemsByJenis.set(item.jenis_id, {
-            akun_id: jenis?.akun_pendapatan_id || null,
-            total: Number(item.jumlah),
-            nama: jenis?.nama || "Pembayaran",
-          });
-        }
-      }
 
-      const bisaAutoJurnal =
-        bankMidtransId &&
-        Array.from(itemsByJenis.values()).every((j) => j.akun_id !== null);
-
-      if (bisaAutoJurnal) {
-        try {
-          const tanggalBayar = new Date().toISOString().split("T")[0];
-          const tahunBayar = new Date().getFullYear();
-
-          const { data: nomorJurnal, error: rpcError } = await admin.rpc(
-            "generate_nomor_jurnal",
-            { p_prefix: "JP", p_tahun: tahunBayar }
-          );
-          if (rpcError) throw rpcError;
-          if (!nomorJurnal) throw new Error("Gagal mendapatkan nomor jurnal");
-
-          const totalAmount = Number(transaksi.total_amount);
-
-          const { data: jurnal, error: jErr } = await admin
-            .from("jurnal")
-            .insert({
-              nomor: nomorJurnal,
-              tanggal: tanggalBayar,
-              keterangan: `Online Payment Midtrans - ${order_id}`,
-              referensi: order_id,
-              total_debit: totalAmount,
-              total_kredit: totalAmount,
-              status: "posted",
-            })
-            .select()
-            .single();
-          if (jErr) throw jErr;
-
-          const details: Array<Record<string, unknown>> = [
-            {
-              jurnal_id: jurnal.id,
-              akun_id: bankMidtransId,
-              keterangan: `Penerimaan online payment ${order_id} via ${payment_type}`,
-              debit: totalAmount,
-              kredit: 0,
-              urutan: 1,
-            },
-          ];
-          let urutan = 2;
-          for (const [, jenis] of itemsByJenis) {
-            details.push({
-              jurnal_id: jurnal.id,
-              akun_id: jenis.akun_id,
-              keterangan: `Pendapatan ${jenis.nama} (${order_id})`,
-              debit: 0,
-              kredit: jenis.total,
-              urutan: urutan++,
-            });
+        const { data: rpcResult, error: rpcErr } = await admin.rpc(
+          "proses_pembayaran_midtrans_atomik",
+          {
+            p_transaksi_item_id: item.id,
+            p_siswa_id: item.siswa_id,
+            p_jenis_id: item.jenis_id,
+            p_bulan: item.bulan,
+            p_jumlah: item.jumlah,
+            p_tanggal_bayar: today,
+            p_departemen_id: item.departemen_id || null,
+            p_tahun_ajaran_id: item.tahun_ajaran_id || null,
+            p_order_id: order_id,
+            p_payment_type: payment_type,
+            p_kas_akun_id: bankMidtransId,
+            p_kredit_akun_id: jenis?.akun_pendapatan_id ?? null,
+            p_jenis_nama: jenis?.nama || "Pembayaran",
           }
+        );
 
-          const { error: detailErr } = await admin
-            .from("jurnal_detail")
-            .insert(details);
-          if (detailErr) throw detailErr;
-
-          await admin
-            .from("transaksi_midtrans")
-            .update({
-              metadata: {
-                ...notification,
-                jurnal_id: jurnal.id,
-                jurnal_nomor: nomorJurnal,
-              },
-            })
-            .eq("order_id", order_id);
-        } catch {
-          // auto-jurnal gagal — pembayaran tetap tercatat, jurnal bisa dibuat manual
+        if (rpcErr) {
+          hasilItems.push({ item_id: item.id, success: false, error: rpcErr.message });
+          continue;
         }
+
+        const r = rpcResult as { pembayaran_id: string; jurnal_id: string };
+        hasilItems.push({
+          item_id: item.id,
+          success: true,
+          pembayaran_id: r.pembayaran_id,
+          jurnal_id: r.jurnal_id,
+        });
       }
+
+      const adaGagal = hasilItems.some((h) => !h.success);
+
+      // Simpan hasil pemrosesan ke metadata — SELALU tercatat, bukan silent.
+      // Jika ada item gagal, admin bisa lihat dari sini akun mana yang perlu
+      // dikonfigurasi lalu proses ulang manual (webhook Midtrans juga retry
+      // otomatis untuk status non-2xx, tapi kita selalu balas 200 di bawah).
+      await admin
+        .from("transaksi_midtrans")
+        .update({
+          metadata: {
+            ...notification,
+            item_processing: hasilItems,
+            ada_item_gagal_jurnal: adaGagal,
+          },
+        })
+        .eq("order_id", order_id);
 
       // Notifikasi orang tua
       try {
