@@ -287,7 +287,14 @@ export default function InputPembayaran() {
     setSearchTerm("");
     const dept = s.kelas_siswa?.[0]?.kelas?.departemen_id;
     if (dept && !departemenId) setDepartemenId(dept);
-  }, [departemenId]);
+    // Reset filter tahun ajaran ke tahun aktif setiap ganti siswa.
+    // Tanpa ini, jika kasir sebelumnya membuka tahun ajaran lama (mis. untuk
+    // cek/bayar tunggakan), pemilihan itu akan "nyangkut" dan pembayaran
+    // siswa berikutnya tercatat dengan tahun_ajaran_id yang salah — sehingga
+    // tidak match ke tagihan di tahun ajaran yang benar dan tetap muncul
+    // sebagai belum lunas di portal ortu.
+    if (tahunAktif?.id) setSelectedTahunAjaranId(tahunAktif.id);
+  }, [departemenId, tahunAktif?.id]);
 
   const handleSubmit = async () => {
     if (!selectedSiswa || !form.jenisId || !form.jumlah || tarifTidakAda) return;
