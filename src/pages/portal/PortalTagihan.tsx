@@ -145,6 +145,7 @@ export default function PortalTagihan() {
           departemen_id: t.departemen_id,
           departemen_nama: t.departemen_nama,
           tahun_ajaran_id: t.tahun_ajaran_id,
+          tahun_ajaran_nama: t.tahun_ajaran_nama,
           kelas_nama: t.kelas_nama,
         }))
       )
@@ -230,7 +231,9 @@ export default function PortalTagihan() {
                             {t.jenis_nama}
                           </span>
                         <span className="text-xs text-muted-foreground ml-2">
-                            {t.bulan === 0 ? "Sekali Bayar" : NAMA_BULAN[t.bulan]}
+                            {t.bulan === 0
+                              ? `Sekali Bayar — TA ${t.tahun_ajaran_nama}`
+                              : NAMA_BULAN[t.bulan]}
                           </span>
                         </div>
                         <span className="text-sm font-semibold">

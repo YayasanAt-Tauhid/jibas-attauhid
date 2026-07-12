@@ -63,6 +63,7 @@ interface KeranjangItem {
   departemen_id?: string;
   departemen_nama?: string;
   tahun_ajaran_id?: string;
+  tahun_ajaran_nama?: string;
   kelas_nama?: string;
 }
 
@@ -236,7 +237,9 @@ export default function PortalCheckout() {
                       <TableRow key={idx}>
                         <TableCell>{item.jenis_nama}</TableCell>
                         <TableCell>
-                          {item.bulan === 0 ? "Sekali Bayar" : NAMA_BULAN[item.bulan] || "-"}
+                          {item.bulan === 0
+                            ? `Sekali Bayar${item.tahun_ajaran_nama ? ` — TA ${item.tahun_ajaran_nama}` : ""}`
+                            : NAMA_BULAN[item.bulan] || "-"}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatRupiah(item.jumlah)}
