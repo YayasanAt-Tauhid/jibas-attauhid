@@ -1,26 +1,34 @@
 import { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@/lib/router-compat";
 import { useSiswaList, useDeleteSiswa, SiswaWithRelations } from "@/hooks/useSiswa";
-import { useDepartemen, useTingkat, useKelas } from "@/hooks/useAkademikData";
+import { useDepartemen, useTingkat, useKelas, useTahunAjaran, useAngkatan } from "@/hooks/useAkademikData";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { ImportSiswaDialog } from "@/pages/akademik/ImportSiswaDialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Eye, Pencil, Trash2, Download } from "lucide-react";
+import { Plus, Eye, Pencil, Trash2, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 export default function DaftarSiswa() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: siswaList = [], isLoading } = useSiswaList();
   const { data: departemenList = [] } = useDepartemen();
+  const { data: tingkatList = [] } = useTingkat();
+  const { data: kelasList = [] } = useKelas();
+  const { data: tahunAjaranList = [] } = useTahunAjaran();
+  const { data: angkatanList = [] } = useAngkatan();
   const deleteSiswa = useDeleteSiswa();
 
   const [filterDept, setFilterDept] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [deleteTarget, setDeleteTarget] = useState<SiswaWithRelations | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const getActiveKelas = (siswa: SiswaWithRelations) => {
     const active = siswa.kelas_siswa?.find((ks) => ks.aktif);
@@ -126,9 +134,14 @@ export default function DaftarSiswa() {
           <h1 className="text-2xl font-bold text-foreground">Data Siswa</h1>
           <p className="text-sm text-muted-foreground">Kelola data siswa sekolah</p>
         </div>
-        <Button onClick={() => navigate("/akademik/siswa/tambah")}>
-          <Plus className="h-4 w-4 mr-2" /> Tambah Siswa
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4 mr-2" /> Import Data Siswa
+          </Button>
+          <Button onClick={() => navigate("/akademik/siswa/tambah")}>
+            <Plus className="h-4 w-4 mr-2" /> Tambah Siswa
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -187,6 +200,17 @@ export default function DaftarSiswa() {
         }}
         confirmLabel="Hapus"
         variant="destructive"
+      />
+
+      <ImportSiswaDialog
+        open={showImport}
+        onOpenChange={setShowImport}
+        departemenList={departemenList}
+        tingkatList={tingkatList}
+        kelasList={kelasList}
+        tahunAjaranList={tahunAjaranList}
+        angkatanList={angkatanList}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ["siswa"] })}
       />
     </div>
   );
