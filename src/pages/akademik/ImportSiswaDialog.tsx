@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -85,6 +86,8 @@ interface SiswaImportRow {
   nama_ibu?: string;
   telepon_ortu?: string;
   error?: string;
+  _action?: "insert" | "update";
+  _existingSiswaId?: string;
 }
 
 const STATUS_VALID = ["aktif", "alumni", "pindah", "keluar"];
@@ -135,8 +138,10 @@ export function ImportSiswaDialog({
 }: ImportSiswaDialogProps) {
   const [rows, setRows] = useState<SiswaImportRow[]>([]);
   const [importing, setImporting] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{ success: number; error: number } | null>(null);
+  const [result, setResult] = useState<{ success: number; error: number; updated: number } | null>(null);
+  const [updateExisting, setUpdateExisting] = useState(false);
 
   const findByNama = <T extends { nama: string }>(list: T[], nama?: string): T | undefined => {
     if (!nama) return undefined;
@@ -144,7 +149,23 @@ export function ImportSiswaDialog({
     return list.find((item) => item.nama.trim().toLowerCase() === target);
   };
 
-  const validateRows = (data: SiswaImportRow[]): SiswaImportRow[] => {
+  const validateRows = async (
+    data: SiswaImportRow[],
+    allowUpdate: boolean
+  ): Promise<SiswaImportRow[]> => {
+    // Cek NIS yang sudah terdaftar di database (satu query untuk semua baris)
+    const nisList = data.map((r) => normalize(r.nis)).filter(Boolean);
+    let existingByNis = new Map<string, string>(); // nis -> siswa_id
+    if (allowUpdate && nisList.length > 0) {
+      const { data: existing, error } = await supabase
+        .from("siswa")
+        .select("id, nis")
+        .in("nis", nisList);
+      if (!error && existing) {
+        existingByNis = new Map(existing.map((s: any) => [s.nis as string, s.id as string]));
+      }
+    }
+
     return data.map((r) => {
       const errors: string[] = [];
       const nama = normalize(r.nama);
@@ -218,14 +239,21 @@ export function ImportSiswaDialog({
         errors.push(`tanggal_lahir tidak valid: ${r.tanggal_lahir}`);
       }
 
+      const nisNorm = normalize(r.nis);
+      const existingId = nisNorm ? existingByNis.get(nisNorm) : undefined;
+
       return {
         ...r,
         error: errors.length ? errors.join("; ") : undefined,
+        _action: existingId ? "update" : "insert",
+        _existingSiswaId: existingId,
       };
     });
   };
 
   const hasErrors = rows.some((r) => r.error);
+
+  const [rawRows, setRawRows] = useState<SiswaImportRow[]>([]);
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -236,7 +264,11 @@ export function ImportSiswaDialog({
         const wb = XLSX.read(ev.target?.result, { type: "binary", cellDates: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json<SiswaImportRow>(ws, { defval: "" });
-        setRows(validateRows(data));
+        setRawRows(data);
+        setValidating(true);
+        validateRows(data, updateExisting)
+          .then(setRows)
+          .finally(() => setValidating(false));
         setResult(null);
       } catch (err) {
         toast.error("Gagal membaca file Excel. Pastikan format sesuai template.");
@@ -244,6 +276,16 @@ export function ImportSiswaDialog({
     };
     reader.readAsBinaryString(file);
     e.target.value = "";
+  };
+
+  const handleToggleUpdateExisting = (checked: boolean) => {
+    setUpdateExisting(checked);
+    if (rawRows.length > 0) {
+      setValidating(true);
+      validateRows(rawRows, checked)
+        .then(setRows)
+        .finally(() => setValidating(false));
+    }
   };
 
   const downloadTemplate = () => {
@@ -280,6 +322,7 @@ export function ImportSiswaDialog({
     setImporting(true);
     setProgress(0);
     let success = 0;
+    let updated = 0;
     let errorCount = 0;
     const total = rows.length;
 
@@ -318,54 +361,130 @@ export function ImportSiswaDialog({
           departemen_id: dept?.id || null,
         };
 
-        const { data: newSiswa, error: siswaErr } = await supabase
-          .from("siswa")
-          .insert(siswaPayload as any)
-          .select("id")
-          .single();
-        if (siswaErr) throw siswaErr;
+        const isUpdate = r._action === "update" && r._existingSiswaId;
+        let siswaId: string;
+
+        if (isUpdate) {
+          const { error: updateErr } = await supabase
+            .from("siswa")
+            .update(siswaPayload as any)
+            .eq("id", r._existingSiswaId as string);
+          if (updateErr) throw updateErr;
+          siswaId = r._existingSiswaId as string;
+        } else {
+          const { data: newSiswa, error: siswaErr } = await supabase
+            .from("siswa")
+            .insert(siswaPayload as any)
+            .select("id")
+            .single();
+          if (siswaErr) throw siswaErr;
+          siswaId = newSiswa.id;
+        }
 
         const hasOrtuData = normalize(r.nama_ayah) || normalize(r.nama_ibu) || normalize(r.telepon_ortu);
         if (hasOrtuData) {
-          const { error: detailErr } = await supabase.from("siswa_detail").insert({
-            siswa_id: newSiswa.id,
+          const detailPayload = {
             nama_ayah: normalize(r.nama_ayah) || null,
             nama_ibu: normalize(r.nama_ibu) || null,
             telepon_ortu: normalize(r.telepon_ortu) || null,
-          } as any);
-          if (detailErr) throw detailErr;
+          };
+          if (isUpdate) {
+            const { data: existingDetail } = await supabase
+              .from("siswa_detail")
+              .select("id")
+              .eq("siswa_id", siswaId)
+              .maybeSingle();
+            if (existingDetail) {
+              const { error: detailErr } = await supabase
+                .from("siswa_detail")
+                .update(detailPayload as any)
+                .eq("id", existingDetail.id);
+              if (detailErr) throw detailErr;
+            } else {
+              const { error: detailErr } = await supabase
+                .from("siswa_detail")
+                .insert({ siswa_id: siswaId, ...detailPayload } as any);
+              if (detailErr) throw detailErr;
+            }
+          } else {
+            const { error: detailErr } = await supabase
+              .from("siswa_detail")
+              .insert({ siswa_id: siswaId, ...detailPayload } as any);
+            if (detailErr) throw detailErr;
+          }
         }
 
         if (kelas && tahunAjaran) {
-          const { error: kelasErr } = await supabase.from("kelas_siswa").insert({
-            siswa_id: newSiswa.id,
-            kelas_id: kelas.id,
-            tahun_ajaran_id: tahunAjaran.id,
-            aktif: true,
-          } as any);
-          if (kelasErr) throw kelasErr;
+          if (isUpdate) {
+            // Nonaktifkan penempatan kelas aktif sebelumnya di tahun ajaran yang sama
+            // agar tidak menumpuk baris aktif ganda, lalu catat penempatan baru.
+            await supabase
+              .from("kelas_siswa")
+              .update({ aktif: false } as any)
+              .eq("siswa_id", siswaId)
+              .eq("tahun_ajaran_id", tahunAjaran.id)
+              .eq("aktif", true);
+
+            const { data: existingKelasSiswa } = await supabase
+              .from("kelas_siswa")
+              .select("id")
+              .eq("siswa_id", siswaId)
+              .eq("tahun_ajaran_id", tahunAjaran.id)
+              .eq("kelas_id", kelas.id)
+              .maybeSingle();
+
+            if (existingKelasSiswa) {
+              const { error: kelasErr } = await supabase
+                .from("kelas_siswa")
+                .update({ aktif: true } as any)
+                .eq("id", existingKelasSiswa.id);
+              if (kelasErr) throw kelasErr;
+            } else {
+              const { error: kelasErr } = await supabase.from("kelas_siswa").insert({
+                siswa_id: siswaId,
+                kelas_id: kelas.id,
+                tahun_ajaran_id: tahunAjaran.id,
+                aktif: true,
+              } as any);
+              if (kelasErr) throw kelasErr;
+            }
+          } else {
+            const { error: kelasErr } = await supabase.from("kelas_siswa").insert({
+              siswa_id: siswaId,
+              kelas_id: kelas.id,
+              tahun_ajaran_id: tahunAjaran.id,
+              aktif: true,
+            } as any);
+            if (kelasErr) throw kelasErr;
+          }
         }
 
-        success++;
+        if (isUpdate) updated++;
+        else success++;
       } catch (err) {
         errorCount++;
       }
       setProgress(Math.round(((i + 1) / total) * 100));
     }
 
-    setResult({ success, error: errorCount });
+    setResult({ success, error: errorCount, updated });
     setImporting(false);
-    if (success > 0) onImported();
+    if (success > 0 || updated > 0) onImported();
     if (errorCount === 0) {
-      toast.success(`Import selesai: ${success} siswa berhasil ditambahkan`);
+      const parts = [];
+      if (success > 0) parts.push(`${success} baru`);
+      if (updated > 0) parts.push(`${updated} diupdate`);
+      toast.success(`Import selesai: ${parts.join(", ")}`);
     } else {
-      toast.warning(`Import selesai: ${success} berhasil, ${errorCount} gagal`);
+      toast.warning(`Import selesai: ${success} baru, ${updated} diupdate, ${errorCount} gagal`);
     }
   };
+
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) {
       setRows([]);
+      setRawRows([]);
       setResult(null);
       setProgress(0);
     }
@@ -414,10 +533,23 @@ export function ImportSiswaDialog({
             />
           </div>
 
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="update-existing"
+              checked={updateExisting}
+              onCheckedChange={(checked) => handleToggleUpdateExisting(checked === true)}
+            />
+            <Label htmlFor="update-existing" className="text-sm cursor-pointer font-normal">
+              Update data siswa jika NIS sudah terdaftar (jika tidak dicentang, baris dengan NIS yang
+              sudah ada akan tetap dibuat sebagai data baru)
+            </Label>
+          </div>
+
           {rows.length > 0 && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Preview: {Math.min(10, rows.length)} dari {rows.length} baris
+                {validating && " (memeriksa data yang sudah ada...)"}
               </p>
               <div className="border rounded-md overflow-auto max-h-[350px]">
                 <Table>
@@ -427,6 +559,7 @@ export function ImportSiswaDialog({
                       <TableHead>Nama</TableHead>
                       <TableHead>JK</TableHead>
                       <TableHead>Kelas</TableHead>
+                      <TableHead>Aksi</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -437,6 +570,13 @@ export function ImportSiswaDialog({
                         <TableCell>{r.nama}</TableCell>
                         <TableCell>{r.jenis_kelamin}</TableCell>
                         <TableCell>{r.kelas || "-"}</TableCell>
+                        <TableCell>
+                          {r._action === "update" ? (
+                            <Badge variant="secondary">Update</Badge>
+                          ) : (
+                            <Badge variant="outline">Baru</Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {r.error ? (
                             <span className="text-destructive text-xs">{r.error}</span>
@@ -454,7 +594,8 @@ export function ImportSiswaDialog({
 
               {result && (
                 <div className="flex gap-3 text-sm">
-                  <Badge variant="default">{result.success} berhasil</Badge>
+                  {result.success > 0 && <Badge variant="outline">{result.success} baru</Badge>}
+                  {result.updated > 0 && <Badge variant="secondary">{result.updated} diupdate</Badge>}
                   {result.error > 0 && (
                     <Badge variant="destructive">{result.error} gagal</Badge>
                   )}
@@ -474,7 +615,7 @@ export function ImportSiswaDialog({
           <Button variant="outline" onClick={() => handleClose(false)}>
             Tutup
           </Button>
-          <Button onClick={handleImport} disabled={rows.length === 0 || hasErrors || importing}>
+          <Button onClick={handleImport} disabled={rows.length === 0 || hasErrors || importing || validating}>
             {importing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
