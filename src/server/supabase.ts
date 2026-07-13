@@ -13,27 +13,40 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-// URL & anon key bersifat publik (sudah ada di src/integrations/supabase/client.ts).
-// Dipakai sebagai fallback bila env belum diset. Service-role key TIDAK punya
-// fallback — wajib dari env dan tidak boleh di-commit.
-const FALLBACK_URL = "https://rumdeqkrtfjxckqgokoy.supabase.co";
-const FALLBACK_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1bWRlcWtydGZqeGNrcWdva295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDE5ODYsImV4cCI6MjA5OTExNzk4Nn0.M2vV1Qd_NoYT0hKa88tsAPPlnfSzMmQaLWg8cXbUTSs";
+// URL & anon/publishable key WAJIB dari env — TIDAK ADA fallback hardcode.
+// (Sebelumnya ada fallback ke anon key JWT lama; legacy JWT keys sudah
+// dinonaktifkan di dashboard Supabase per 2026-07-13, jadi fallback itu
+// dihapus supaya kesalahan konfigurasi langsung ketahuan, bukan diam-diam
+// terus mencoba pakai key yang sudah mati.)
 
 export function readEnv(name: string): string | undefined {
   return typeof process !== "undefined" ? process.env?.[name] : undefined;
 }
 
 function supabaseUrl(): string {
-  return readEnv("SUPABASE_URL") ?? FALLBACK_URL;
+  const url = readEnv("SUPABASE_URL") ?? readEnv("VITE_SUPABASE_URL");
+  if (!url) {
+    throw new Error(
+      "SUPABASE_URL belum dikonfigurasi di server. " +
+        "Set environment variable ini pada host (VPS/Cloudflare) sebelum menjalankan aplikasi."
+    );
+  }
+  return url;
 }
 
 function anonKey(): string {
-  return (
+  const key =
     readEnv("SUPABASE_ANON_KEY") ??
     readEnv("SUPABASE_PUBLISHABLE_KEY") ??
-    FALLBACK_ANON_KEY
-  );
+    readEnv("VITE_SUPABASE_PUBLISHABLE_KEY");
+  if (!key) {
+    throw new Error(
+      "SUPABASE_ANON_KEY / SUPABASE_PUBLISHABLE_KEY belum dikonfigurasi di server. " +
+        "Gunakan publishable key baru (sb_publishable_...) dari dashboard Supabase, " +
+        "BUKAN anon key JWT lama — legacy key sudah dinonaktifkan."
+    );
+  }
+  return key;
 }
 
 function serviceKey(): string {

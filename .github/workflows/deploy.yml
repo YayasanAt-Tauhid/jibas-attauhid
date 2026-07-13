@@ -1,10 +1,14 @@
 name: Deploy to Cloudflare Workers
 
 # Builds the TanStack Start app (Nitro cloudflare-module preset) and deploys
-# the Worker. Requires two repository secrets:
-#   - CLOUDFLARE_API_TOKEN   (a token with the "Edit Cloudflare Workers" template)
+# the Worker. Requires these repository secrets (Settings -> Secrets and
+# variables -> Actions):
+#   - CLOUDFLARE_API_TOKEN            (a token with the "Edit Cloudflare Workers" template)
 #   - CLOUDFLARE_ACCOUNT_ID
-# Add them under: Settings -> Secrets and variables -> Actions.
+#   - VITE_SUPABASE_URL               (baked into the client bundle at build time)
+#   - VITE_SUPABASE_PUBLISHABLE_KEY   (baked into the client bundle at build time;
+#                                       use the new sb_publishable_... key, not the
+#                                       legacy anon JWT key)
 
 on:
   push:
@@ -36,6 +40,9 @@ jobs:
         run: npm ci
 
       - name: Build (Cloudflare Workers)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
 
       - name: Deploy to Cloudflare Workers
