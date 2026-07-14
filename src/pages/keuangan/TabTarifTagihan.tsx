@@ -93,12 +93,20 @@ export default function TabTarifTagihan() {
   const [filterSiswaId, setFilterSiswaId] = useState("");
   const { data: filterSiswaResults } = useSiswaSearch(filterSiswaSearch);
 
-  const { data: tagihanData, isLoading: loadingTagihan } = useTagihanList({
+  const { data: tagihanDataRaw, isLoading: loadingTagihan } = useTagihanList({
     tahun_ajaran_id: filterTahunId || undefined,
     jenis_id: filterJenisId || undefined,
     status: filterStatus || undefined,
     siswa_id: filterSiswaId || undefined,
   });
+  // Default (filter "Semua"): sembunyikan tagihan yang sudah dibatalkan, supaya
+  // tidak tercampur dengan tagihan aktif. Pilih eksplisit "Dibatalkan" di filter
+  // Status untuk melihatnya.
+  const tagihanData = useMemo(() => {
+    if (!tagihanDataRaw) return tagihanDataRaw;
+    if (filterStatus) return tagihanDataRaw; // filter eksplisit sudah dipilih, biarkan apa adanya
+    return tagihanDataRaw.filter((t: any) => t.status !== "dibatalkan");
+  }, [tagihanDataRaw, filterStatus]);
 
   const filteredData = useMemo(() => {
     if (!tarifList) return [];
@@ -207,7 +215,9 @@ export default function TabTarifTagihan() {
       key: "status", label: "Status",
       render: (v) => v === "lunas"
         ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">Lunas</Badge>
-        : <Badge variant="destructive">Belum Bayar</Badge>,
+        : v === "dibatalkan"
+          ? <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30">Dibatalkan</Badge>
+          : <Badge variant="destructive">Belum Bayar</Badge>,
     },
   ];
 
@@ -283,6 +293,7 @@ export default function TabTarifTagihan() {
                   <SelectItem value="__all__">Semua</SelectItem>
                   <SelectItem value="belum_bayar">Belum Bayar</SelectItem>
                   <SelectItem value="lunas">Lunas</SelectItem>
+                  <SelectItem value="dibatalkan">Dibatalkan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
