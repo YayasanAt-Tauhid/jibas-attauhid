@@ -29,7 +29,7 @@ export default function LaporanBayarSiswa() {
     queryKey: ["search_siswa_laporan", searchTerm, departemenId],
     enabled: searchTerm.length >= 2,
     queryFn: async () => {
-      const { data } = await supabase.from("siswa").select("id, nis, nama, foto_url, kelas_siswa(kelas(nama))").or(`nama.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`).eq("status", "aktif").limit(10);
+      const { data } = await supabase.from("siswa").select("id, nis, nama, foto_url, kelas_siswa(aktif, kelas(nama))").or(`nama.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`).eq("status", "aktif").limit(10);
       return data || [];
     },
   });
@@ -63,7 +63,7 @@ export default function LaporanBayarSiswa() {
     { key: "jumlah", label: "Jumlah", render: v => formatRupiah(Number(v)) },
   ];
 
-  const kelasNama = selectedSiswa?.kelas_siswa?.[0]?.kelas?.nama || "-";
+  const kelasNama = (selectedSiswa?.kelas_siswa?.find((ks: any) => ks.aktif) ?? selectedSiswa?.kelas_siswa?.[0])?.kelas?.nama || "-";
 
   return (
     <div className="space-y-6 animate-fade-in">

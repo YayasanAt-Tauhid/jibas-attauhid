@@ -32,7 +32,7 @@ export default function TabunganSiswa() {
     queryFn: async () => {
       const { data } = await supabase
         .from("siswa")
-        .select("id, nis, nama, foto_url, kelas_siswa(kelas(nama))")
+        .select("id, nis, nama, foto_url, kelas_siswa(aktif, kelas(nama))")
         .or(`nama.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`)
         .eq("status", "aktif")
         .limit(10);
@@ -54,7 +54,7 @@ export default function TabunganSiswa() {
   };
 
   const saldo = Number(tabungan?.saldo || 0);
-  const kelasNama = selectedSiswa?.kelas_siswa?.[0]?.kelas?.nama || "-";
+  const kelasNama = (selectedSiswa?.kelas_siswa?.find((ks: any) => ks.aktif) ?? selectedSiswa?.kelas_siswa?.[0])?.kelas?.nama || "-";
 
   const columns: DataTableColumn<any>[] = [
     { key: "tanggal", label: "Tanggal", render: (v) => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },

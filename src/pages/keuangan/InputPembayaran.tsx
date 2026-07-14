@@ -41,6 +41,15 @@ const FORM_DEFAULT: FormPembayaran = {
   keterangan: "",
 };
 
+// Ambil baris kelas_siswa yang aktif -- kelas_siswa[0] TIDAK BOLEH dipakai langsung
+// karena PostgREST tidak menjamin urutan baris relasi (bisa mengembalikan baris
+// kelas lama/nonaktif di posisi pertama setelah siswa naik/pindah kelas), yang
+// menyebabkan tarif & jenis pembayaran salah match ke kelas lama siswa.
+function getKelasAktif(siswa: SiswaWithKelas | null | undefined) {
+  const list = siswa?.kelas_siswa ?? [];
+  return list.find((ks: any) => ks.aktif) ?? list[0];
+}
+
 function useProsesPembayaran() {
   const qc = useQueryClient();
   return useMutation({
@@ -120,7 +129,7 @@ export default function InputPembayaran() {
       const safeTerm = searchTerm.replace(/[%,()]/g, "");
       const { data } = await supabase
         .from("siswa")
-        .select("id, nis, nama, foto_url, status, angkatan_id, kelas_siswa(kelas_id, kelas(id, nama, departemen_id))")
+        .select("id, nis, nama, foto_url, status, angkatan_id, kelas_siswa(kelas_id, aktif, kelas(id, nama, departemen_id))")
         .or(`nama.ilike.%${safeTerm}%,nis.ilike.%${safeTerm}%`)
         .eq("status", "aktif")
         .limit(10);
@@ -130,7 +139,7 @@ export default function InputPembayaran() {
     },
   });
 
-  const siswaKelasId    = selectedSiswa?.kelas_siswa?.[0]?.kelas?.id;
+  const siswaKelasId    = getKelasAktif(selectedSiswa)?.kelas?.id;
   const siswaAngkatanId = (selectedSiswa as any)?.angkatan_id ?? null;
 
   const { data: applicableTarifJenisIds } = useQuery<Set<string>>({
@@ -272,7 +281,7 @@ export default function InputPembayaran() {
   const isJumlahLocked = !isSekali && tarifNominal != null;
   const sudahBayar     = bulanDibayar ? bulanTampil.filter(m => bulanDibayar.has(m)).length : 0;
   const belumBayar     = bulanTampil.length - sudahBayar;
-  const kelasNama      = selectedSiswa?.kelas_siswa?.[0]?.kelas?.nama ?? "-";
+  const kelasNama      = getKelasAktif(selectedSiswa)?.kelas?.nama ?? "-";
   const lembagaNama    = lembagaList?.find(l => l.id === departemenId)?.nama ?? "-";
 
   const prosesMutation = useProsesPembayaran();
@@ -285,7 +294,7 @@ export default function InputPembayaran() {
   const handleSelectSiswa = useCallback((s: SiswaWithKelas) => {
     setSelectedSiswa(s);
     setSearchTerm("");
-    const dept = s.kelas_siswa?.[0]?.kelas?.departemen_id;
+    const dept = getKelasAktif(s)?.kelas?.departemen_id;
     if (dept && !departemenId) setDepartemenId(dept);
     // Reset filter tahun ajaran ke tahun aktif setiap ganti siswa.
     // Tanpa ini, jika kasir sebelumnya membuka tahun ajaran lama (mis. untuk
@@ -370,7 +379,7 @@ export default function InputPembayaran() {
                   <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">{s.nama?.[0]}</div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{s.nama}</p>
-                    <p className="text-xs text-muted-foreground">NIS: {s.nis ?? "-"} • {s.kelas_siswa?.[0]?.kelas?.nama ?? "-"}</p>
+                    <p className="text-xs text-muted-foreground">NIS: {s.nis ?? "-"} • {getKelasAktif(s)?.kelas?.nama ?? "-"}</p>
                   </div>
                 </button>
               ))}
