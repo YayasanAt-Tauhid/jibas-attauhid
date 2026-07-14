@@ -36,10 +36,12 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 - **Akademik:** import data siswa dari Excel, dukung update via NIS
 - **UI:** desain baru Keuangan At-Tauhid (tema hijau, dark mode)
 - **Keamanan:** Supabase key pindah ke env var; edge functions lama dihapus
+- **UX Tab Tarif Tagihan (14 Juli):** input nominal berformat Rupiah (komponen `RupiahInput`, tolak nilai ≤ 0), pesan validasi eksplisit (bukan tombol disabled bisu), urutan field mengikuti dependensi (Lembaga → Jenis → target), reset pilihan kini diberi notifikasi toast, pencarian siswa diganti `SiswaCombobox` (debounce, keyboard nav, loading/empty state — dipakai di 3 tempat), konfirmasi khusus untuk generate semua-siswa, mode edit jadi ringkasan read-only, deteksi tarif duplikat, filter Angkatan ikut Lembaga
 
 ## Pekerjaan Terbuka
 
-- (tidak ada — tambahkan di sini saat mulai pekerjaan baru yang belum selesai)
+- **Input massal tarif per-siswa** di Tab Tarif Tagihan (import Excel / pilih banyak siswa sekaligus) — kekurangan UX terbesar yang sengaja ditunda saat perbaikan UX 14 Juli; saat ini input tarif khusus (mis. beasiswa) masih harus satu-per-satu per siswa
+- **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
 
 ---
 
