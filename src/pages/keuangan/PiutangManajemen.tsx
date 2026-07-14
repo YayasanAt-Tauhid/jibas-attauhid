@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -166,6 +168,12 @@ export default function PiutangManajemen() {
   const [krAlasan, setKrAlasan] = useState("");
   const [krNominalBaru, setKrNominalBaru] = useState("");
   const [krTanggal, setKrTanggal] = useState(format(now, "yyyy-MM-dd"));
+  // Batalkan massal (hanya untuk mode "batal")
+  const [krSelectedIds, setKrSelectedIds] = useState<Set<string>>(new Set());
+  const [batalMassalOpen, setBatalMassalOpen] = useState(false);
+  const [isBatalMassal, setIsBatalMassal] = useState(false);
+  const [batalMassalProgress, setBatalMassalProgress] = useState<{ done: number; total: number } | null>(null);
+  const [batalMassalGagal, setBatalMassalGagal] = useState<{ id: string; nama: string; error: string }[]>([]);
 
   const { data: lembagaList } = useLembaga();
   const { data: pengaturanAkun } = usePengaturanAkun();
@@ -209,6 +217,7 @@ export default function PiutangManajemen() {
   const resetKoreksi = () => {
     setKoreksiOpen(false); setKrTagihanId(""); setKrSearch("");
     setKrAlasan(""); setKrNominalBaru(""); setKrMode("batal");
+    setKrSelectedIds(new Set());
   };
   const submitKoreksi = () => {
     if (!krTagihanId) { toast.error("Pilih tagihan dulu"); return; }
@@ -228,6 +237,80 @@ export default function PiutangManajemen() {
         },
       }
     );
+  };
+
+  // ── Batalkan Tagihan Massal ──
+  const toggleKrSelect = (id: string) => {
+    setKrSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const krSelectedRows = useMemo(
+    () => tagihanBelumBayar.filter((t: any) => krSelectedIds.has(t.id)),
+    [tagihanBelumBayar, krSelectedIds]
+  );
+  const krSelectedTotal = krSelectedRows.reduce((s: number, t: any) => s + Number(t.nominal || 0), 0);
+  const allKrFilteredSelected = tagihanKrFiltered.length > 0 && tagihanKrFiltered.every((t: any) => krSelectedIds.has(t.id));
+  const toggleSelectAllKrFiltered = () => {
+    setKrSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allKrFilteredSelected) {
+        tagihanKrFiltered.forEach((t: any) => next.delete(t.id));
+      } else {
+        tagihanKrFiltered.forEach((t: any) => next.add(t.id));
+      }
+      return next;
+    });
+  };
+
+  const submitBatalMassal = async () => {
+    if (!krAlasan.trim()) { toast.error("Alasan wajib diisi"); return; }
+    const ids = Array.from(krSelectedIds);
+    if (ids.length === 0) return;
+
+    setIsBatalMassal(true);
+    setBatalMassalGagal([]);
+    setBatalMassalProgress({ done: 0, total: ids.length });
+
+    let berhasil = 0;
+    const gagal: { id: string; nama: string; error: string }[] = [];
+
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const row = tagihanBelumBayar.find((t: any) => t.id === id);
+      const label = row ? `${row.siswa?.nis ?? "-"} — ${row.siswa?.nama ?? "-"} (${row.jenis?.nama ?? ""}${row.bulan ? ` ${namaBulan(row.bulan)}` : ""})` : id;
+      try {
+        await koreksiTagihan.mutateAsync({
+          mode: "batal",
+          tagihan_id: id,
+          alasan: krAlasan,
+          tanggal: krTanggal,
+        });
+        berhasil++;
+      } catch (e: any) {
+        gagal.push({ id, nama: label, error: e?.message || "Gagal tidak diketahui" });
+      }
+      setBatalMassalProgress({ done: i + 1, total: ids.length });
+    }
+
+    setIsBatalMassal(false);
+    setBatalMassalGagal(gagal);
+    qc.invalidateQueries({ queryKey: ["tagihan_dibatalkan"] });
+
+    if (gagal.length === 0) {
+      toast.success(`${berhasil} tagihan berhasil dibatalkan.`);
+      setBatalMassalOpen(false);
+      resetKoreksi();
+    } else if (berhasil === 0) {
+      toast.error(`Semua ${gagal.length} tagihan gagal dibatalkan. Lihat detail di dialog.`);
+      setKrSelectedIds(new Set(gagal.map((g) => g.id)));
+    } else {
+      toast.warning(`${berhasil} berhasil, ${gagal.length} gagal dibatalkan. Lihat detail di dialog.`);
+      // Sisakan hanya yang gagal di seleksi, supaya bisa dicoba ulang / ditinjau
+      setKrSelectedIds(new Set(gagal.map((g) => g.id)));
+    }
   };
 
   // Stats
@@ -734,25 +817,65 @@ export default function PiutangManajemen() {
             </div>
 
             <div>
-              <Label>Cari & Pilih Tagihan *</Label>
+              <div className="flex items-center justify-between">
+                <Label>Cari & Pilih Tagihan *</Label>
+                {krMode === "batal" && tagihanKrFiltered.length > 0 && (
+                  <button type="button" className="text-xs text-primary hover:underline"
+                    onClick={toggleSelectAllKrFiltered}>
+                    {allKrFilteredSelected ? "Batalkan pilih semua" : "Pilih semua hasil"}
+                  </button>
+                )}
+              </div>
               <Input placeholder="Ketik NIS atau nama siswa..." value={krSearch}
                 onChange={(e) => { setKrSearch(e.target.value); setKrTagihanId(""); }}
                 className="mb-1" />
+              {krMode === "batal" && (
+                <p className="text-xs text-muted-foreground mb-1">
+                  Centang untuk pilih beberapa tagihan sekaligus, atau klik baris untuk pilih satu.
+                </p>
+              )}
               <div className="border rounded-md max-h-40 overflow-y-auto text-xs">
                 {tagihanKrFiltered.length === 0
                   ? <p className="p-2 text-muted-foreground">Tidak ada tagihan belum dibayar</p>
                   : tagihanKrFiltered.map((t: any) => (
-                    <button key={t.id}
-                      className={`w-full text-left px-3 py-2 border-b last:border-0 hover:bg-muted/60 transition-colors ${krTagihanId === t.id ? "bg-primary/10 font-semibold" : ""}`}
-                      onClick={() => { setKrTagihanId(t.id); setKrSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
-                      <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
-                      <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
-                      <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
-                    </button>
+                    <div key={t.id}
+                      className={`w-full flex items-center gap-2 px-3 py-2 border-b last:border-0 hover:bg-muted/60 transition-colors ${krTagihanId === t.id ? "bg-primary/10 font-semibold" : ""}`}>
+                      {krMode === "batal" && (
+                        <Checkbox
+                          checked={krSelectedIds.has(t.id)}
+                          onCheckedChange={() => toggleKrSelect(t.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      <button type="button" className="flex-1 text-left"
+                        onClick={() => { setKrTagihanId(t.id); setKrSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
+                        <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
+                        <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                        <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
+                      </button>
+                    </div>
                   ))
                 }
               </div>
             </div>
+
+            {krMode === "batal" && krSelectedIds.size > 0 && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">
+                    {krSelectedIds.size} tagihan dipilih — Total {formatRupiah(krSelectedTotal)}
+                  </span>
+                  <button type="button" className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setKrSelectedIds(new Set())}>
+                    Kosongkan
+                  </button>
+                </div>
+                <p className="text-muted-foreground">
+                  Isi Alasan di bawah, lalu klik <strong>"Batalkan {krSelectedIds.size} Tagihan Terpilih"</strong>.
+                  Setiap tagihan akan mendapat jurnal pembalik sendiri-sendiri.
+                </p>
+              </div>
+            )}
 
             {selectedKrTagihan && (
               <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">
@@ -795,9 +918,73 @@ export default function PiutangManajemen() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetKoreksi}>Batal</Button>
-            <Button onClick={submitKoreksi}
-              disabled={!krTagihanId || !krAlasan.trim() || (krMode === "koreksi_nominal" && !krNominalBaru) || koreksiTagihan.isPending}>
-              {koreksiTagihan.isPending ? "Memproses..." : (krMode === "batal" ? "Batalkan & Buat Jurnal" : "Koreksi & Buat Jurnal")}
+            {krMode === "batal" && krSelectedIds.size > 1 ? (
+              <Button variant="destructive" onClick={() => setBatalMassalOpen(true)}
+                disabled={!krAlasan.trim() || koreksiTagihan.isPending}>
+                Batalkan {krSelectedIds.size} Tagihan Terpilih
+              </Button>
+            ) : (
+              <Button onClick={submitKoreksi}
+                disabled={!krTagihanId || !krAlasan.trim() || (krMode === "koreksi_nominal" && !krNominalBaru) || koreksiTagihan.isPending}>
+                {koreksiTagihan.isPending ? "Memproses..." : (krMode === "batal" ? "Batalkan & Buat Jurnal" : "Koreksi & Buat Jurnal")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Konfirmasi Batalkan Massal */}
+      <Dialog open={batalMassalOpen} onOpenChange={(o) => { if (!o && !isBatalMassal) { setBatalMassalOpen(false); setBatalMassalProgress(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Konfirmasi Batalkan {krSelectedRows.length} Tagihan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              Total nominal: <span className="font-semibold">{formatRupiah(krSelectedTotal)}</span>.
+              Setiap tagihan akan dibalik jurnal piutangnya secara terpisah (jurnal pembalik per tagihan),
+              dan tercatat di Audit Perubahan Data.
+            </p>
+            <div className="border rounded-md max-h-40 overflow-y-auto text-xs">
+              {krSelectedRows.map((t: any) => (
+                <div key={t.id} className="px-3 py-1.5 border-b last:border-0">
+                  <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
+                  <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                  <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Alasan: <span className="italic">{krAlasan || "-"}</span> · Tanggal: {krTanggal}
+            </p>
+
+            {isBatalMassal && batalMassalProgress && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium">Memproses {batalMassalProgress.done}/{batalMassalProgress.total}…</p>
+                <Progress value={Math.round((batalMassalProgress.done / batalMassalProgress.total) * 100)} className="h-2" />
+              </div>
+            )}
+
+            {!isBatalMassal && batalMassalGagal.length > 0 && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs space-y-1">
+                <p className="font-medium text-destructive">{batalMassalGagal.length} tagihan gagal dibatalkan:</p>
+                {batalMassalGagal.map((g) => (
+                  <p key={g.id}>• {g.nama} — <span className="text-muted-foreground">{g.error}</span></p>
+                ))}
+                <p className="text-muted-foreground">Tagihan yang gagal masih tercentang, bisa dicoba lagi.</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={isBatalMassal}
+              onClick={() => { setBatalMassalOpen(false); setBatalMassalProgress(null); }}>
+              Tutup
+            </Button>
+            <Button variant="destructive" onClick={submitBatalMassal} disabled={isBatalMassal || krSelectedRows.length === 0}>
+              {isBatalMassal ? "Memproses..." : `Batalkan ${krSelectedRows.length} Tagihan`}
             </Button>
           </DialogFooter>
         </DialogContent>
