@@ -137,6 +137,41 @@ export function useCreateTarifTagihan() {
   });
 }
 
+// Insert banyak tarif sekaligus dalam SATU request (input massal per-siswa).
+// Satu .insert(array) bersifat atomik di Postgres: kalau ada satu baris gagal
+// (mis. kena constraint), seluruh batch dibatalkan — tidak ada tarif setengah jadi.
+export function useCreateTarifTagihanBulk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rows: {
+      jenis_id: string;
+      siswa_id: string;
+      tahun_ajaran_id?: string | null;
+      nominal: number;
+      keterangan?: string;
+    }[]) => {
+      const { error } = await supabase.from("tarif_tagihan").insert(
+        rows.map((v) => ({
+          jenis_id: v.jenis_id,
+          siswa_id: v.siswa_id,
+          kelas_id: null,
+          angkatan_id: null,
+          tahun_ajaran_id: v.tahun_ajaran_id || null,
+          nominal: v.nominal,
+          keterangan: v.keterangan || undefined,
+        }))
+      );
+      if (error) throw error;
+      return rows.length;
+    },
+    onSuccess: (n) => {
+      qc.invalidateQueries({ queryKey: ["tarif_tagihan"] });
+      toast.success(`${n} tarif tagihan berhasil ditambahkan`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useUpdateTarifTagihan() {
   const qc = useQueryClient();
   return useMutation({

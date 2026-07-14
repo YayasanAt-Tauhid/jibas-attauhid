@@ -11,7 +11,8 @@ import { RupiahInput } from "@/components/shared/RupiahInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Info, Zap, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Info, Zap, AlertCircle, Users } from "lucide-react";
+import TarifMassalDialog from "./TarifMassalDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
 import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useDeleteTarifTagihan } from "@/hooks/useTarifTagihan";
@@ -38,6 +39,7 @@ export default function TabTarifTagihan() {
   const [editItem, setEditItem] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [broadConfirmOpen, setBroadConfirmOpen] = useState(false);
+  const [massalOpen, setMassalOpen] = useState(false);
 
   // Form fields — urutan mengikuti ketergantungan: Lembaga → Jenis → target → nominal
   const [deptId, setDeptId] = useState("");
@@ -350,7 +352,12 @@ export default function TabTarifTagihan() {
               </Button>
             )}
           </div>
-          <DataTable columns={tarifColumns} data={filteredData} loading={isLoading} pageSize={20} actions={<Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Tambah Tarif</Button>} />
+          <DataTable columns={tarifColumns} data={filteredData} loading={isLoading} pageSize={20} actions={
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setMassalOpen(true)}><Users className="h-4 w-4 mr-2" />Tambah Massal</Button>
+              <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Tambah Tarif</Button>
+            </div>
+          } />
         </CardContent>
       </Card>
 
@@ -639,6 +646,8 @@ export default function TabTarifTagihan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TarifMassalDialog open={massalOpen} onOpenChange={setMassalOpen} />
 
       {/* Konfirmasi generate skala luas — tanpa siswa/kelas/lembaga terpilih */}
       <ConfirmDialog

@@ -36,12 +36,13 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 - **Akademik:** import data siswa dari Excel, dukung update via NIS
 - **UI:** desain baru Keuangan At-Tauhid (tema hijau, dark mode)
 - **Keamanan:** Supabase key pindah ke env var; edge functions lama dihapus
+- **Input tarif massal per-siswa (14 Juli):** dialog "Tambah Massal" di Tab Tarif Tagihan — pilih siswa via combobox atau import Excel (template: nis, nominal, keterangan; lookup NIS satu query), nominal bisa per-baris atau seragam, deteksi duplikat vs tarif yang sudah ada, insert satu batch atomik, generate tagihan sekali panggil via param baru `siswa_ids` di server function (RPC `generate_tagihan_batch` sudah mendukung daftar siswa — TANPA perubahan skema DB)
 - **UX Tab Tarif Tagihan (14 Juli):** input nominal berformat Rupiah (komponen `RupiahInput`, tolak nilai ≤ 0), pesan validasi eksplisit (bukan tombol disabled bisu), urutan field mengikuti dependensi (Lembaga → Jenis → target), reset pilihan kini diberi notifikasi toast, pencarian siswa diganti `SiswaCombobox` (debounce, keyboard nav, loading/empty state — dipakai di 3 tempat), konfirmasi khusus untuk generate semua-siswa, mode edit jadi ringkasan read-only, deteksi tarif duplikat, filter Angkatan ikut Lembaga
 
 ## Pekerjaan Terbuka
 
-- **Input massal tarif per-siswa** di Tab Tarif Tagihan (import Excel / pilih banyak siswa sekaligus) — kekurangan UX terbesar yang sengaja ditunda saat perbaikan UX 14 Juli; saat ini input tarif khusus (mis. beasiswa) masih harus satu-per-satu per siswa
 - **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
+- **`generate_tagihan_batch` belum ada di types.ts & belum ada file migrasinya** — RPC sudah jalan di DB produksi tapi `src/integrations/supabase/types.ts` stale (menyebabkan error tsc pre-existing di `src/server/tagihan.ts:177`); regenerate types dari Supabase dan pastikan definisi RPC masuk `supabase/migrations/`
 
 ---
 
