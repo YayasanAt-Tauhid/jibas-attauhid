@@ -36,13 +36,15 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 - **Akademik:** import data siswa dari Excel, dukung update via NIS
 - **UI:** desain baru Keuangan At-Tauhid (tema hijau, dark mode)
 - **Keamanan:** Supabase key pindah ke env var; edge functions lama dihapus
+- **Migrasi & types `generate_tagihan_batch` (14 Juli):** definisi RPC + unique index `tagihan_unique` kini tercatat di `supabase/migrations/20260714120000_generate_tagihan_batch_rpc.sql` (disalin verbatim dari database via `pg_get_functiondef`, tervalidasi dengan menjalankannya di project Clone); `types.ts` dipatch dengan tipe fungsi tersebut — 6 error tsc lama di `server/tagihan.ts` hilang
 - **Input tarif massal per-siswa (14 Juli):** dialog "Tambah Massal" di Tab Tarif Tagihan — pilih siswa via combobox atau import Excel (template: nis, nominal, keterangan; lookup NIS satu query), nominal bisa per-baris atau seragam, deteksi duplikat vs tarif yang sudah ada, insert satu batch atomik, generate tagihan sekali panggil via param baru `siswa_ids` di server function (RPC `generate_tagihan_batch` sudah mendukung daftar siswa — TANPA perubahan skema DB)
 - **UX Tab Tarif Tagihan (14 Juli):** input nominal berformat Rupiah (komponen `RupiahInput`, tolak nilai ≤ 0), pesan validasi eksplisit (bukan tombol disabled bisu), urutan field mengikuti dependensi (Lembaga → Jenis → target), reset pilihan kini diberi notifikasi toast, pencarian siswa diganti `SiswaCombobox` (debounce, keyboard nav, loading/empty state — dipakai di 3 tempat), konfirmasi khusus untuk generate semua-siswa, mode edit jadi ringkasan read-only, deteksi tarif duplikat, filter Angkatan ikut Lembaga
 
 ## Pekerjaan Terbuka
 
 - **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
-- **`generate_tagihan_batch` belum ada di types.ts & belum ada file migrasinya** — RPC sudah jalan di DB produksi tapi `src/integrations/supabase/types.ts` stale (menyebabkan error tsc pre-existing di `src/server/tagihan.ts:177`); regenerate types dari Supabase dan pastikan definisi RPC masuk `supabase/migrations/`
+- **Error tsc `context is possibly undefined`** di semua file `src/server/*.ts` (typing authMiddleware) — pola lama, belum diperbaiki
+- **Verifikasi migrasi `20260714120000_generate_tagihan_batch_rpc.sql` di produksi** — file migrasi dibuat dari definisi verbatim database (via project Clone `rumdeqkrtfjxckqgokoy`; project produksi `leyfwwmroijwnkrcblxe` tidak terjangkau dari MCP sesi ini). Isinya idempoten (IF NOT EXISTS + CREATE OR REPLACE), tapi tetap cocokkan sekali dengan produksi saat menjalankan `supabase db push` / apply berikutnya
 
 ---
 
