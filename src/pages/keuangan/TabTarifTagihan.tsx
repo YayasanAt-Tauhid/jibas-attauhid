@@ -28,7 +28,7 @@ function useSiswaSearch(search: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("siswa")
-        .select("id, nama, nis")
+        .select("id, nama, nis, departemen_id")
         .or(`nama.ilike.%${search}%,nis.ilike.%${search}%`)
         .eq("status", "aktif")
         .limit(20)
@@ -421,7 +421,15 @@ export default function TabTarifTagihan() {
                 {siswaSearch.length >= 2 && siswaResults && siswaResults.length > 0 && !siswaId && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
                     {siswaResults.map((s: any) => (
-                      <button key={s.id} className="w-full text-left px-3 py-2 hover:bg-accent text-sm" onClick={() => { setSiswaId(s.id); setSiswaSearch(`${s.nama} (${s.nis || '-'})`); }}>
+                      <button key={s.id} className="w-full text-left px-3 py-2 hover:bg-accent text-sm" onClick={() => {
+                        setSiswaId(s.id);
+                        setSiswaSearch(`${s.nama} (${s.nis || '-'})`);
+                        // Auto-isi Lembaga dari data siswa sebagai default yang nyaman
+                        // untuk kasus umum (tarif untuk lembaga siswa saat ini). Tetap
+                        // bisa diganti manual -- mis. siswa kelas 6 SD yang mau
+                        // diinputkan tarif SPP/Uang Pangkal untuk SMP (jenjang berikutnya).
+                        if (!deptId && (s as any).departemen_id) { setDeptId((s as any).departemen_id); setKelasId(""); }
+                      }}>
                         {s.nama} <span className="text-muted-foreground">({s.nis || '-'})</span>
                       </button>
                     ))}
