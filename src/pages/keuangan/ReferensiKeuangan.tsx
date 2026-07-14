@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -62,6 +62,13 @@ export default function ReferensiKeuangan() {
 function TabJenisPembayaran() {
   const { data, isLoading } = useAllJenisPembayaran();
   const { data: lembagaList } = useLembaga();
+  const [filterLembaga, setFilterLembaga] = useState("");
+  const dataFiltered = useMemo(() => {
+    if (!data) return data;
+    if (!filterLembaga) return data;
+    if (filterLembaga === "__umum__") return data.filter((j: any) => !j.departemen_id);
+    return data.filter((j: any) => j.departemen_id === filterLembaga);
+  }, [data, filterLembaga]);
   const { data: akunPendapatanList } = useAkunByJenis("pendapatan");
   const { data: akunLiabilitasList } = useAkunByJenis("liabilitas");
   const createMut = useCreateJenisPembayaran();
@@ -127,9 +134,29 @@ function TabJenisPembayaran() {
     <>
       <Card className="mt-4">
         <CardContent className="pt-6">
+          <div className="flex flex-wrap items-end gap-2 mb-4">
+            <div className="w-56">
+              <Label className="text-xs">Filter Lembaga</Label>
+              <Select value={filterLembaga || "__all__"} onValueChange={(v) => setFilterLembaga(v === "__all__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Semua Lembaga</SelectItem>
+                  <SelectItem value="__umum__">— Umum (semua lembaga) —</SelectItem>
+                  {lembagaList?.map((l: any) => (
+                    <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {filterLembaga && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setFilterLembaga("")}>
+                Reset Filter
+              </Button>
+            )}
+          </div>
           <DataTable
             columns={columns}
-            data={data || []}
+            data={dataFiltered || []}
             loading={isLoading}
             pageSize={20}
             actions={<Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Tambah</Button>}
