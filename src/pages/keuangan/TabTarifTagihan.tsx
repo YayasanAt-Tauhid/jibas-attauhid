@@ -93,6 +93,7 @@ export default function TabTarifTagihan() {
   const [filterTahunId, setFilterTahunId] = useState("");
   const [filterJenisId, setFilterJenisId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterTagihanKelas, setFilterTagihanKelas] = useState("");
   // T5: filter siswa di daftar tagihan
   const [filterSiswaSearch, setFilterSiswaSearch] = useState("");
   const [filterSiswaId, setFilterSiswaId] = useState("");
@@ -106,12 +107,15 @@ export default function TabTarifTagihan() {
   });
   // Default (filter "Semua"): sembunyikan tagihan yang sudah dibatalkan, supaya
   // tidak tercampur dengan tagihan aktif. Pilih eksplisit "Dibatalkan" di filter
-  // Status untuk melihatnya.
+  // Status untuk melihatnya. Filter Kelas diterapkan di client karena
+  // useTagihanList tidak punya parameter kelas_id.
   const tagihanData = useMemo(() => {
     if (!tagihanDataRaw) return tagihanDataRaw;
-    if (filterStatus) return tagihanDataRaw; // filter eksplisit sudah dipilih, biarkan apa adanya
-    return tagihanDataRaw.filter((t: any) => t.status !== "dibatalkan");
-  }, [tagihanDataRaw, filterStatus]);
+    let result = tagihanDataRaw;
+    if (!filterStatus) result = result.filter((t: any) => t.status !== "dibatalkan");
+    if (filterTagihanKelas) result = result.filter((t: any) => t.kelas_id === filterTagihanKelas);
+    return result;
+  }, [tagihanDataRaw, filterStatus, filterTagihanKelas]);
 
   const filteredData = useMemo(() => {
     if (!tarifList) return [];
@@ -353,6 +357,16 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="w-48">
+              <Label className="text-xs">Kelas</Label>
+              <Select value={filterTagihanKelas || "__all__"} onValueChange={(v) => setFilterTagihanKelas(v === "__all__" ? "" : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Semua</SelectItem>
+                  {kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             {/* T5: filter siswa */}
             <div className="w-52 relative">
               <Label className="text-xs">Siswa</Label>
@@ -375,6 +389,12 @@ export default function TabTarifTagihan() {
                 <button className="absolute right-2 top-7 text-muted-foreground hover:text-foreground text-xs" onClick={() => { setFilterSiswaId(""); setFilterSiswaSearch(""); }}>✕</button>
               )}
             </div>
+            {(filterTahunId || filterJenisId || filterStatus || filterTagihanKelas || filterSiswaId) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
+                onClick={() => { setFilterTahunId(""); setFilterJenisId(""); setFilterStatus(""); setFilterTagihanKelas(""); setFilterSiswaId(""); setFilterSiswaSearch(""); }}>
+                Reset Filter
+              </Button>
+            )}
           </div>
 
           <DataTable columns={tagihanColumns} data={tagihanData || []} loading={loadingTagihan} pageSize={20} />
