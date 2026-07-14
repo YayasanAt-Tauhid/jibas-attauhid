@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,9 +9,10 @@ import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useTahunBuku, formatRupiah } from "@/hooks/useKeuangan";
+import { useRekonRekeningAntar, type PeriodeFilter } from "@/hooks/useISAK35";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Lock, AlertTriangle, TrendingUp, TrendingDown, DollarSign, History, GraduationCap, Briefcase } from "lucide-react";
+import { Lock, AlertTriangle, TrendingUp, TrendingDown, DollarSign, History, GraduationCap, Briefcase, ClipboardCheck, CheckCircle2 } from "lucide-react";
 import { StatsCard } from "@/components/shared/StatsCard";
 
 const UNIT_CONFIG = {
@@ -32,6 +33,119 @@ const UNIT_CONFIG = {
 } as const;
 
 type UnitKey = keyof typeof UNIT_CONFIG;
+
+// ============================================================
+// Checklist Pra-Tutup-Buku — reminder (bukan blocker) yang menampilkan
+// 3 pengecekan sebelum tombol tutup buku ditekan:
+//  1. Tagihan/piutang yang masih belum lunas di tahun ini
+//  2. Kelengkapan mapping akun ke pos ISAK 35
+//  3. Saldo rekening antar unit (1900/1901/1902) yang belum nol
+// Tidak memblokir proses tutup buku — murni informasi supaya hal-hal
+// yang biasa terlewat (seperti kasus tahun 2025->2026) bisa dicek dulu.
+// ============================================================
+function ChecklistPraTutupBuku({ tahunId, tahun }: { tahunId: string; tahun: { nama: string; tanggal_selesai: string } }) {
+  const { data: piutang, isLoading: loadingPiutang } = useQuery({
+    queryKey: ["checklist_piutang_belum_lunas", tahunId],
+    enabled: !!tahunId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tagihan")
+        .select("nominal")
+        .eq("tahun_ajaran_id", tahunId)
+        .eq("status", "belum_bayar");
+      if (error) throw error;
+      const rows = data || [];
+      return { jumlah: rows.length, total: rows.reduce((s, r: any) => s + Number(r.nominal || 0), 0) };
+    },
+  });
+
+  const { data: mappingIsak35, isLoading: loadingMapping } = useQuery({
+    queryKey: ["checklist_mapping_isak35"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("akun_rekening")
+        .select("id")
+        .eq("aktif", true)
+        .is("pos_isak35", null);
+      if (error) throw error;
+      return { jumlah: (data || []).length };
+    },
+  });
+
+  const periodeFilter = useMemo<PeriodeFilter>(
+    () => ({ type: "range" as const, tglAwal: `${tahun.tanggal_selesai.slice(0, 4)}-01-01`, tglAkhir: tahun.tanggal_selesai }),
+    [tahun.tanggal_selesai]
+  );
+  const { data: rekonAntar, isLoading: loadingRekon } = useRekonRekeningAntar(periodeFilter);
+
+  const items = [
+    {
+      label: "Piutang / tagihan belum lunas",
+      loading: loadingPiutang,
+      ok: !piutang || piutang.jumlah === 0,
+      detail: piutang && piutang.jumlah > 0
+        ? `${piutang.jumlah} tagihan belum dibayar, total ${formatRupiah(piutang.total)}. Setelah tutup buku, tagihan ini tidak bisa dibayar lagi di tahun ${tahun.nama} — pertimbangkan tagih dulu atau write-off.`
+        : "Semua tagihan tahun ini sudah lunas.",
+    },
+    {
+      label: "Kelengkapan mapping akun ke ISAK 35",
+      loading: loadingMapping,
+      ok: !mappingIsak35 || mappingIsak35.jumlah === 0,
+      detail: mappingIsak35 && mappingIsak35.jumlah > 0
+        ? `${mappingIsak35.jumlah} akun aktif belum punya pos ISAK 35 — saldo akun ini tidak akan muncul di laporan Posisi Keuangan/Perubahan Aset Neto.`
+        : "Semua akun aktif sudah punya pos ISAK 35.",
+    },
+    {
+      label: "Rekonsiliasi rekening antar unit (1900/1901/1902)",
+      loading: loadingRekon,
+      ok: !rekonAntar || rekonAntar.rows.length === 0,
+      detail: rekonAntar && rekonAntar.rows.length > 0
+        ? `${rekonAntar.rows.length} baris belum nol (selisih total ${formatRupiah(rekonAntar.total)}) — kemungkinan ada transfer antar unit yang baru dicatat sebelah pihak. Cek di Laporan ISAK 35 → Rekonsiliasi sebelum tutup buku.`
+        : "Semua rekening antar unit sudah seimbang (nol).",
+    },
+  ];
+
+  const allOk = items.every(i => i.ok);
+  const anyLoading = items.some(i => i.loading);
+
+  return (
+    <Card className={allOk ? "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/10" : "border-amber-300 bg-amber-50/50 dark:bg-amber-950/10"}>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <ClipboardCheck className="h-4 w-4" />
+          Checklist Sebelum Tutup Buku — {tahun.nama}
+        </CardTitle>
+        <CardDescription>
+          Pengecekan ini bersifat pengingat, tidak memblokir proses tutup buku. Disarankan semua poin
+          hijau sebelum menekan tombol Tutup Buku di bawah, supaya laporan ISAK 35 tahun berikutnya akurat.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-start gap-2.5 text-sm">
+            {item.loading ? (
+              <span className="h-4 w-4 mt-0.5 shrink-0 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+            ) : item.ok ? (
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+            )}
+            <div className="min-w-0">
+              <p className="font-medium">{item.label}</p>
+              {!item.loading && <p className="text-xs text-muted-foreground">{item.detail}</p>}
+            </div>
+          </div>
+        ))}
+        {!anyLoading && !allOk && (
+          <p className="text-xs text-amber-700 dark:text-amber-400 pt-1 border-t border-amber-200 dark:border-amber-900 mt-2">
+            ⚠ Ada poin yang perlu diperiksa. Anda tetap bisa melanjutkan tutup buku, tapi disarankan
+            menyelesaikan poin di atas dulu agar laporan tahun berikutnya tidak perlu dikoreksi ulang.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: string }) {
   const [showConfirm, setShowConfirm] = useState(false);
@@ -271,6 +385,13 @@ function TutupBukuPanel({ unitKey, tahunId }: { unitKey: UnitKey; tahunId: strin
 
   return (
     <>
+      {selectedTA && (
+        <ChecklistPraTutupBuku
+          tahunId={tahunId}
+          tahun={{ nama: selectedTA.nama, tanggal_selesai: selectedTA.tanggal_selesai }}
+        />
+      )}
+
       <Card className="border-muted">
         <CardContent className="pt-4 pb-4">
           <p className="text-sm text-muted-foreground">
