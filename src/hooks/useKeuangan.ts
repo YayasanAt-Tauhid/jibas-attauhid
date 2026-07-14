@@ -739,6 +739,36 @@ const BULAN_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Ju
 export function namaBulan(b: number) { return BULAN_NAMES[b - 1] || ""; }
 export { BULAN_NAMES };
 
+/**
+ * Nama bulan + tahun kalender, mis. "Juli 2026" -- dipakai untuk data
+ * transaksi/tagihan spesifik supaya tidak ambigu (mis. "Januari" saja tidak
+ * jelas Januari tahun berapa kalau dilihat lepas dari konteks tahun buku).
+ * Sumber tahun (pilih salah satu, prioritas ke yang paling akurat):
+ *   - tanggalTransaksi: tanggal aktual (mis. tanggal_bayar) -- paling akurat,
+ *     tidak bergantung asumsi format tahun buku.
+ *   - tahunBukuNama: nama tahun buku (mis. "Tahun 2026") -- dipakai untuk
+ *     tagihan yang belum ada tanggal transaksi (mis. belum dibayar). Tahun
+ *     buku di sistem ini berjalan penuh Januari-Desember per tahun kalender,
+ *     jadi tahun diambil langsung dari 4 digit angka pertama yang ditemukan
+ *     di nama tahun buku.
+ */
+export function namaBulanTahun(
+  bulan: number,
+  opts: { tanggalTransaksi?: string | null; tahunBukuNama?: string | null }
+): string {
+  const nama = namaBulan(bulan);
+  if (!nama) return "";
+  if (opts.tanggalTransaksi) {
+    const tahun = new Date(opts.tanggalTransaksi).getFullYear();
+    if (!Number.isNaN(tahun)) return `${nama} ${tahun}`;
+  }
+  if (opts.tahunBukuNama) {
+    const match = opts.tahunBukuNama.match(/\d{4}/);
+    if (match) return `${nama} ${match[0]}`;
+  }
+  return nama;
+}
+
 /** Urutan bulan sesuai tahun ajaran: Juli–Juni */
 export const BULAN_ORDER_AKADEMIK = [7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
 

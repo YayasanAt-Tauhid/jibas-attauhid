@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { prosesPembayaran, batalkanPembayaran } from "@/server/pembayaran";
 import {
   useJenisPembayaran, useLembaga, useTahunBukuAktif,
-  useTahunBuku, formatRupiah, terbilang, namaBulan, BULAN_ORDER_AKADEMIK,
+  useTahunBuku, formatRupiah, terbilang, namaBulan, namaBulanTahun, BULAN_ORDER_AKADEMIK,
 } from "@/hooks/useKeuangan";
 import { useTarifSiswa } from "@/hooks/useTarifTagihan";
 import { useTagihanBySiswa } from "@/hooks/useTagihan";
@@ -342,7 +342,7 @@ export default function InputPembayaran() {
 
   const riwayatColumns: DataTableColumn<PembayaranWithJenis>[] = [
     { key: "jenis_pembayaran", label: "Jenis", render: (_, r) => r.jenis_pembayaran?.nama ?? "-" },
-    { key: "bulan",   label: "Bulan",   render: v => v ? namaBulan(v as number) : <span className="text-muted-foreground text-xs">Sekali Bayar</span> },
+    { key: "bulan",   label: "Bulan",   render: (v, r) => v ? namaBulanTahun(v as number, { tanggalTransaksi: r.tanggal_bayar }) : <span className="text-muted-foreground text-xs">Sekali Bayar</span> },
     { key: "jumlah",  label: "Jumlah",  render: v => formatRupiah(Number(v)) },
     { key: "tanggal_bayar", label: "Tanggal", render: v => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },
     ...(canBatal ? [{
@@ -433,7 +433,7 @@ export default function InputPembayaran() {
                     <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
                       <div className="min-w-0">
                         <p className="font-medium truncate">{r.jenis_pembayaran?.nama ?? "-"}</p>
-                        <p className="text-muted-foreground">{r.bulan ? namaBulan(r.bulan) : "-"} • {r.tanggal_bayar ? format(new Date(r.tanggal_bayar), "dd/MM/yy") : "-"}</p>
+                        <p className="text-muted-foreground">{r.bulan ? namaBulanTahun(r.bulan, { tanggalTransaksi: r.tanggal_bayar }) : "-"} • {r.tanggal_bayar ? format(new Date(r.tanggal_bayar), "dd/MM/yy") : "-"}</p>
                       </div>
                       <span className="font-medium text-primary shrink-0 ml-2">{formatRupiah(Number(r.jumlah))}</span>
                     </div>
@@ -667,7 +667,7 @@ export default function InputPembayaran() {
               </div>
               <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">
                 <p>Jenis: <span className="font-medium">{batalTarget.jenis_pembayaran?.nama ?? "-"}</span>
-                  {batalTarget.bulan ? ` (${namaBulan(batalTarget.bulan)})` : ""}</p>
+                  {batalTarget.bulan ? ` (${namaBulanTahun(batalTarget.bulan, { tanggalTransaksi: batalTarget.tanggal_bayar })})` : ""}</p>
                 <p>Jumlah: <span className="font-semibold text-destructive">{formatRupiah(Number(batalTarget.jumlah))}</span></p>
                 <p>Tanggal: <span className="font-medium">{batalTarget.tanggal_bayar ? format(new Date(batalTarget.tanggal_bayar), "dd MMM yyyy", { locale: idLocale }) : "-"}</span></p>
               </div>
@@ -689,7 +689,7 @@ export default function InputPembayaran() {
                     pembayaran_id: batalTarget.id,
                     alasan: batalAlasan,
                     jumlah: Number(batalTarget.jumlah),
-                    keterangan: `${batalTarget.jenis_pembayaran?.nama ?? ""}${batalTarget.bulan ? ` (${namaBulan(batalTarget.bulan)})` : ""}`,
+                    keterangan: `${batalTarget.jenis_pembayaran?.nama ?? ""}${batalTarget.bulan ? ` (${namaBulanTahun(batalTarget.bulan, { tanggalTransaksi: batalTarget.tanggal_bayar })})` : ""}`,
                   },
                   { onSuccess: () => { setBatalTarget(null); setBatalAlasan(""); } }
                 );

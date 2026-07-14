@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { StatsCard } from "@/components/shared/StatsCard";
-import { useLembaga, formatRupiah, namaBulan } from "@/hooks/useKeuangan";
+import { useLembaga, formatRupiah, namaBulanTahun } from "@/hooks/useKeuangan";
 import { useTahunAjaran } from "@/hooks/useAkademikData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -57,7 +57,7 @@ export default function LaporanBayarSiswa() {
     { key: "bulan", label: "Bulan", render: (v, r) => {
       const tipe = (r as any).jenis_pembayaran?.tipe;
       if (tipe === "sekali" || v === 0) return "Sekali Bayar";
-      return namaBulan(v as number);
+      return namaBulanTahun(v as number, { tanggalTransaksi: r.tanggal_bayar });
     }},
     { key: "ta", label: "Tahun Ajaran", render: (_, r) => r.tahun_ajaran?.nama || "-" },
     { key: "jumlah", label: "Jumlah", render: v => formatRupiah(Number(v)) },

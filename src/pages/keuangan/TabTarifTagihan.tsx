@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Info, Zap } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan } from "@/hooks/useKeuangan";
+import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
 import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useDeleteTarifTagihan } from "@/hooks/useTarifTagihan";
 import { useTagihanList, useGenerateTagihan } from "@/hooks/useTagihan";
 import { useKelas, useAngkatan } from "@/hooks/useAkademikData";
@@ -222,7 +222,7 @@ export default function TabTarifTagihan() {
     { key: "jenis", label: "Jenis", render: (_, r) => (r as any).jenis?.nama || "-" },
     { key: "kelas", label: "Kelas", render: (_, r) => (r as any).kelas?.nama || "-" },
     { key: "tahun_ajaran", label: "Tahun Buku", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
-    { key: "bulan", label: "Bulan", render: (v) => v ? namaBulan(v as number) : <Badge variant="outline">Sekali</Badge> },
+    { key: "bulan", label: "Bulan", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali</Badge> },
     { key: "nominal", label: "Nominal", render: (v) => <span className="font-semibold">{formatRupiah(Number(v))}</span> },
     {
       key: "status", label: "Status",

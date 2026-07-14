@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { formatRupiah, terbilang, namaBulan } from "@/hooks/useKeuangan";
+import { formatRupiah, terbilang, namaBulanTahun } from "@/hooks/useKeuangan";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
@@ -55,7 +55,7 @@ export function PrintKuitansi({ payment, kelasNama, lembagaNama }: PrintKuitansi
           <tr><td className="py-1">Lembaga</td><td className="py-1">: {lembagaNama}</td></tr>
           <tr><td className="py-1">Jenis Pembayaran</td><td className="py-1">: {payment.jenisNama}</td></tr>
           {payment.bulan ? (
-            <tr><td className="py-1">Bulan</td><td className="py-1">: {namaBulan(payment.bulan)}</td></tr>
+            <tr><td className="py-1">Bulan</td><td className="py-1">: {namaBulanTahun(payment.bulan, { tanggalTransaksi: payment.tanggal_bayar })}</td></tr>
           ) : null}
           <tr><td className="py-1 font-bold">Jumlah</td><td className="py-1 font-bold">: {formatRupiah(payment.jumlah)}</td></tr>
           <tr><td className="py-1 italic">Terbilang</td><td className="py-1 italic">: {terbilang(payment.jumlah)}</td></tr>

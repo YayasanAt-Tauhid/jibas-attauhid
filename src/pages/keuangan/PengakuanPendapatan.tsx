@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { useTahunAjaran, useTahunAjaranAktif, formatRupiah, namaBulan } from "@/hooks/useKeuangan";
+import { useTahunAjaran, useTahunAjaranAktif, formatRupiah, namaBulanTahun } from "@/hooks/useKeuangan";
 import { usePengaturanAkun } from "@/hooks/useJurnal";
 import { toast } from "sonner";
 import { CheckCircle, ArrowRight, AlertTriangle, Clock } from "lucide-react";
@@ -77,7 +77,7 @@ export default function PengakuanPendapatan() {
       });
       if (!nomor) throw new Error("Gagal generate nomor jurnal");
 
-      const ket = `Pengakuan pendapatan ${item.jenis?.nama} - ${item.siswa?.nama}${item.bulan ? ` (${namaBulan(item.bulan)})` : ""}`;
+      const ket = `Pengakuan pendapatan ${item.jenis?.nama} - ${item.siswa?.nama}${item.bulan ? ` (${namaBulanTahun(item.bulan, { tahunBukuNama: item.tahun_target?.nama })})` : ""}`;
 
       // Create recognition journal: Debit Pendapatan Dimuka, Credit Pendapatan
       const { data: jurnal, error: jErr } = await supabase
@@ -167,7 +167,7 @@ export default function PengakuanPendapatan() {
       ),
     },
     { key: "jenis", label: "Jenis", render: (_, r) => (r as any).jenis?.nama || "-" },
-    { key: "bulan", label: "Bulan", render: (v) => v ? namaBulan(v as number) : "-" },
+    { key: "bulan", label: "Bulan", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_target?.nama }) : "-" },
     { key: "jumlah", label: "Jumlah", render: (v) => formatRupiah(Number(v)) },
     {
       key: "tahun_pembayaran",

@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { StatsCard } from "@/components/shared/StatsCard";
-import { useLembaga, formatRupiah, BULAN_ORDER_AKADEMIK, namaBulan } from "@/hooks/useKeuangan";
+import { useLembaga, formatRupiah, BULAN_ORDER_AKADEMIK, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
 import { usePengaturanAkun, logAuditKeuangan } from "@/hooks/useJurnal";
 import { useBatalkanTagihan, useBatalkanTagihanBatch } from "@/hooks/useTagihan";
 import { toast } from "sonner";
@@ -293,7 +293,7 @@ export default function PiutangManajemen() {
       const gagalDenganNama = res.gagal.map((g) => {
         const row = tagihanBelumBayar.find((t: any) => t.id === g.tagihan_id);
         const label = row
-          ? `${row.siswa?.nis ?? "-"} — ${row.siswa?.nama ?? "-"} (${row.jenis?.nama ?? ""}${row.bulan ? ` ${namaBulan(row.bulan)}` : ""})`
+          ? `${row.siswa?.nis ?? "-"} — ${row.siswa?.nama ?? "-"} (${row.jenis?.nama ?? ""}${row.bulan ? ` ${namaBulanTahun(row.bulan, { tahunBukuNama: row.tahun_ajaran?.nama })}` : ""})`
           : g.tagihan_id;
         return { id: g.tagihan_id, nama: label, error: g.error };
       });
@@ -502,7 +502,7 @@ export default function PiutangManajemen() {
       render: (_, r) => {
         const t = (r as any).tagihan;
         if (!t) return "-";
-        const bln = t.bulan ? namaBulan(t.bulan) : "";
+        const bln = t.bulan ? namaBulanTahun(t.bulan, { tanggalTransaksi: (r as any).tanggal }) : "";
         return <span className="text-xs">{t.jenis?.nama || "-"}{bln ? ` (${bln})` : ""}</span>;
       }},
     { key: "nominal", label: "Nominal", render: (v) => formatRupiah(Number(v)) },
@@ -523,7 +523,7 @@ export default function PiutangManajemen() {
       render: (v) => v ? format(new Date(v as string), "d MMM yyyy HH:mm", { locale: idLocale }) : "-" },
     { key: "siswa", label: "Siswa", render: (_, r) => `${(r as any).siswa?.nis || "-"} — ${(r as any).siswa?.nama || "-"}` },
     { key: "jenis", label: "Jenis", render: (_, r) => {
-        const bln = (r as any).bulan ? namaBulan((r as any).bulan) : "";
+        const bln = (r as any).bulan ? namaBulanTahun((r as any).bulan, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : "";
         return <span className="text-xs">{(r as any).jenis?.nama || "-"}{bln ? ` (${bln})` : ""}</span>;
       }},
     { key: "nominal", label: "Nominal", render: (v) => formatRupiah(Number(v)) },
@@ -749,7 +749,7 @@ export default function PiutangManajemen() {
                       className={`w-full text-left px-3 py-2 border-b last:border-0 hover:bg-muted/60 transition-colors ${woTagihanId === t.id ? "bg-primary/10 font-semibold" : ""}`}
                       onClick={() => { setWoTagihanId(t.id); setWoSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
                       <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
-                      <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                      <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulanTahun(t.bulan, { tahunBukuNama: t.tahun_ajaran?.nama })})` : ""}</span>
                       <span className="float-right font-semibold text-destructive">{formatRupiah(Number(t.nominal))}</span>
                     </button>
                   ))
@@ -850,7 +850,7 @@ export default function PiutangManajemen() {
                       <button type="button" className="flex-1 text-left"
                         onClick={() => { setKrTagihanId(t.id); setKrSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
                         <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
-                        <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                        <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulanTahun(t.bulan, { tahunBukuNama: t.tahun_ajaran?.nama })})` : ""}</span>
                         <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
                       </button>
                     </div>
@@ -952,7 +952,7 @@ export default function PiutangManajemen() {
               {krSelectedRows.map((t: any) => (
                 <div key={t.id} className="px-3 py-1.5 border-b last:border-0">
                   <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
-                  <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulan(t.bulan)})` : ""}</span>
+                  <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulanTahun(t.bulan, { tahunBukuNama: t.tahun_ajaran?.nama })})` : ""}</span>
                   <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
                 </div>
               ))}
