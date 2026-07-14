@@ -4683,6 +4683,17 @@ export type Database = {
         }
         Returns: Json
       }
+      batalkan_tagihan_atomik: {
+        Args: {
+          p_alasan: string
+          p_mode: string
+          p_nominal_baru?: number
+          p_tagihan_id: string
+          p_tanggal: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       buku_besar_mutasi: {
         Args: {
           p_akun_id: string

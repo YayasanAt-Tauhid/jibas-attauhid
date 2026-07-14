@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { useLembaga, formatRupiah, BULAN_ORDER_AKADEMIK, namaBulan } from "@/hooks/useKeuangan";
 import { usePengaturanAkun, logAuditKeuangan } from "@/hooks/useJurnal";
-import { useKoreksiTagihan } from "@/hooks/useTagihan";
+import { useBatalkanTagihan, useBatalkanTagihanBatch } from "@/hooks/useTagihan";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -196,7 +196,8 @@ export default function PiutangManajemen() {
   const selectedTagihan = tagihanList?.find((t: any) => t.id === woTagihanId);
 
   // ── Koreksi / Pembatalan tagihan ──
-  const koreksiTagihan = useKoreksiTagihan();
+  const koreksiTagihan = useBatalkanTagihan();
+  const batalMassalMutation = useBatalkanTagihanBatch();
   const { data: dibatalkanList, isLoading: loadDibatalkan } = useTagihanDibatalkanList(departemenId || undefined);
   // hanya tagihan belum_bayar yang boleh dikoreksi/dibatalkan (bukan sebagian/lunas)
   const tagihanBelumBayar = useMemo(
@@ -274,42 +275,41 @@ export default function PiutangManajemen() {
     setBatalMassalGagal([]);
     setBatalMassalProgress({ done: 0, total: ids.length });
 
-    let berhasil = 0;
-    const gagal: { id: string; nama: string; error: string }[] = [];
+    try {
+      // Satu panggilan ke server function batalkanTagihanBatch — loop RPC
+      // atomik dijalankan di server (Cloudflare Worker), bukan di browser.
+      // Ini menghindari risiko state tidak konsisten jika koneksi klien
+      // terputus di tengah proses: tiap tagihan tetap all-or-nothing di
+      // level database, dan seluruh batch selesai diproses di server
+      // terlepas dari apakah koneksi pengguna masih terbuka atau tidak.
+      const res = await batalMassalMutation.mutateAsync({
+        tagihan_ids: ids,
+        alasan: krAlasan,
+        tanggal: krTanggal,
+      });
 
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      const row = tagihanBelumBayar.find((t: any) => t.id === id);
-      const label = row ? `${row.siswa?.nis ?? "-"} — ${row.siswa?.nama ?? "-"} (${row.jenis?.nama ?? ""}${row.bulan ? ` ${namaBulan(row.bulan)}` : ""})` : id;
-      try {
-        await koreksiTagihan.mutateAsync({
-          mode: "batal",
-          tagihan_id: id,
-          alasan: krAlasan,
-          tanggal: krTanggal,
-        });
-        berhasil++;
-      } catch (e: any) {
-        gagal.push({ id, nama: label, error: e?.message || "Gagal tidak diketahui" });
+      setBatalMassalProgress({ done: ids.length, total: ids.length });
+
+      const gagalDenganNama = res.gagal.map((g) => {
+        const row = tagihanBelumBayar.find((t: any) => t.id === g.tagihan_id);
+        const label = row
+          ? `${row.siswa?.nis ?? "-"} — ${row.siswa?.nama ?? "-"} (${row.jenis?.nama ?? ""}${row.bulan ? ` ${namaBulan(row.bulan)}` : ""})`
+          : g.tagihan_id;
+        return { id: g.tagihan_id, nama: label, error: g.error };
+      });
+      setBatalMassalGagal(gagalDenganNama);
+
+      if (gagalDenganNama.length === 0) {
+        setBatalMassalOpen(false);
+        resetKoreksi();
+      } else {
+        // Sisakan hanya yang gagal di seleksi, supaya bisa dicoba ulang / ditinjau
+        setKrSelectedIds(new Set(gagalDenganNama.map((g) => g.id)));
       }
-      setBatalMassalProgress({ done: i + 1, total: ids.length });
-    }
-
-    setIsBatalMassal(false);
-    setBatalMassalGagal(gagal);
-    qc.invalidateQueries({ queryKey: ["tagihan_dibatalkan"] });
-
-    if (gagal.length === 0) {
-      toast.success(`${berhasil} tagihan berhasil dibatalkan.`);
-      setBatalMassalOpen(false);
-      resetKoreksi();
-    } else if (berhasil === 0) {
-      toast.error(`Semua ${gagal.length} tagihan gagal dibatalkan. Lihat detail di dialog.`);
-      setKrSelectedIds(new Set(gagal.map((g) => g.id)));
-    } else {
-      toast.warning(`${berhasil} berhasil, ${gagal.length} gagal dibatalkan. Lihat detail di dialog.`);
-      // Sisakan hanya yang gagal di seleksi, supaya bisa dicoba ulang / ditinjau
-      setKrSelectedIds(new Set(gagal.map((g) => g.id)));
+    } catch (e: any) {
+      toast.error(e?.message || "Gagal memproses pembatalan massal");
+    } finally {
+      setIsBatalMassal(false);
     }
   };
 
@@ -961,10 +961,11 @@ export default function PiutangManajemen() {
               Alasan: <span className="italic">{krAlasan || "-"}</span> · Tanggal: {krTanggal}
             </p>
 
-            {isBatalMassal && batalMassalProgress && (
+            {isBatalMassal && (
               <div className="space-y-1.5">
-                <p className="text-xs font-medium">Memproses {batalMassalProgress.done}/{batalMassalProgress.total}…</p>
-                <Progress value={Math.round((batalMassalProgress.done / batalMassalProgress.total) * 100)} className="h-2" />
+                <p className="text-xs font-medium">Memproses {batalMassalProgress?.total ?? krSelectedRows.length} tagihan di server…</p>
+                <Progress value={100} className="h-2 animate-pulse" />
+                <p className="text-xs text-muted-foreground">Mohon tunggu, proses berjalan meski koneksi sempat lambat.</p>
               </div>
             )}
 

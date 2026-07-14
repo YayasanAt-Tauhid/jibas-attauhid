@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { generateTagihan } from "@/server/tagihan";
+import { generateTagihan, batalkanTagihan, batalkanTagihanBatch } from "@/server/tagihan";
 import { toast } from "sonner";
 import { logAuditKeuangan } from "./useJurnal";
 import { checkPeriodeLocked, formatRupiah } from "./useKeuangan";
@@ -173,6 +173,14 @@ async function buatJurnalPiutang(params: {
   return (jurnal as any).id;
 }
 
+/**
+ * @deprecated Gunakan useBatalkanTagihan / useBatalkanTagihanBatch (di bawah),
+ * yang membungkus proses ini dalam RPC atomik lewat server function. Hook ini
+ * menjalankan beberapa request Supabase terpisah langsung dari browser tanpa
+ * transaksi — jika koneksi klien terputus di tengah proses, bisa menyisakan
+ * jurnal pembalik yang sudah tercatat tapi status tagihan belum ter-update.
+ * Dipertahankan untuk referensi/rollback, tidak lagi dipanggil dari UI manapun.
+ */
 export function useKoreksiTagihan() {
   const qc = useQueryClient();
   return useMutation({
@@ -310,5 +318,75 @@ export function useUpdateTagihanLunas() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tagihan"] });
     },
+  });
+}
+
+// ─── Koreksi / Pembatalan Tagihan — versi atomik via server function ────────
+// Menggantikan useKoreksiTagihan (di atas), yang menjalankan beberapa request
+// Supabase terpisah langsung dari browser tanpa transaksi. Kedua hook di bawah
+// memanggil server function (src/server/tagihan.ts) yang membungkus seluruh
+// proses dalam satu RPC atomik (batalkan_tagihan_atomik) di sisi database.
+
+export interface BatalkanTagihanParams {
+  tagihan_id: string;
+  mode: "batal" | "koreksi_nominal";
+  alasan: string;
+  tanggal?: string;
+  nominal_baru?: number;
+}
+
+export function useBatalkanTagihan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: BatalkanTagihanParams) => {
+      return await batalkanTagihan({ data: params });
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["tagihan"] });
+      qc.invalidateQueries({ queryKey: ["tagihan_dibatalkan"] });
+      qc.invalidateQueries({ queryKey: ["tagihan_belum_lunas_writeoff"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      qc.invalidateQueries({ queryKey: ["buku_besar"] });
+      qc.invalidateQueries({ queryKey: ["tunggakan"] });
+      if (res.mode === "batal") {
+        toast.success("Tagihan berhasil dibatalkan & jurnal piutang dibalik.");
+      } else if (res.warn_no_jurnal) {
+        toast.warning("Nominal dikoreksi, tapi jurnal piutang baru tidak dibuat — cek akun piutang siswa / akun pendapatan jenis.");
+      } else {
+        toast.success("Nominal tagihan berhasil dikoreksi & jurnal disesuaikan.");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export interface BatalkanTagihanBatchParams {
+  tagihan_ids: string[];
+  alasan: string;
+  tanggal?: string;
+}
+
+export function useBatalkanTagihanBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: BatalkanTagihanBatchParams) => {
+      return await batalkanTagihanBatch({ data: params });
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["tagihan"] });
+      qc.invalidateQueries({ queryKey: ["tagihan_dibatalkan"] });
+      qc.invalidateQueries({ queryKey: ["tagihan_belum_lunas_writeoff"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      qc.invalidateQueries({ queryKey: ["buku_besar"] });
+      qc.invalidateQueries({ queryKey: ["tunggakan"] });
+      if (res.gagal.length === 0) {
+        toast.success(`${res.berhasil} tagihan berhasil dibatalkan.`);
+      } else if (res.berhasil === 0) {
+        toast.error(`Semua ${res.gagal.length} tagihan gagal dibatalkan.`);
+      } else {
+        toast.warning(`${res.berhasil} berhasil, ${res.gagal.length} gagal dibatalkan.`);
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 }

@@ -222,3 +222,164 @@ export const generateTagihan = createServerFn({ method: "POST" })
       errors: errors.length > 0 ? errors.slice(0, 20) : undefined,
     };
   });
+
+// ─── Koreksi / Pembatalan Tagihan (atomik via RPC) ──────────────────────────
+// Menggantikan logic yang sebelumnya dijalankan langsung dari browser di
+// src/hooks/useTagihan.ts (useKoreksiTagihan), yang melakukan beberapa
+// request Supabase terpisah secara berurutan (jurnal pembalik -> update
+// tagihan -> audit log) tanpa dibungkus transaksi. Kalau koneksi klien
+// timeout/putus di tengah proses, itu bisa menyisakan jurnal pembalik yang
+// sudah tercatat tapi status tagihan belum ter-update — data tidak konsisten.
+//
+// Di sini seluruh proses dibungkus SATU RPC atomik (batalkan_tagihan_atomik,
+// lihat migration terkait) yang dipanggil dari server function memakai admin
+// client. Kalau koneksi browser pengguna terputus setelah request terkirim,
+// RPC di database tetap selesai (commit atau rollback) secara utuh —
+// tidak ada state "setengah jalan".
+
+export interface KoreksiTagihanInput {
+  tagihan_id: string;
+  mode: "batal" | "koreksi_nominal";
+  alasan: string;
+  tanggal?: string; // "yyyy-MM-dd", default hari ini
+  nominal_baru?: number; // wajib untuk mode koreksi_nominal
+}
+
+export interface KoreksiTagihanResult {
+  success: true;
+  mode: "batal" | "koreksi_nominal";
+  tagihan_id: string;
+  jurnal_pembalik_id: string | null;
+  jurnal_baru_id?: string | null;
+  warn_no_jurnal?: boolean;
+}
+
+export const batalkanTagihan = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .inputValidator((d: KoreksiTagihanInput) => d)
+  .handler(async ({ data, context }): Promise<KoreksiTagihanResult> => {
+    const admin = createAdminClient();
+    await requireRole(admin, context.userId, [
+      "admin",
+      "kepala_sekolah",
+      "keuangan",
+    ]);
+
+    const { tagihan_id, mode, alasan, nominal_baru } = data;
+    const tanggal = data.tanggal || new Date().toISOString().split("T")[0];
+
+    if (!tagihan_id) throw new Error("tagihan_id wajib diisi");
+    if (!alasan || !alasan.trim()) throw new Error("Alasan wajib diisi");
+    if (mode === "koreksi_nominal" && (!nominal_baru || nominal_baru <= 0)) {
+      throw new Error("Nominal baru harus lebih dari 0");
+    }
+
+    const { data: result, error: rpcErr } = await admin.rpc(
+      "batalkan_tagihan_atomik",
+      {
+        p_tagihan_id: tagihan_id,
+        p_mode: mode,
+        p_alasan: alasan,
+        p_tanggal: tanggal,
+        p_user_id: context.userId,
+        p_nominal_baru: mode === "koreksi_nominal" ? nominal_baru : null,
+      }
+    );
+    if (rpcErr) {
+      throw new Error(
+        mode === "batal"
+          ? "Gagal membatalkan tagihan: " + rpcErr.message
+          : "Gagal mengoreksi tagihan: " + rpcErr.message
+      );
+    }
+
+    const r = (result || {}) as {
+      jurnal_pembalik_id?: string | null;
+      jurnal_baru_id?: string | null;
+      warn_no_jurnal?: boolean;
+    };
+
+    return {
+      success: true,
+      mode,
+      tagihan_id,
+      jurnal_pembalik_id: r.jurnal_pembalik_id ?? null,
+      jurnal_baru_id: r.jurnal_baru_id ?? null,
+      warn_no_jurnal: r.warn_no_jurnal ?? false,
+    };
+  });
+
+export interface BatalkanTagihanBatchInput {
+  tagihan_ids: string[];
+  alasan: string;
+  tanggal?: string;
+}
+
+export interface BatalkanTagihanBatchResult {
+  success: true;
+  berhasil: number;
+  gagal: { tagihan_id: string; error: string }[];
+}
+
+// Batas jumlah tagihan per panggilan batch. RPC atomik hanya 1 subrequest per
+// tagihan (dibanding ~5 subrequest/siswa/bulan pada generateTagihan versi
+// lama), tapi tetap dibatasi supaya satu invocation Worker tidak memproses
+// terlalu banyak transaksi database berurutan sekaligus.
+const MAX_BATCH_SIZE = 100;
+
+export const batalkanTagihanBatch = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .inputValidator((d: BatalkanTagihanBatchInput) => d)
+  .handler(async ({ data, context }): Promise<BatalkanTagihanBatchResult> => {
+    const admin = createAdminClient();
+    await requireRole(admin, context.userId, [
+      "admin",
+      "kepala_sekolah",
+      "keuangan",
+    ]);
+
+    const { tagihan_ids, alasan } = data;
+    const tanggal = data.tanggal || new Date().toISOString().split("T")[0];
+
+    if (!Array.isArray(tagihan_ids) || tagihan_ids.length === 0) {
+      throw new Error("tagihan_ids wajib diisi (minimal 1)");
+    }
+    if (tagihan_ids.length > MAX_BATCH_SIZE) {
+      throw new Error(
+        `Maksimal ${MAX_BATCH_SIZE} tagihan per proses. Pilih lebih sedikit lalu ulangi untuk sisanya.`
+      );
+    }
+    if (!alasan || !alasan.trim()) throw new Error("Alasan wajib diisi");
+
+    let berhasil = 0;
+    const gagal: { tagihan_id: string; error: string }[] = [];
+
+    // Loop RPC per tagihan di sisi server (bukan di browser pengguna). Tiap
+    // panggilan dibungkus try/catch sendiri, sama seperti pola generateTagihan
+    // per-bulan: satu tagihan gagal tidak menghentikan sisanya, dan hasilnya
+    // dilaporkan sebagai ringkasan berhasil/gagal di akhir.
+    for (const tagihan_id of tagihan_ids) {
+      try {
+        const { error: rpcErr } = await admin.rpc("batalkan_tagihan_atomik", {
+          p_tagihan_id: tagihan_id,
+          p_mode: "batal",
+          p_alasan: alasan,
+          p_tanggal: tanggal,
+          p_user_id: context.userId,
+          p_nominal_baru: null,
+        });
+        if (rpcErr) {
+          gagal.push({ tagihan_id, error: rpcErr.message });
+        } else {
+          berhasil++;
+        }
+      } catch (err) {
+        gagal.push({
+          tagihan_id,
+          error: err instanceof Error ? err.message : "Gagal tidak diketahui",
+        });
+      }
+    }
+
+    return { success: true, berhasil, gagal };
+  });
