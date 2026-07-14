@@ -29,6 +29,9 @@ export interface GenerateTagihanInput {
   departemen_id?: string;
   siswa_id?: string;
   kelas_id?: string;
+  /** Generate untuk daftar siswa tertentu sekaligus (input tarif massal).
+   *  Lebih spesifik dari siswa_id/kelas_id — dipakai duluan bila terisi. */
+  siswa_ids?: string[];
 }
 
 export interface GenerateTagihanResult {
@@ -60,6 +63,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
       departemen_id,
       siswa_id,
       kelas_id,
+      siswa_ids,
     } = data;
 
     const bulanArray: (number | null)[] =
@@ -97,10 +101,28 @@ export const generateTagihan = createServerFn({ method: "POST" })
       throw new Error(`Akun pendapatan belum diset untuk jenis "${jenis.nama}"`);
     }
 
-    // Ambil siswa berdasarkan filter: siswa_id > kelas_id > semua di tahun_ajaran
+    // Ambil siswa berdasarkan filter: siswa_ids > siswa_id > kelas_id > semua
     let kelasSiswaList: { siswa_id: string; kelas_id: string }[] = [];
 
-    if (siswa_id) {
+    if (siswa_ids && siswa_ids.length > 0) {
+      const { data: rows, error } = await admin
+        .from("kelas_siswa")
+        .select("siswa_id, kelas_id")
+        .in("siswa_id", siswa_ids)
+        .eq("tahun_ajaran_id", tahun_ajaran_id)
+        .eq("aktif", true);
+      if (error)
+        throw new Error("Gagal mengambil data kelas siswa: " + error.message);
+      kelasSiswaList = rows || [];
+      // Siswa tanpa penempatan kelas aktif di tahun ini tetap diikutkan
+      // (kelas null) — konsisten dengan perilaku parameter siswa_id tunggal
+      const adaKelas = new Set(kelasSiswaList.map((ks) => ks.siswa_id));
+      for (const id of siswa_ids) {
+        if (!adaKelas.has(id)) {
+          kelasSiswaList.push({ siswa_id: id, kelas_id: null as unknown as string });
+        }
+      }
+    } else if (siswa_id) {
       const { data: rows, error } = await admin
         .from("kelas_siswa")
         .select("siswa_id, kelas_id")
@@ -143,8 +165,8 @@ export const generateTagihan = createServerFn({ method: "POST" })
       };
     }
 
-    // Filter by departemen bila diminta & belum difilter kelas
-    if (departemen_id && !siswa_id && !kelas_id) {
+    // Filter by departemen bila diminta & belum difilter siswa/kelas eksplisit
+    if (departemen_id && !siswa_ids?.length && !siswa_id && !kelas_id) {
       const kelasIds = [
         ...new Set(kelasSiswaList.map((ks) => ks.kelas_id).filter(Boolean)),
       ];

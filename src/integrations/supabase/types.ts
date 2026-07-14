@@ -4756,6 +4756,21 @@ export type Database = {
         Args: { p_prefix: string; p_tahun: number }
         Returns: string
       }
+      generate_tagihan_batch: {
+        Args: {
+          p_bulan: number
+          p_created_by: string
+          p_departemen_id: string
+          p_jenis_id: string
+          p_siswa_list: Json
+          p_tahun_ajaran_id: string
+        }
+        Returns: {
+          errors: string[]
+          generated: number
+          skipped: number
+        }[]
+      }
       get_detail_jurnal_kas:
         | {
             Args: {
