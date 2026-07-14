@@ -46,6 +46,13 @@ Cara mengatur model:
 }
 ```
 
+## Kontinuitas Antar Sesi
+
+- **Di awal sesi:** baca `SESI_NOTES.md` sebelum mulai bekerja — berisi status pekerjaan terakhir, keputusan desain penting, dan rencana yang sedang berjalan
+- **Di akhir pengerjaan yang berarti:** update `SESI_NOTES.md` — catat apa yang selesai, keputusan yang diambil beserta alasannya, dan langkah berikutnya yang belum dikerjakan
+- Jangan mencatat hal yang sudah terekam di git history (daftar file yang diubah, isi diff) — cukup konteks yang TIDAK terlihat dari kode: alasan keputusan, status data eksternal (VPS/Supabase), rencana yang belum jalan
+- Commit dengan pesan yang jelas dan deskriptif — git history adalah catatan permanen utama
+
 ## Konvensi Kode
 
 - Ikuti konvensi di `JIBAS_BLUEPRINT.md` §13 (Konvensi Kode)
