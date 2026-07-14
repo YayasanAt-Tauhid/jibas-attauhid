@@ -170,9 +170,20 @@ export default function TabTarifTagihan() {
             if (!isSekali && genBulanList.length > 0) {
               params.bulan_list = genBulanList;
             }
-            await generateMut.mutateAsync(params);
+            const genResult = await generateMut.mutateAsync(params);
+            // Lapis pengaman tambahan: server function selalu resolve
+            // (tidak reject) walau semua bulan gagal digenerate, jadi catch
+            // di bawah ini tidak akan menangkap kasus "sukses API tapi 0
+            // tagihan berhasil". Toast detail sudah ditampilkan oleh hook
+            // useGenerateTagihan; di sini cukup pastikan dialog TIDAK
+            // tertutup otomatis kalau generate gagal total, supaya user
+            // sadar & bisa coba lagi tanpa harus buka ulang form dari nol.
+            if (genResult.generated === 0 && genResult.errors && genResult.errors.length > 0) {
+              return; // jangan setDialogOpen(false) -- biarkan user lihat & retry
+            }
           } catch (genErr: any) {
             toast.error(`Tarif tersimpan, tapi generate tagihan gagal: ${genErr.message}`);
+            return; // sama -- jangan tutup dialog otomatis saat generate gagal
           }
         }
       }

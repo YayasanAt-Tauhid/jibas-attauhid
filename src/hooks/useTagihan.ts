@@ -74,6 +74,36 @@ export function useGenerateTagihan() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["tagihan"] });
       qc.invalidateQueries({ queryKey: ["jurnal"] });
+
+      const adaError = data.errors && data.errors.length > 0;
+
+      if (data.generated === 0 && adaError) {
+        // Tidak ada satupun tagihan berhasil dibuat -- ini kegagalan total,
+        // BUKAN sukses dengan hasil 0. Tampilkan sebagai error, bukan toast
+        // hijau yang menyesatkan (sebelumnya server function selalu
+        // mengembalikan success:true meski semua bulan gagal, sehingga
+        // user melihat "berhasil di-generate: 0 tagihan baru" seolah tidak
+        // terjadi apa-apa, padahal generate benar-benar gagal total).
+        toast.error(
+          `Generate tagihan GAGAL total (0 tagihan dibuat). Penyebab: ${data.errors![0]}` +
+          (data.errors!.length > 1 ? ` (+${data.errors!.length - 1} error lain, lihat console)` : "")
+        );
+        if (data.errors!.length > 1) console.error("generate_tagihan errors:", data.errors);
+        return;
+      }
+
+      if (adaError) {
+        // Sebagian berhasil, sebagian gagal -- tetap tampilkan sebagai
+        // warning supaya user tahu ada bulan/siswa yang tidak ter-generate,
+        // bukan toast sukses polos yang menyembunyikan kegagalan parsial.
+        toast.warning(
+          `Sebagian tagihan berhasil (${data.generated} baru, ${data.skipped} sudah ada), tapi ada ${data.errors!.length} error. Penyebab: ${data.errors![0]}` +
+          (data.errors!.length > 1 ? ` (+${data.errors!.length - 1} lainnya, lihat console)` : "")
+        );
+        console.error("generate_tagihan errors:", data.errors);
+        return;
+      }
+
       toast.success(`Tagihan berhasil di-generate: ${data.generated} tagihan baru, ${data.skipped} sudah ada`);
     },
     onError: (e: any) => toast.error(e.message),
