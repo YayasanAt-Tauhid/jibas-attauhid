@@ -4652,6 +4652,7 @@ export type Database = {
           siswa_id: string | null
           sudah_bayar: boolean | null
           tahun_ajaran_id: string | null
+          tahun_ajaran_mulai: string | null
           tahun_ajaran_nama: string | null
           tanggal_bayar: string | null
         }

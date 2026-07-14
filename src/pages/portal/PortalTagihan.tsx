@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
+import { BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
 
 const NAMA_BULAN = [
   "",
@@ -25,6 +26,19 @@ const NAMA_BULAN = [
   "November",
   "Desember",
 ];
+
+// Label "Bulan Tahun" yang akurat untuk siklus tahun ajaran Juli-Juni
+// (mis. "Juli 2026", "Januari 2027" untuk Tahun Ajaran 2026/2027) --
+// bulan Juli-Des = tahun mulai tahun ajaran, bulan Jan-Jun = tahun
+// mulai + 1.
+function labelBulanTA(bulan: number, tahunAjaranMulai: string): string {
+  const nama = NAMA_BULAN[bulan];
+  if (!nama) return "";
+  const tahunMulai = new Date(tahunAjaranMulai).getFullYear();
+  if (!tahunAjaranMulai || Number.isNaN(tahunMulai)) return nama;
+  const tahunKalender = bulan >= 7 ? tahunMulai : tahunMulai + 1;
+  return `${nama} ${tahunKalender}`;
+}
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -47,6 +61,7 @@ interface TagihanItem {
   bulan: number;
   tahun_ajaran_id: string;
   tahun_ajaran_nama: string;
+  tahun_ajaran_mulai: string;
 }
 
 export default function PortalTagihan() {
@@ -77,12 +92,34 @@ export default function PortalTagihan() {
         .select("*")
         .in("siswa_id", anakIds)
         .eq("sudah_bayar", false)
-        .order("nama_siswa")
-        .order("bulan");
+        .order("nama_siswa");
 
       // nominal sudah final dari tabel tagihan (dihitung saat tagihan di-generate),
       // tidak perlu dihitung ulang di klien.
-      return ((data || []) as TagihanItem[]).filter(t => t.nominal > 0);
+      const rows = ((data || []) as TagihanItem[]).filter(t => t.nominal > 0);
+
+      // Urutkan berdasarkan tahun ajaran (tanggal mulai) dulu, lalu posisi
+      // bulan dalam siklus akademik Juli-Juni (BULAN_ORDER_AKADEMIK) --
+      // BUKAN urutan angka bulan 1-12 polos. Tahun ajaran berjalan lintas
+      // tahun kalender (mis. Juli 2026 s.d. Juni 2027), jadi mengurutkan
+      // murni berdasar angka bulan akan menaruh Januari (1) sebelum
+      // Desember (12) walau Desember terjadi lebih dulu secara waktu.
+      const posisiBulan = (b: number) => {
+        const idx = BULAN_ORDER_AKADEMIK.indexOf(b);
+        return idx === -1 ? 99 : idx; // 0 = sekali bayar, taruh di awal
+      };
+      rows.sort((a, b) => {
+        // Grouping per siswa eksplisit (bukan mengandalkan stable-sort dari
+        // urutan query), lalu tahun ajaran, lalu posisi bulan akademik.
+        const namaCmp = a.nama_siswa.localeCompare(b.nama_siswa);
+        if (namaCmp !== 0) return namaCmp;
+        if (a.siswa_id !== b.siswa_id) return a.siswa_id.localeCompare(b.siswa_id);
+        const tA = a.tahun_ajaran_mulai || "";
+        const tB = b.tahun_ajaran_mulai || "";
+        if (tA !== tB) return tA.localeCompare(tB);
+        return posisiBulan(a.bulan) - posisiBulan(b.bulan);
+      });
+      return rows;
     },
     enabled: anakIds.length > 0,
   });
@@ -233,7 +270,7 @@ export default function PortalTagihan() {
                         <span className="text-xs text-muted-foreground ml-2">
                             {t.bulan === 0
                               ? `Sekali Bayar — TA ${t.tahun_ajaran_nama}`
-                              : `${NAMA_BULAN[t.bulan]} — TA ${t.tahun_ajaran_nama}`}
+                              : labelBulanTA(t.bulan, t.tahun_ajaran_mulai)}
                           </span>
                         </div>
                         <span className="text-sm font-semibold">
