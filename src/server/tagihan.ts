@@ -2,6 +2,20 @@
  * Server function: generateTagihan
  * Migrasi dari supabase/functions/generate-tagihan.
  * Generate tagihan (piutang) + jurnal untuk sekelompok siswa. Hanya admin/kepala/keuangan.
+ *
+ * CATATAN PERBAIKAN (2026-07-14): Sebelumnya proses ini melakukan ~5 subrequest
+ * Supabase PER SISWA PER BULAN (RPC tarif, RPC nomor jurnal, insert jurnal,
+ * insert jurnal_detail, insert tagihan) secara sequential di dalam loop
+ * JavaScript. Untuk generate 12 bulan x banyak siswa, ini gampang menembus
+ * limit subrequest per invocation di Cloudflare Workers — begitu limit
+ * tercapai, Worker berhenti paksa di tengah loop dan sisa bulan/siswa yang
+ * belum diproses hilang tanpa pemberitahuan jelas ("tagihan bolong").
+ *
+ * Sekarang logic generate per-siswa dipindah ke stored procedure Postgres
+ * `generate_tagihan_batch`, dipanggil SEKALI PER BULAN (bukan per siswa).
+ * Ini menurunkan jumlah subrequest dari (siswa x bulan x 5) menjadi
+ * (bulan x 1), sehingga generate massal jauh lebih tahan terhadap limit
+ * subrequest dan juga jauh lebih cepat.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware, requireRole } from "./auth";
@@ -150,119 +164,52 @@ export const generateTagihan = createServerFn({ method: "POST" })
     let generated = 0;
     let skipped = 0;
     const errors: string[] = [];
-    const tanggalHariIni = new Date().toISOString().split("T")[0];
-    const tahunSekarang = new Date().getFullYear();
 
+    // Satu panggilan RPC PER BULAN, bukan per siswa. Stored procedure
+    // `generate_tagihan_batch` melakukan seluruh proses (tarif + jurnal +
+    // jurnal_detail + tagihan, untuk semua siswa dalam daftar) dalam satu
+    // transaksi di sisi database. Kalau satu bulan gagal total (mis. RPC
+    // error jaringan), bulan lain tetap lanjut diproses karena kita
+    // membungkus tiap panggilan dengan try/catch sendiri-sendiri.
     for (const currentBulan of bulanArray) {
-      let existingQuery = admin
-        .from("tagihan")
-        .select("siswa_id")
-        .eq("jenis_id", jenis_id)
-        .eq("tahun_ajaran_id", tahun_ajaran_id);
-
-      existingQuery =
-        currentBulan != null
-          ? existingQuery.eq("bulan", currentBulan)
-          : existingQuery.is("bulan", null);
-
-      const { data: existingTagihan } = await existingQuery;
-      const existingSet = new Set(
-        (existingTagihan || []).map((t) => t.siswa_id)
-      );
-
-      const toGenerate = kelasSiswaList.filter(
-        (ks) => !existingSet.has(ks.siswa_id)
-      );
-      skipped += kelasSiswaList.length - toGenerate.length;
-      if (toGenerate.length === 0) continue;
-
-      for (const ks of toGenerate) {
-        try {
-          const { data: nominal } = await admin.rpc("get_tarif_siswa", {
+      try {
+        const { data: result, error: rpcErr } = await admin.rpc(
+          "generate_tagihan_batch",
+          {
             p_jenis_id: jenis_id,
-            p_siswa_id: ks.siswa_id,
-            p_kelas_id: ks.kelas_id,
             p_tahun_ajaran_id: tahun_ajaran_id,
-          });
-
-          const tarifNominal = Number(nominal) || Number(jenis.nominal) || 0;
-          if (tarifNominal <= 0) continue;
-
-          const bulanLabel = currentBulan ? `-B${currentBulan}` : "";
-          const { data: nomorJurnal } = await admin.rpc(
-            "generate_nomor_jurnal",
-            { p_prefix: "JPI", p_tahun: tahunSekarang }
-          );
-
-          const { data: jurnal, error: jErr } = await admin
-            .from("jurnal")
-            .insert({
-              nomor: nomorJurnal,
-              tanggal: tanggalHariIni,
-              keterangan: `Piutang ${jenis.nama}${bulanLabel} - siswa ${ks.siswa_id}`,
-              departemen_id: departemen_id || null,
-              total_debit: tarifNominal,
-              total_kredit: tarifNominal,
-              status: "posted",
-            })
-            .select("id")
-            .single();
-
-          if (jErr || !jurnal) {
-            errors.push(
-              `Jurnal gagal untuk siswa ${ks.siswa_id} bulan ${currentBulan}`
-            );
-            continue;
+            p_bulan: currentBulan,
+            p_departemen_id: departemen_id || null,
+            p_siswa_list: kelasSiswaList.map((ks) => ({
+              siswa_id: ks.siswa_id,
+              kelas_id: ks.kelas_id || null,
+            })),
+            p_created_by: context.userId,
           }
+        );
 
-          await admin.from("jurnal_detail").insert([
-            {
-              jurnal_id: jurnal.id,
-              akun_id: piutangAkunId,
-              keterangan: `Piutang ${jenis.nama}`,
-              debit: tarifNominal,
-              kredit: 0,
-              urutan: 1,
-            },
-            {
-              jurnal_id: jurnal.id,
-              akun_id: jenis.akun_pendapatan_id,
-              keterangan: `Pendapatan ${jenis.nama}`,
-              debit: 0,
-              kredit: tarifNominal,
-              urutan: 2,
-            },
-          ]);
-
-          const { error: tagErr } = await admin.from("tagihan").insert({
-            siswa_id: ks.siswa_id,
-            jenis_id: jenis_id,
-            tahun_ajaran_id: tahun_ajaran_id,
-            kelas_id: ks.kelas_id,
-            bulan: currentBulan || null,
-            nominal: tarifNominal,
-            status: "belum_bayar",
-            jurnal_piutang_id: jurnal.id,
-            created_by: context.userId,
-          });
-
-          if (tagErr) {
-            if (tagErr.code === "23505") {
-              skipped++;
-              continue;
-            }
-            errors.push(
-              `Tagihan gagal untuk siswa ${ks.siswa_id}: ${tagErr.message}`
-            );
-            continue;
-          }
-
-          generated++;
-        } catch (err) {
+        if (rpcErr) {
           errors.push(
-            `Error siswa ${ks.siswa_id}: ${err instanceof Error ? err.message : "gagal"}`
+            `Bulan ${currentBulan ?? "-"}: gagal generate (${rpcErr.message})`
+          );
+          continue;
+        }
+
+        // RPC bertipe RETURNS TABLE — hasilnya array dengan 1 baris
+        const row = Array.isArray(result) ? result[0] : result;
+        generated += row?.generated ?? 0;
+        skipped += row?.skipped ?? 0;
+        if (row?.errors && Array.isArray(row.errors) && row.errors.length > 0) {
+          errors.push(
+            ...row.errors.map((e: string) => `Bulan ${currentBulan ?? "-"}: ${e}`)
           );
         }
+      } catch (err) {
+        // Kegagalan tak terduga (mis. network) untuk SATU bulan tidak boleh
+        // menghentikan proses bulan-bulan lainnya.
+        errors.push(
+          `Bulan ${currentBulan ?? "-"}: ${err instanceof Error ? err.message : "gagal"}`
+        );
       }
     }
 
@@ -272,6 +219,6 @@ export const generateTagihan = createServerFn({ method: "POST" })
       skipped,
       total_siswa: kelasSiswaList.length,
       bulan_count: bulanArray.filter((b) => b !== null).length || 1,
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      errors: errors.length > 0 ? errors.slice(0, 20) : undefined,
     };
   });
