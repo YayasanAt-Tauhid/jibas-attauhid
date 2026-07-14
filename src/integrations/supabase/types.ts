@@ -4694,6 +4694,19 @@ export type Database = {
         }
         Returns: Json
       }
+      batalkan_tagihan_batch: {
+        Args: {
+          p_alasan: string
+          p_tagihan_ids: string[]
+          p_tanggal: string
+          p_user_id: string
+        }
+        Returns: {
+          berhasil: boolean
+          error_message: string
+          tagihan_id: string
+        }[]
+      }
       buku_besar_mutasi: {
         Args: {
           p_akun_id: string

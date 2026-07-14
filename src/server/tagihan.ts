@@ -351,33 +351,32 @@ export const batalkanTagihanBatch = createServerFn({ method: "POST" })
     }
     if (!alasan || !alasan.trim()) throw new Error("Alasan wajib diisi");
 
+    // SATU panggilan RPC untuk seluruh batch (1 subrequest dari sisi Worker),
+    // bukan loop admin.rpc() per tagihan seperti versi sebelumnya. Versi loop
+    // sempat menembus limit "Too many subrequests by single Worker invocation"
+    // Cloudflare Workers ketika batch berisi banyak tagihan (mis. 13 tagihan
+    // bulanan untuk satu siswa) — tiap panggilan admin.rpc() dihitung sebagai
+    // subrequest tersendiri. RPC batalkan_tagihan_batch memindahkan loop-nya
+    // ke dalam Postgres, dengan tiap tagihan tetap diproses dalam sub-block
+    // BEGIN...EXCEPTION...END sehingga satu tagihan gagal tidak membatalkan
+    // tagihan lain yang sudah berhasil — pola sama seperti generate_tagihan_batch.
+    const { data: rows, error: rpcErr } = await admin.rpc("batalkan_tagihan_batch", {
+      p_tagihan_ids: tagihan_ids,
+      p_alasan: alasan,
+      p_tanggal: tanggal,
+      p_user_id: context.userId,
+    });
+    if (rpcErr) {
+      throw new Error("Gagal memproses pembatalan massal: " + rpcErr.message);
+    }
+
     let berhasil = 0;
     const gagal: { tagihan_id: string; error: string }[] = [];
-
-    // Loop RPC per tagihan di sisi server (bukan di browser pengguna). Tiap
-    // panggilan dibungkus try/catch sendiri, sama seperti pola generateTagihan
-    // per-bulan: satu tagihan gagal tidak menghentikan sisanya, dan hasilnya
-    // dilaporkan sebagai ringkasan berhasil/gagal di akhir.
-    for (const tagihan_id of tagihan_ids) {
-      try {
-        const { error: rpcErr } = await admin.rpc("batalkan_tagihan_atomik", {
-          p_tagihan_id: tagihan_id,
-          p_mode: "batal",
-          p_alasan: alasan,
-          p_tanggal: tanggal,
-          p_user_id: context.userId,
-          p_nominal_baru: null,
-        });
-        if (rpcErr) {
-          gagal.push({ tagihan_id, error: rpcErr.message });
-        } else {
-          berhasil++;
-        }
-      } catch (err) {
-        gagal.push({
-          tagihan_id,
-          error: err instanceof Error ? err.message : "Gagal tidak diketahui",
-        });
+    for (const row of rows || []) {
+      if (row.berhasil) {
+        berhasil++;
+      } else {
+        gagal.push({ tagihan_id: row.tagihan_id, error: row.error_message || "Gagal tidak diketahui" });
       }
     }
 
