@@ -83,6 +83,11 @@ export default function TabTarifTagihan() {
 
   // Filter tarif
   const [filterJenis, setFilterJenis] = useState("");
+  const [filterTarifKelas, setFilterTarifKelas] = useState("");
+  const [filterTarifTahun, setFilterTarifTahun] = useState("");
+  const [filterTarifSiswaSearch, setFilterTarifSiswaSearch] = useState("");
+  const [filterTarifSiswaId, setFilterTarifSiswaId] = useState("");
+  const { data: filterTarifSiswaResults } = useSiswaSearch(filterTarifSiswaSearch);
 
   // Tagihan list filters
   const [filterTahunId, setFilterTahunId] = useState("");
@@ -110,9 +115,13 @@ export default function TabTarifTagihan() {
 
   const filteredData = useMemo(() => {
     if (!tarifList) return [];
-    if (!filterJenis) return tarifList;
-    return tarifList.filter((t: any) => t.jenis_id === filterJenis);
-  }, [tarifList, filterJenis]);
+    let result = tarifList;
+    if (filterJenis) result = result.filter((t: any) => t.jenis_id === filterJenis);
+    if (filterTarifKelas) result = result.filter((t: any) => t.kelas_id === filterTarifKelas);
+    if (filterTarifTahun) result = result.filter((t: any) => t.tahun_ajaran_id === filterTarifTahun);
+    if (filterTarifSiswaId) result = result.filter((t: any) => t.siswa_id === filterTarifSiswaId);
+    return result;
+  }, [tarifList, filterJenis, filterTarifKelas, filterTarifTahun, filterTarifSiswaId]);
 
   const selectedJenis = jenisList?.find((j: any) => j.id === jenisId);
   const isSekali = selectedJenis?.tipe === "sekali";
@@ -233,7 +242,7 @@ export default function TabTarifTagihan() {
               Prioritas: Siswa+Kelas+Tahun → Siswa+Tahun → Siswa → Kelas+Tahun → Kelas → Tahun → Default.
             </AlertDescription>
           </Alert>
-          <div className="flex gap-2 items-end">
+          <div className="flex flex-wrap gap-2 items-end">
             <div className="w-64">
               <Label className="text-xs">Filter Jenis Pembayaran</Label>
               <Select value={filterJenis || "__all__"} onValueChange={(v) => setFilterJenis(v === "__all__" ? "" : v)}>
@@ -244,6 +253,53 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="w-48">
+              <Label className="text-xs">Filter Kelas</Label>
+              <Select value={filterTarifKelas || "__all__"} onValueChange={(v) => setFilterTarifKelas(v === "__all__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Semua Kelas</SelectItem>
+                  {kelasList?.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Label className="text-xs">Filter Tahun Buku</Label>
+              <Select value={filterTarifTahun || "__all__"} onValueChange={(v) => setFilterTarifTahun(v === "__all__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Semua tahun buku" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Semua Tahun Buku</SelectItem>
+                  {tahunList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-52 relative">
+              <Label className="text-xs">Filter Siswa</Label>
+              <Input
+                value={filterTarifSiswaSearch}
+                onChange={(e) => { setFilterTarifSiswaSearch(e.target.value); if (!e.target.value) setFilterTarifSiswaId(""); }}
+                placeholder="Cari nama/NIS siswa..."
+                className="text-sm"
+              />
+              {filterTarifSiswaSearch.length >= 2 && filterTarifSiswaResults && filterTarifSiswaResults.length > 0 && !filterTarifSiswaId && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
+                  {filterTarifSiswaResults.map((s: any) => (
+                    <button key={s.id} className="w-full text-left px-3 py-2 hover:bg-accent text-sm" onClick={() => { setFilterTarifSiswaId(s.id); setFilterTarifSiswaSearch(`${s.nama} (${s.nis || '-'})`); }}>
+                      {s.nama} <span className="text-muted-foreground">({s.nis || '-'})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {filterTarifSiswaId && (
+                <button className="absolute right-2 top-7 text-muted-foreground hover:text-foreground text-xs" onClick={() => { setFilterTarifSiswaId(""); setFilterTarifSiswaSearch(""); }}>✕</button>
+              )}
+            </div>
+            {(filterJenis || filterTarifKelas || filterTarifTahun || filterTarifSiswaId) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground"
+                onClick={() => { setFilterJenis(""); setFilterTarifKelas(""); setFilterTarifTahun(""); setFilterTarifSiswaId(""); setFilterTarifSiswaSearch(""); }}>
+                Reset Filter
+              </Button>
+            )}
           </div>
           <DataTable columns={tarifColumns} data={filteredData} loading={isLoading} pageSize={20} actions={<Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Tambah Tarif</Button>} />
         </CardContent>
