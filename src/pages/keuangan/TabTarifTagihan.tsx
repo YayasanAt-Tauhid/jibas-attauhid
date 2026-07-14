@@ -76,6 +76,18 @@ export default function TabTarifTagihan() {
     return kelasList.filter((k: any) => k.departemen_id === deptId);
   }, [kelasList, deptId]);
 
+  // Filter jenis pembayaran by selected lembaga -- KHUSUS untuk dropdown di
+  // form Tambah/Edit Tarif. Jenis dengan departemen_id NULL (berlaku umum
+  // lintas lembaga) tetap ditampilkan terlepas dari lembaga yang dipilih.
+  // TIDAK dipakai untuk dropdown filter tabel (Filter Jenis Pembayaran /
+  // filter Daftar Tagihan) yang sengaja menampilkan semua jenis untuk
+  // keperluan pencarian data yang sudah ada.
+  const jenisListForForm = useMemo(() => {
+    if (!jenisList) return [];
+    if (!deptId) return jenisList;
+    return jenisList.filter((j: any) => !j.departemen_id || j.departemen_id === deptId);
+  }, [jenisList, deptId]);
+
   // Auto-generate options
   const [autoGenerate, setAutoGenerate] = useState(true);
   const [genBulanList, setGenBulanList] = useState<number[]>([]);
@@ -421,7 +433,7 @@ export default function TabTarifTagihan() {
               <Label>Jenis Pembayaran *</Label>
               <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setGenBulanList([]); }} disabled={!!editItem}>
                 <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
-                <SelectContent>{jenisList?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
+                <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
               </Select>
               {!!editItem && <p className="text-xs text-muted-foreground mt-1">⚠ Jenis pembayaran tidak bisa diubah setelah disimpan. Hapus dan buat ulang jika perlu ganti jenis.</p>}
             </div>
@@ -452,7 +464,19 @@ export default function TabTarifTagihan() {
             </div>
             <div>
               <Label>Lembaga (opsional — pilih sebelum kelas)</Label>
-              <Select value={deptId || "__none__"} onValueChange={(v) => { setDeptId(v === "__none__" ? "" : v); setKelasId(""); }} disabled={!!editItem}>
+              <Select value={deptId || "__none__"} onValueChange={(v) => {
+                const newDept = v === "__none__" ? "" : v;
+                setDeptId(newDept);
+                setKelasId("");
+                // Kalau jenis yang sudah dipilih ternyata tidak berlaku untuk
+                // lembaga baru (bukan jenis umum & departemen_id-nya beda),
+                // reset supaya tidak ada kombinasi jenis+lembaga yang salah
+                // tersimpan diam-diam.
+                const jenisTerpilih = jenisList?.find((j: any) => j.id === jenisId);
+                if (jenisTerpilih?.departemen_id && jenisTerpilih.departemen_id !== newDept) {
+                  setJenisId("");
+                }
+              }} disabled={!!editItem}>
                 <SelectTrigger><SelectValue placeholder="Semua lembaga" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Semua Lembaga —</SelectItem>
