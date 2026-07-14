@@ -342,7 +342,7 @@ export default function InputPembayaran() {
 
   const riwayatColumns: DataTableColumn<PembayaranWithJenis>[] = [
     { key: "jenis_pembayaran", label: "Jenis", render: (_, r) => r.jenis_pembayaran?.nama ?? "-" },
-    { key: "bulan",   label: "Bulan",   render: (v, r) => v ? namaBulanTahun(v as number, { tanggalTransaksi: r.tanggal_bayar }) : <span className="text-muted-foreground text-xs">Sekali Bayar</span> },
+    { key: "bulan",   label: "Bulan",   render: (v, r) => v ? namaBulanTahun(v as number, { tanggalTransaksi: r.tanggal_bayar }) : <span className="text-muted-foreground text-xs">Sekali Bayar{r.tanggal_bayar ? ` ${new Date(r.tanggal_bayar).getFullYear()}` : ""}</span> },
     { key: "jumlah",  label: "Jumlah",  render: v => formatRupiah(Number(v)) },
     { key: "tanggal_bayar", label: "Tanggal", render: v => v ? format(new Date(v as string), "dd MMM yyyy", { locale: idLocale }) : "-" },
     ...(canBatal ? [{

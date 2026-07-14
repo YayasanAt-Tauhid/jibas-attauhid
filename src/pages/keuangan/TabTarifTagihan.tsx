@@ -233,7 +233,7 @@ export default function TabTarifTagihan() {
     { key: "jenis", label: "Jenis", render: (_, r) => (r as any).jenis?.nama || "-" },
     { key: "kelas", label: "Kelas", render: (_, r) => (r as any).kelas?.nama || "-" },
     { key: "tahun_ajaran", label: "Tahun Buku", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
-    { key: "bulan", label: "Bulan", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali</Badge> },
+    { key: "bulan", label: "Bulan", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali — TA {(r as any).tahun_ajaran?.nama || "-"}</Badge> },
     { key: "nominal", label: "Nominal", render: (v) => <span className="font-semibold">{formatRupiah(Number(v))}</span> },
     {
       key: "status", label: "Status",
