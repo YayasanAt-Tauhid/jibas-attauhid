@@ -53,10 +53,10 @@ export default function TabTarifTagihan() {
 
   const selectedJenisForm = jenisList?.find((j: any) => j.id === jenisId);
   // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
-  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai
-  // untuk membatasi pilihan Kelas/Angkatan/Siswa agar tidak ada siswa
-  // lembaga lain yang kesasar masuk tarif jenis pembayaran lembaga lain —
-  // supaya jurnal (akun COA per jenis pembayaran) tidak tercampur.
+  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai untuk
+  // membatasi pilihan Kelas/Angkatan (target scope tarif). Siswa TIDAK
+  // dibatasi ke lembaga ini -- kasus sah: tarif SPP/Uang Pangkal SMP untuk
+  // siswa yang masih kelas 6 SD (lihat validationWarnings di bawah).
   const effectiveDeptId = deptId || selectedJenisForm?.departemen_id || "";
 
   // Filter kelas & angkatan by lembaga efektif
@@ -100,10 +100,10 @@ export default function TabTarifTagihan() {
       setAngkatanId("");
       toast.info("Pilihan Angkatan direset karena tidak berlaku untuk lembaga yang dipilih.");
     }
-    if (newDept && siswa?.departemen_id && siswa.departemen_id !== newDept) {
-      setSiswa(null);
-      toast.info("Pilihan Siswa direset karena bukan dari lembaga yang dipilih.");
-    }
+    // Siswa SENGAJA tidak direset/dibatasi ke lembaga ini — kasus umum:
+    // siswa kelas 6 SD yang mau diinputkan tarif SPP/Uang Pangkal SMP untuk
+    // jenjang berikutnya. Mismatch cukup ditandai sebagai peringatan (lihat
+    // validationWarnings), bukan diblokir.
   };
 
   // Auto-generate options
@@ -200,14 +200,20 @@ export default function TabTarifTagihan() {
       if (jenisId && !isSekali && genBulanList.length === 0) errs.push("Pilih minimal satu bulan untuk generate tagihan");
     }
     if (duplicateTarif) errs.push("Tarif dengan jenis & scope persis sama sudah ada — edit tarif yang lama, jangan buat duplikat");
-    // Lapis pengaman terakhir: siswa harus dari lembaga yang sama dengan
-    // Lembaga/Jenis Pembayaran terpilih, supaya akun jurnal (COA per jenis
-    // pembayaran) tidak tercampur antar lembaga.
-    if (!editItem && siswa && effectiveDeptId && siswa.departemen_id && siswa.departemen_id !== effectiveDeptId) {
-      errs.push("Siswa terpilih bukan dari lembaga yang sesuai dengan Lembaga/Jenis Pembayaran ini");
-    }
     return errs;
-  }, [editItem, jenisId, nominal, nominalNum, autoGenerate, tahunAjaranId, isSekali, genBulanList, duplicateTarif, siswa, effectiveDeptId]);
+  }, [editItem, jenisId, nominal, nominalNum, autoGenerate, tahunAjaranId, isSekali, genBulanList, duplicateTarif]);
+
+  // Peringatan (tidak memblokir simpan) — mis. siswa masih tercatat di
+  // lembaga lain dari Lembaga/Jenis Pembayaran terpilih. Ini SAH untuk kasus
+  // seperti tarif SPP/Uang Pangkal SMP bagi siswa yang masih kelas 6 SD
+  // (belum resmi naik jenjang), jadi cukup diingatkan, bukan diblokir.
+  const validationWarnings = useMemo(() => {
+    const warns: string[] = [];
+    if (!editItem && siswa && effectiveDeptId && siswa.departemen_id && siswa.departemen_id !== effectiveDeptId) {
+      warns.push("Siswa terpilih tercatat di lembaga lain dari Lembaga/Jenis Pembayaran ini — pastikan ini memang disengaja (mis. tarif jenjang berikutnya).");
+    }
+    return warns;
+  }, [editItem, siswa, effectiveDeptId]);
 
   const canSave = validationErrors.length === 0;
   const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;
@@ -487,18 +493,7 @@ export default function TabTarifTagihan() {
                 </div>
                 <div>
                   <Label>Jenis Pembayaran *</Label>
-                  <Select value={jenisId} onValueChange={(v) => {
-                    setJenisId(v); setGenBulanList([]);
-                    // Kalau jenis yang dipilih scoped ke satu lembaga dan Lembaga
-                    // belum diisi manual, auto-isi supaya pilihan Kelas/Angkatan/Siswa
-                    // di bawah otomatis ikut dibatasi ke lembaga yang sama.
-                    const j = jenisList?.find((x: any) => x.id === v);
-                    if (j?.departemen_id && !deptId) {
-                      setDeptId(j.departemen_id);
-                      setKelasId("");
-                      toast.info("Lembaga otomatis diisi dari jenis pembayaran yang dipilih — bisa diganti manual jika perlu.");
-                    }
-                  }}>
+                  <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setGenBulanList([]); }}>
                     <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
                     <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
                   </Select>
@@ -507,7 +502,6 @@ export default function TabTarifTagihan() {
                   <Label>Siswa (opsional)</Label>
                   <SiswaCombobox
                     value={siswa}
-                    deptId={effectiveDeptId || undefined}
                     onChange={(s) => {
                       setSiswa(s);
                       // Auto-isi Lembaga dari data siswa sebagai default yang nyaman
@@ -654,6 +648,18 @@ export default function TabTarifTagihan() {
                   )}
                 </div>
               </>
+            )}
+
+            {/* Peringatan non-blocking — tidak mematikan tombol Simpan */}
+            {validationWarnings.length > 0 && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
+                {validationWarnings.map((w) => (
+                  <p key={w} className="text-xs text-amber-700 dark:text-amber-500 flex items-start gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-[1px]" />
+                    {w}
+                  </p>
+                ))}
+              </div>
             )}
 
             {/* Checklist kekurangan — user tahu persis kenapa tombol Simpan mati */}

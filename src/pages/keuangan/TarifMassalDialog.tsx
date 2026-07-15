@@ -67,17 +67,17 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const selectedJenis = jenisList?.find((j: any) => j.id === jenisId);
   const isSekali = selectedJenis?.tipe === "sekali";
   // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
-  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai untuk
-  // membatasi semua jalur penambahan siswa (manual, import Excel, dari
-  // kelas) supaya tidak ada siswa lembaga lain yang kesasar masuk tarif —
-  // akun jurnal (COA) ditentukan per jenis pembayaran, bukan per lembaga.
+  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai
+  // HANYA untuk menandai peringatan (bukan memblokir/menyaring) siswa yang
+  // ditambahkan — kasus sah: bulk-input tarif SPP/Uang Pangkal SMP untuk
+  // siswa yang masih tercatat kelas 6 SD (belum resmi naik jenjang), jadi
+  // dropdown Kelas & pencarian siswa TIDAK dibatasi ke lembaga ini.
   const effectiveDeptId = deptId || selectedJenis?.departemen_id || "";
 
-  const filteredKelasList = useMemo(() => {
-    if (!kelasList) return [];
-    if (!effectiveDeptId) return kelasList;
-    return kelasList.filter((k: any) => k.departemen?.id === effectiveDeptId);
-  }, [kelasList, effectiveDeptId]);
+  // Dropdown "Tambah dari Kelas" sengaja menampilkan SEMUA kelas lintas
+  // lembaga (bukan cuma kelas di lembaga Jenis Pembayaran) — supaya bisa
+  // ambil kelas 6 SD saat sedang input tarif SMP untuk jenjang berikutnya.
+  const filteredKelasList = kelasList || [];
   const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
   const allSelected = genBulanList.length === 12;
 
@@ -101,10 +101,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
 
   const addSiswa = (s: SiswaRingkas | null) => {
     if (!s) return;
-    if (effectiveDeptId && s.departemen_id && s.departemen_id !== effectiveDeptId) {
-      toast.error(`${s.nama} bukan dari lembaga yang sesuai dengan Lembaga/Jenis Pembayaran terpilih — dilewati.`);
-      return;
-    }
     if (rows.some((r) => r.siswa.id === s.id)) {
       toast.info(`${s.nama} sudah ada di daftar.`);
       return;
@@ -197,10 +193,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
             errors.push(`Baris ${r.baris}: ${s.nama} (${r.nis}) duplikat — dilewati`);
             continue;
           }
-          if (effectiveDeptId && s.departemen_id && s.departemen_id !== effectiveDeptId) {
-            errors.push(`Baris ${r.baris}: ${s.nama} (${r.nis}) bukan dari lembaga yang sesuai dengan Lembaga/Jenis Pembayaran terpilih — dilewati`);
-            continue;
-          }
           seen.add(s.id);
           newRows.push({ siswa: s, nominal: r.nominal || defaultNominal(), keterangan: r.keterangan || keteranganUmum });
         }
@@ -242,10 +234,8 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
       const seen = new Set(rows.map((r) => r.siswa.id));
       const newRows: RowSiswa[] = [];
       let skipped = 0;
-      let skippedDept = 0;
       for (const s of siswaList) {
         if (seen.has(s.id)) { skipped++; continue; }
-        if (effectiveDeptId && s.departemen_id && s.departemen_id !== effectiveDeptId) { skippedDept++; continue; }
         if (rows.length + newRows.length >= MAX_ROWS) break;
         seen.add(s.id);
         newRows.push({ siswa: s, nominal: defaultNominal(), keterangan: keteranganUmum });
@@ -254,7 +244,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
       setRows((prev) => [...prev, ...newRows]);
       if (newRows.length > 0) toast.success(`${newRows.length} siswa dari kelas berhasil ditambahkan.`);
       if (skipped > 0) toast.info(`${skipped} siswa dilewati karena sudah ada di daftar.`);
-      if (skippedDept > 0) toast.info(`${skippedDept} siswa dilewati karena bukan dari lembaga yang sesuai.`);
     } catch (err: any) {
       toast.error(`Gagal memuat siswa kelas: ${err.message}`);
     } finally {
@@ -280,8 +269,15 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const rowError = (r: RowSiswa): string | null => {
     if (!r.nominal || Number(r.nominal) <= 0) return "Nominal harus > 0";
     if (existingSiswaTarif.has(r.siswa.id)) return "Sudah ada tarif untuk jenis & tahun buku ini";
+    return null;
+  };
+
+  // Peringatan (tidak memblokir simpan) — siswa tercatat di lembaga lain
+  // dari Lembaga/Jenis Pembayaran terpilih. SAH untuk kasus seperti tarif
+  // SPP/Uang Pangkal SMP bagi siswa yang masih kelas 6 SD.
+  const rowWarning = (r: RowSiswa): string | null => {
     if (effectiveDeptId && r.siswa.departemen_id && r.siswa.departemen_id !== effectiveDeptId) {
-      return "Bukan dari lembaga yang sesuai — hapus atau ganti Lembaga/Jenis Pembayaran";
+      return "Tercatat di lembaga lain — pastikan ini disengaja (mis. tarif jenjang berikutnya)";
     }
     return null;
   };
@@ -375,17 +371,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
             </div>
             <div>
               <Label>Jenis Pembayaran *</Label>
-              <Select value={jenisId} onValueChange={(v) => {
-                setJenisId(v); setGenBulanList([]);
-                // Kalau jenis yang dipilih scoped ke satu lembaga dan Lembaga
-                // belum diisi manual, auto-isi supaya Kelas & pencarian Siswa
-                // di bawah otomatis ikut dibatasi ke lembaga yang sama.
-                const j = jenisList?.find((x: any) => x.id === v);
-                if (j?.departemen_id && !deptId) {
-                  setDeptId(j.departemen_id);
-                  toast.info("Lembaga otomatis diisi dari jenis pembayaran yang dipilih — bisa diganti manual jika perlu.");
-                }
-              }}>
+              <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setGenBulanList([]); }}>
                 <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
                 <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
               </Select>
@@ -412,7 +398,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex-1 min-w-[220px]">
               <Label>Tambah Siswa</Label>
-              <SiswaCombobox value={null} onChange={addSiswa} deptId={effectiveDeptId || undefined} placeholder="Cari nama/NIS lalu pilih untuk menambah..." />
+              <SiswaCombobox value={null} onChange={addSiswa} placeholder="Cari nama/NIS lalu pilih untuk menambah..." />
             </div>
             <Button variant="outline" size="sm" onClick={downloadTemplate}>
               <Download className="h-4 w-4 mr-1.5" />Template
@@ -482,12 +468,14 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
               <div className="max-h-72 overflow-y-auto divide-y">
                 {rows.map((r, i) => {
                   const err = rowError(r);
+                  const warn = !err ? rowWarning(r) : null;
                   return (
-                    <div key={r.siswa.id} className={`flex items-center gap-2 px-3 py-2 ${err ? "bg-destructive/5" : ""}`}>
+                    <div key={r.siswa.id} className={`flex items-center gap-2 px-3 py-2 ${err ? "bg-destructive/5" : warn ? "bg-amber-500/5" : ""}`}>
                       <span className="text-xs text-muted-foreground w-6 shrink-0 text-right">{i + 1}.</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{r.siswa.nama} <span className="text-muted-foreground text-xs">({r.siswa.nis || "-"})</span></p>
                         {err && <p className="text-xs text-destructive">{err}</p>}
+                        {warn && <p className="text-xs text-amber-700 dark:text-amber-500">{warn}</p>}
                       </div>
                       <div className="w-36 shrink-0">
                         <RupiahInput value={r.nominal} onChange={(v) => updateRow(r.siswa.id, { nominal: v })} />
