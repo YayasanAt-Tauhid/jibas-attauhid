@@ -212,14 +212,8 @@ export default function TabTarifTagihan() {
     if (!editItem && siswa && effectiveDeptId && siswa.departemen_id && siswa.departemen_id !== effectiveDeptId) {
       warns.push("Siswa terpilih tercatat di lembaga lain dari Lembaga/Jenis Pembayaran ini — pastikan ini memang disengaja (mis. tarif jenjang berikutnya).");
     }
-    // Jenis Pembayaran scoped ke angkatan tertentu (jenis_pembayaran_angkatan)
-    // tapi Angkatan yang dipilih di sini bukan salah satunya.
-    const scopeAngkatan: string[] = (selectedJenisForm?.jenis_pembayaran_angkatan || []).map((r: any) => r.angkatan_id);
-    if (!editItem && angkatanId && scopeAngkatan.length > 0 && !scopeAngkatan.includes(angkatanId)) {
-      warns.push("Angkatan yang dipilih bukan bagian dari cakupan angkatan Jenis Pembayaran ini — pastikan ini memang disengaja.");
-    }
     return warns;
-  }, [editItem, siswa, effectiveDeptId, angkatanId, selectedJenisForm]);
+  }, [editItem, siswa, effectiveDeptId]);
 
   const canSave = validationErrors.length === 0;
   const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;

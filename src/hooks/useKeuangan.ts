@@ -130,7 +130,7 @@ export function useAllJenisPembayaran() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("jenis_pembayaran")
-        .select("id, nama, nominal, keterangan, aktif, departemen_id, akun_pendapatan_id, akun_dimuka_id, tipe, departemen:departemen_id(nama, kode), akun_pendapatan:akun_pendapatan_id(id, kode, nama), akun_dimuka:akun_dimuka_id(id, kode, nama), jenis_pembayaran_angkatan(angkatan_id, angkatan:angkatan_id(id, nama))")
+        .select("id, nama, nominal, keterangan, aktif, departemen_id, akun_pendapatan_id, akun_dimuka_id, tipe, tahun_masuk_dari, tahun_masuk_sampai, departemen:departemen_id(nama, kode), akun_pendapatan:akun_pendapatan_id(id, kode, nama), akun_dimuka:akun_dimuka_id(id, kode, nama)")
         .order("nama");
       if (error) throw error;
       return (data || []) as any[];
@@ -620,34 +620,13 @@ export function useRekapKeuanganPerLembaga(tahun: number) {
   });
 }
 
-// Sinkronkan scoping angkatan sebuah jenis pembayaran: hapus baris lama,
-// insert ulang sesuai daftar angkatan_ids. angkatan_ids kosong/undefined =
-// jenis berlaku untuk SEMUA angkatan (tidak ada baris di tabel pivot).
-async function syncJenisPembayaranAngkatan(jenisId: string, angkatanIds?: string[]) {
-  const { error: delErr } = await supabase
-    .from("jenis_pembayaran_angkatan")
-    .delete()
-    .eq("jenis_id", jenisId);
-  if (delErr) throw delErr;
-  if (angkatanIds && angkatanIds.length > 0) {
-    const { error: insErr } = await supabase
-      .from("jenis_pembayaran_angkatan")
-      .insert(angkatanIds.map((angkatan_id) => ({ jenis_id: jenisId, angkatan_id })));
-    if (insErr) throw insErr;
-  }
-}
-
 // ─── CRUD Jenis Pembayaran ───
 export function useCreateJenisPembayaran() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (values: { nama: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string; akun_pendapatan_id?: string | null; akun_dimuka_id?: string | null; angkatan_ids?: string[] }) => {
-      const { angkatan_ids, ...jenisValues } = values;
-      const { data, error } = await supabase.from("jenis_pembayaran").insert(jenisValues).select("id").single();
+    mutationFn: async (values: { nama: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string; akun_pendapatan_id?: string | null; akun_dimuka_id?: string | null; tipe?: string; tahun_masuk_dari?: number | null; tahun_masuk_sampai?: number | null }) => {
+      const { error } = await supabase.from("jenis_pembayaran").insert(values);
       if (error) throw error;
-      if (angkatan_ids && angkatan_ids.length > 0) {
-        await syncJenisPembayaranAngkatan(data.id, angkatan_ids);
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["jenis_pembayaran"] });
@@ -660,12 +639,9 @@ export function useCreateJenisPembayaran() {
 export function useUpdateJenisPembayaran() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, angkatan_ids, ...values }: { id: string; nama?: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string | null; akun_pendapatan_id?: string | null; akun_dimuka_id?: string | null; angkatan_ids?: string[] }) => {
+    mutationFn: async ({ id, ...values }: { id: string; nama?: string; nominal?: number; keterangan?: string; aktif?: boolean; departemen_id?: string | null; akun_pendapatan_id?: string | null; akun_dimuka_id?: string | null; tipe?: string; tahun_masuk_dari?: number | null; tahun_masuk_sampai?: number | null }) => {
       const { error } = await supabase.from("jenis_pembayaran").update(values).eq("id", id);
       if (error) throw error;
-      if (angkatan_ids !== undefined) {
-        await syncJenisPembayaranAngkatan(id, angkatan_ids);
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["jenis_pembayaran"] });
