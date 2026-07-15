@@ -51,18 +51,26 @@ export default function TabTarifTagihan() {
   const [nominal, setNominal] = useState("");
   const [keterangan, setKeterangan] = useState("");
 
-  // Filter kelas & angkatan by selected lembaga
+  const selectedJenisForm = jenisList?.find((j: any) => j.id === jenisId);
+  // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
+  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai untuk
+  // membatasi pilihan Kelas/Angkatan (target scope tarif). Siswa TIDAK
+  // dibatasi ke lembaga ini -- kasus sah: tarif SPP/Uang Pangkal SMP untuk
+  // siswa yang masih kelas 6 SD (lihat validationWarnings di bawah).
+  const effectiveDeptId = deptId || selectedJenisForm?.departemen_id || "";
+
+  // Filter kelas & angkatan by lembaga efektif
   const filteredKelasList = useMemo(() => {
     if (!kelasList) return [];
-    if (!deptId) return kelasList;
-    return kelasList.filter((k: any) => k.departemen_id === deptId);
-  }, [kelasList, deptId]);
+    if (!effectiveDeptId) return kelasList;
+    return kelasList.filter((k: any) => k.departemen_id === effectiveDeptId);
+  }, [kelasList, effectiveDeptId]);
 
   const filteredAngkatanList = useMemo(() => {
     if (!angkatanList) return [];
-    if (!deptId) return angkatanList;
-    return angkatanList.filter((a: any) => !a.departemen_id || a.departemen_id === deptId);
-  }, [angkatanList, deptId]);
+    if (!effectiveDeptId) return angkatanList;
+    return angkatanList.filter((a: any) => !a.departemen_id || a.departemen_id === effectiveDeptId);
+  }, [angkatanList, effectiveDeptId]);
 
   // Filter jenis pembayaran by selected lembaga -- KHUSUS untuk dropdown di
   // form Tambah/Edit Tarif. Jenis dengan departemen_id NULL (berlaku umum
@@ -80,8 +88,8 @@ export default function TabTarifTagihan() {
     const newDept = v === "__none__" ? "" : v;
     setDeptId(newDept);
     setKelasId("");
-    // Kalau jenis/angkatan yang sudah dipilih tidak berlaku untuk lembaga
-    // baru, reset — dan BERI TAHU user, jangan diam-diam.
+    // Kalau jenis/angkatan/siswa yang sudah dipilih tidak berlaku untuk
+    // lembaga baru, reset — dan BERI TAHU user, jangan diam-diam.
     const jenisTerpilih = jenisList?.find((j: any) => j.id === jenisId);
     if (newDept && jenisTerpilih?.departemen_id && jenisTerpilih.departemen_id !== newDept) {
       setJenisId("");
@@ -92,6 +100,10 @@ export default function TabTarifTagihan() {
       setAngkatanId("");
       toast.info("Pilihan Angkatan direset karena tidak berlaku untuk lembaga yang dipilih.");
     }
+    // Siswa SENGAJA tidak direset/dibatasi ke lembaga ini — kasus umum:
+    // siswa kelas 6 SD yang mau diinputkan tarif SPP/Uang Pangkal SMP untuk
+    // jenjang berikutnya. Mismatch cukup ditandai sebagai peringatan (lihat
+    // validationWarnings), bukan diblokir.
   };
 
   // Auto-generate options
@@ -190,6 +202,18 @@ export default function TabTarifTagihan() {
     if (duplicateTarif) errs.push("Tarif dengan jenis & scope persis sama sudah ada — edit tarif yang lama, jangan buat duplikat");
     return errs;
   }, [editItem, jenisId, nominal, nominalNum, autoGenerate, tahunAjaranId, isSekali, genBulanList, duplicateTarif]);
+
+  // Peringatan (tidak memblokir simpan) — mis. siswa masih tercatat di
+  // lembaga lain dari Lembaga/Jenis Pembayaran terpilih. Ini SAH untuk kasus
+  // seperti tarif SPP/Uang Pangkal SMP bagi siswa yang masih kelas 6 SD
+  // (belum resmi naik jenjang), jadi cukup diingatkan, bukan diblokir.
+  const validationWarnings = useMemo(() => {
+    const warns: string[] = [];
+    if (!editItem && siswa && effectiveDeptId && siswa.departemen_id && siswa.departemen_id !== effectiveDeptId) {
+      warns.push("Siswa terpilih tercatat di lembaga lain dari Lembaga/Jenis Pembayaran ini — pastikan ini memang disengaja (mis. tarif jenjang berikutnya).");
+    }
+    return warns;
+  }, [editItem, siswa, effectiveDeptId]);
 
   const canSave = validationErrors.length === 0;
   const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;
@@ -624,6 +648,18 @@ export default function TabTarifTagihan() {
                   )}
                 </div>
               </>
+            )}
+
+            {/* Peringatan non-blocking — tidak mematikan tombol Simpan */}
+            {validationWarnings.length > 0 && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
+                {validationWarnings.map((w) => (
+                  <p key={w} className="text-xs text-amber-700 dark:text-amber-500 flex items-start gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-[1px]" />
+                    {w}
+                  </p>
+                ))}
+              </div>
             )}
 
             {/* Checklist kekurangan — user tahu persis kenapa tombol Simpan mati */}

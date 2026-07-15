@@ -72,6 +72,18 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
 
   const selectedJenis = jenisList?.find((j: any) => j.id === jenisId);
   const isSekali = selectedJenis?.tipe === "sekali";
+  // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
+  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai
+  // HANYA untuk menandai peringatan (bukan memblokir/menyaring) siswa yang
+  // ditambahkan — kasus sah: bulk-input tarif SPP/Uang Pangkal SMP untuk
+  // siswa yang masih tercatat kelas 6 SD (belum resmi naik jenjang), jadi
+  // dropdown Kelas & pencarian siswa TIDAK dibatasi ke lembaga ini.
+  const effectiveDeptId = deptId || selectedJenis?.departemen_id || "";
+
+  // Dropdown "Tambah dari Kelas" sengaja menampilkan SEMUA kelas lintas
+  // lembaga (bukan cuma kelas di lembaga Jenis Pembayaran) — supaya bisa
+  // ambil kelas 6 SD saat sedang input tarif SMP untuk jenjang berikutnya.
+  const filteredKelasList = kelasList || [];
   const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
   const allSelected = genBulanList.length === 12;
 
@@ -266,6 +278,16 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     return null;
   };
 
+  // Peringatan (tidak memblokir simpan) — siswa tercatat di lembaga lain
+  // dari Lembaga/Jenis Pembayaran terpilih. SAH untuk kasus seperti tarif
+  // SPP/Uang Pangkal SMP bagi siswa yang masih kelas 6 SD.
+  const rowWarning = (r: RowSiswa): string | null => {
+    if (effectiveDeptId && r.siswa.departemen_id && r.siswa.departemen_id !== effectiveDeptId) {
+      return "Tercatat di lembaga lain — pastikan ini disengaja (mis. tarif jenjang berikutnya)";
+    }
+    return null;
+  };
+
   const errorRowCount = rows.filter((r) => rowError(r)).length;
   const totalNominal = rows.reduce((sum, r) => sum + Number(r.nominal || 0), 0);
 
@@ -452,12 +474,14 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
               <div className="max-h-72 overflow-y-auto divide-y">
                 {rows.map((r, i) => {
                   const err = rowError(r);
+                  const warn = !err ? rowWarning(r) : null;
                   return (
-                    <div key={r.siswa.id} className={`flex items-center gap-2 px-3 py-2 ${err ? "bg-destructive/5" : ""}`}>
+                    <div key={r.siswa.id} className={`flex items-center gap-2 px-3 py-2 ${err ? "bg-destructive/5" : warn ? "bg-amber-500/5" : ""}`}>
                       <span className="text-xs text-muted-foreground w-6 shrink-0 text-right">{i + 1}.</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{r.siswa.nama} <span className="text-muted-foreground text-xs">({r.siswa.nis || "-"})</span></p>
                         {err && <p className="text-xs text-destructive">{err}</p>}
+                        {warn && <p className="text-xs text-amber-700 dark:text-amber-500">{warn}</p>}
                       </div>
                       <div className="w-36 shrink-0">
                         <RupiahInput value={r.nominal} onChange={(v) => updateRow(r.siswa.id, { nominal: v })} />
