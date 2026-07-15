@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "@/lib/router-compat";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -26,9 +27,16 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function PortalLogin() {
   const navigate = useNavigate();
+  const { signIn, signOut, user, role } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && role === "ortu") {
+      navigate("/portal", { replace: true });
+    }
+  }, [user, role, navigate]);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -39,26 +47,19 @@ export default function PortalLogin() {
     setLoading(true);
     setError(null);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    });
+    const { error: signInError } = await signIn(data.email, data.password);
 
     if (signInError) {
-      const messages: Record<string, string> = {
-        "Invalid login credentials": "Email atau password salah",
-        "Email not confirmed": "Email belum dikonfirmasi. Periksa inbox Anda.",
-      };
-      setError(messages[signInError.message] || signInError.message);
+      setError(signInError);
       setLoading(false);
       return;
     }
 
     // Check role
     const {
-      data: { user },
+      data: { user: signedInUser },
     } = await supabase.auth.getUser();
-    if (!user) {
+    if (!signedInUser) {
       setError("Gagal mendapatkan data user");
       setLoading(false);
       return;
@@ -67,11 +68,11 @@ export default function PortalLogin() {
     const { data: profile } = await supabase
       .from("users_profile")
       .select("role")
-      .eq("id", user.id)
+      .eq("id", signedInUser.id)
       .single();
 
     if (profile?.role !== "ortu") {
-      await supabase.auth.signOut();
+      await signOut();
       setError(
         "Akun ini bukan akun orang tua. Silakan gunakan halaman login admin."
       );
