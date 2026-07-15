@@ -21,6 +21,8 @@ interface SiswaComboboxProps {
   onChange: (siswa: SiswaRingkas | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Batasi hasil pencarian ke siswa dari lembaga ini saja. */
+  deptId?: string;
 }
 
 function useDebounced(value: string, delayMs = 300) {
@@ -37,6 +39,7 @@ export function SiswaCombobox({
   onChange,
   placeholder = "Cari nama atau NIS siswa...",
   disabled = false,
+  deptId,
 }: SiswaComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -46,16 +49,16 @@ export function SiswaCombobox({
 
   const debounced = useDebounced(search.trim());
   const { data: results, isFetching } = useQuery({
-    queryKey: ["siswa_search", debounced],
+    queryKey: ["siswa_search", debounced, deptId],
     enabled: open && debounced.length >= 2,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("siswa")
         .select("id, nama, nis, departemen_id")
         .or(`nama.ilike.%${debounced}%,nis.ilike.%${debounced}%`)
-        .eq("status", "aktif")
-        .limit(20)
-        .order("nama");
+        .eq("status", "aktif");
+      if (deptId) q = q.eq("departemen_id", deptId);
+      const { data, error } = await q.limit(20).order("nama");
       if (error) throw error;
       return (data || []) as SiswaRingkas[];
     },

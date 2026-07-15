@@ -51,18 +51,26 @@ export default function TabTarifTagihan() {
   const [nominal, setNominal] = useState("");
   const [keterangan, setKeterangan] = useState("");
 
-  // Filter kelas & angkatan by selected lembaga
+  const selectedJenisForm = jenisList?.find((j: any) => j.id === jenisId);
+  // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
+  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai
+  // untuk membatasi pilihan Kelas/Angkatan/Siswa agar tidak ada siswa
+  // lembaga lain yang kesasar masuk tarif jenis pembayaran lembaga lain —
+  // supaya jurnal (akun COA per jenis pembayaran) tidak tercampur.
+  const effectiveDeptId = deptId || selectedJenisForm?.departemen_id || "";
+
+  // Filter kelas & angkatan by lembaga efektif
   const filteredKelasList = useMemo(() => {
     if (!kelasList) return [];
-    if (!deptId) return kelasList;
-    return kelasList.filter((k: any) => k.departemen_id === deptId);
-  }, [kelasList, deptId]);
+    if (!effectiveDeptId) return kelasList;
+    return kelasList.filter((k: any) => k.departemen_id === effectiveDeptId);
+  }, [kelasList, effectiveDeptId]);
 
   const filteredAngkatanList = useMemo(() => {
     if (!angkatanList) return [];
-    if (!deptId) return angkatanList;
-    return angkatanList.filter((a: any) => !a.departemen_id || a.departemen_id === deptId);
-  }, [angkatanList, deptId]);
+    if (!effectiveDeptId) return angkatanList;
+    return angkatanList.filter((a: any) => !a.departemen_id || a.departemen_id === effectiveDeptId);
+  }, [angkatanList, effectiveDeptId]);
 
   // Filter jenis pembayaran by selected lembaga -- KHUSUS untuk dropdown di
   // form Tambah/Edit Tarif. Jenis dengan departemen_id NULL (berlaku umum
@@ -80,8 +88,8 @@ export default function TabTarifTagihan() {
     const newDept = v === "__none__" ? "" : v;
     setDeptId(newDept);
     setKelasId("");
-    // Kalau jenis/angkatan yang sudah dipilih tidak berlaku untuk lembaga
-    // baru, reset — dan BERI TAHU user, jangan diam-diam.
+    // Kalau jenis/angkatan/siswa yang sudah dipilih tidak berlaku untuk
+    // lembaga baru, reset — dan BERI TAHU user, jangan diam-diam.
     const jenisTerpilih = jenisList?.find((j: any) => j.id === jenisId);
     if (newDept && jenisTerpilih?.departemen_id && jenisTerpilih.departemen_id !== newDept) {
       setJenisId("");
@@ -91,6 +99,10 @@ export default function TabTarifTagihan() {
     if (newDept && angkatanTerpilih?.departemen_id && angkatanTerpilih.departemen_id !== newDept) {
       setAngkatanId("");
       toast.info("Pilihan Angkatan direset karena tidak berlaku untuk lembaga yang dipilih.");
+    }
+    if (newDept && siswa?.departemen_id && siswa.departemen_id !== newDept) {
+      setSiswa(null);
+      toast.info("Pilihan Siswa direset karena bukan dari lembaga yang dipilih.");
     }
   };
 
@@ -188,8 +200,14 @@ export default function TabTarifTagihan() {
       if (jenisId && !isSekali && genBulanList.length === 0) errs.push("Pilih minimal satu bulan untuk generate tagihan");
     }
     if (duplicateTarif) errs.push("Tarif dengan jenis & scope persis sama sudah ada — edit tarif yang lama, jangan buat duplikat");
+    // Lapis pengaman terakhir: siswa harus dari lembaga yang sama dengan
+    // Lembaga/Jenis Pembayaran terpilih, supaya akun jurnal (COA per jenis
+    // pembayaran) tidak tercampur antar lembaga.
+    if (!editItem && siswa && effectiveDeptId && siswa.departemen_id && siswa.departemen_id !== effectiveDeptId) {
+      errs.push("Siswa terpilih bukan dari lembaga yang sesuai dengan Lembaga/Jenis Pembayaran ini");
+    }
     return errs;
-  }, [editItem, jenisId, nominal, nominalNum, autoGenerate, tahunAjaranId, isSekali, genBulanList, duplicateTarif]);
+  }, [editItem, jenisId, nominal, nominalNum, autoGenerate, tahunAjaranId, isSekali, genBulanList, duplicateTarif, siswa, effectiveDeptId]);
 
   const canSave = validationErrors.length === 0;
   const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;
@@ -469,7 +487,18 @@ export default function TabTarifTagihan() {
                 </div>
                 <div>
                   <Label>Jenis Pembayaran *</Label>
-                  <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setGenBulanList([]); }}>
+                  <Select value={jenisId} onValueChange={(v) => {
+                    setJenisId(v); setGenBulanList([]);
+                    // Kalau jenis yang dipilih scoped ke satu lembaga dan Lembaga
+                    // belum diisi manual, auto-isi supaya pilihan Kelas/Angkatan/Siswa
+                    // di bawah otomatis ikut dibatasi ke lembaga yang sama.
+                    const j = jenisList?.find((x: any) => x.id === v);
+                    if (j?.departemen_id && !deptId) {
+                      setDeptId(j.departemen_id);
+                      setKelasId("");
+                      toast.info("Lembaga otomatis diisi dari jenis pembayaran yang dipilih — bisa diganti manual jika perlu.");
+                    }
+                  }}>
                     <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
                     <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
                   </Select>
@@ -478,6 +507,7 @@ export default function TabTarifTagihan() {
                   <Label>Siswa (opsional)</Label>
                   <SiswaCombobox
                     value={siswa}
+                    deptId={effectiveDeptId || undefined}
                     onChange={(s) => {
                       setSiswa(s);
                       // Auto-isi Lembaga dari data siswa sebagai default yang nyaman
