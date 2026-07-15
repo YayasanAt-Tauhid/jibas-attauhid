@@ -711,9 +711,10 @@ export function useBukuBesar(
   tglAkhir?: string,
   departemenIds?: string[],
   includePenutup?: boolean,
+  excludeKoreksi?: boolean,
 ) {
   return useQuery({
-    queryKey: ["buku_besar", akunId, tglAwal, tglAkhir, departemenIds, includePenutup],
+    queryKey: ["buku_besar", akunId, tglAwal, tglAkhir, departemenIds, includePenutup, excludeKoreksi],
     enabled: !!akunId && !!tglAwal && !!tglAkhir,
     queryFn: async (): Promise<BukuBesarData> => {
       const depts = departemenIds && departemenIds.length > 0 ? departemenIds : null;
@@ -722,6 +723,7 @@ export function useBukuBesar(
         p_akun_id: akunId,
         p_tgl_awal: tglAwal,
         p_departemen_ids: depts,
+        p_exclude_koreksi: excludeKoreksi ?? false,
       });
       if (saErr) throw saErr;
 
@@ -735,6 +737,7 @@ export function useBukuBesar(
             p_tgl_akhir: tglAkhir,
             p_departemen_ids: depts,
             p_include_penutup: includePenutup ?? false,
+            p_exclude_koreksi: excludeKoreksi ?? false,
           })
           .range(from, from + pageSize - 1);
         if (error) throw error;

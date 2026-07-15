@@ -33,6 +33,7 @@ export default function BukuBesar() {
   const [filterUnit, setFilterUnit] = useState("semua");
   const [unitOpen, setUnitOpen] = useState(false);
   const [tampilkanPenutup, setTampilkanPenutup] = useState(false);
+  const [sembunyikanKoreksi, setSembunyikanKoreksi] = useState(true);
 
   const { data: akunList } = useAkunRekening();
   const { data: deptGroups } = useDepartemenGroups();
@@ -55,7 +56,7 @@ export default function BukuBesar() {
   const tglAkhir = akhirBulan(tahun, bulanSampai);
 
   const selectedAkun = akunList?.find((a: any) => a.id === akunId);
-  const { data, isLoading } = useBukuBesar(akunId || undefined, tglAwal, tglAkhir, departemenIds, tampilkanPenutup);
+  const { data, isLoading } = useBukuBesar(akunId || undefined, tglAwal, tglAkhir, departemenIds, tampilkanPenutup, sembunyikanKoreksi);
 
   const computedData = useMemo(() => {
     if (!data || !selectedAkun) return [];
@@ -197,6 +198,10 @@ export default function BukuBesar() {
         <div className="flex items-center gap-2 pb-2">
           <Checkbox id="penutup" checked={tampilkanPenutup} onCheckedChange={(v) => setTampilkanPenutup(v === true)} />
           <Label htmlFor="penutup" className="font-normal text-sm cursor-pointer">Tampilkan jurnal penutup</Label>
+        </div>
+        <div className="flex items-center gap-2 pb-2">
+          <Checkbox id="koreksi" checked={sembunyikanKoreksi} onCheckedChange={(v) => setSembunyikanKoreksi(v === true)} />
+          <Label htmlFor="koreksi" className="font-normal text-sm cursor-pointer">Sembunyikan jurnal terkoreksi & pembalik</Label>
         </div>
       </div>
 
