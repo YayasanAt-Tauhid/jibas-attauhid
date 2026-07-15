@@ -60,13 +60,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       const messages: Record<string, string> = {
         "Invalid login credentials": "Email atau password salah",
         "Email not confirmed": "Email belum dikonfirmasi. Periksa inbox Anda.",
       };
       return { error: messages[error.message] || error.message };
+    }
+    // Set state directly from the sign-in response instead of waiting for the
+    // async onAuthStateChange event, so callers can navigate right after this
+    // resolves without racing a route guard that still sees `user === null`.
+    setSession(data.session);
+    setUser(data.user);
+    setIsLoading(false);
+    if (data.user) {
+      await fetchRole(data.user.id);
     }
     return { error: null };
   };
