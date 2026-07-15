@@ -37,6 +37,17 @@ async function handleNotification(request: Request): Promise<Response> {
       fraud_status,
     } = notification;
 
+    // 0. Akun Midtrans dipakai bersama beberapa aplikasi lewat webhook
+    //    forwarder yang broadcast ke semua endpoint terdaftar. Notifikasi
+    //    order_id milik aplikasi lain diabaikan lebih awal di sini supaya
+    //    tidak membebani DB dengan query yang pasti tidak ketemu.
+    if (typeof order_id !== "string" || !order_id.startsWith("HAT-")) {
+      return new Response(
+        JSON.stringify({ message: "Ignored: bukan order Hijrah At-Tauhid" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     // 1. Verifikasi signature Midtrans
     const serverKey = readEnv("MIDTRANS_SERVER_KEY") || "";
     const expectedSignature = await sha512(
