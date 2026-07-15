@@ -42,6 +42,7 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 
 ## Pekerjaan Terbuka
 
+- **Rencana diskon/keringanan SPP (beasiswa, kakak-adik, bantuan, kurang mampu)** — belum diimplementasi, rencana lengkap (skema tabel, RPC, deteksi kakak-adik semi-otomatis, halaman UI, urutan migrasi) ada di `RENCANA_DISKON_KERINGANAN.md`. Rekomendasi kerjakan dengan `claude-opus-4-8`. Ada 3 keputusan desain yang perlu diambil dulu sebelum coding (lihat bagian akhir file tsb: kombinasi diskon ganda, approval workflow, nilai default berjenjang kakak-adik)
 - **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
 - **Error tsc `context is possibly undefined`** di semua file `src/server/*.ts` (typing authMiddleware) — pola lama, belum diperbaiki
 - **Verifikasi migrasi `20260714120000_generate_tagihan_batch_rpc.sql` di produksi** — file migrasi dibuat dari definisi verbatim database (via project Clone `rumdeqkrtfjxckqgokoy`; project produksi `leyfwwmroijwnkrcblxe` tidak terjangkau dari MCP sesi ini). Isinya idempoten (IF NOT EXISTS + CREATE OR REPLACE), tapi tetap cocokkan sekali dengan produksi saat menjalankan `supabase db push` / apply berikutnya
