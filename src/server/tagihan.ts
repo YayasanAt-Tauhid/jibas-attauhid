@@ -27,6 +27,10 @@ export interface GenerateTagihanInput {
   bulan?: number | null;
   bulan_list?: number[];
   departemen_id?: string;
+  /** Generate untuk satu angkatan (tahun masuk) tertentu. Sama seperti
+   *  departemen_id, hanya diterapkan kalau siswa_ids/siswa_id/kelas_id
+   *  kosong (filter yang lebih spesifik selalu menang). */
+  angkatan_id?: string;
   siswa_id?: string;
   kelas_id?: string;
   /** Generate untuk daftar siswa tertentu sekaligus (input tarif massal).
@@ -61,6 +65,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
       bulan,
       bulan_list,
       departemen_id,
+      angkatan_id,
       siswa_id,
       kelas_id,
       siswa_ids,
@@ -181,6 +186,24 @@ export const generateTagihan = createServerFn({ method: "POST" })
           validKelasIds.has(ks.kelas_id)
         );
       }
+    }
+
+    // Filter by angkatan bila diminta & belum difilter siswa/kelas eksplisit
+    // -- mis. generate "Uang Gedung Baru" langsung untuk seluruh angkatan
+    // 2024 tanpa harus cari siswa/kelas satu-satu dulu.
+    if (angkatan_id && !siswa_ids?.length && !siswa_id && !kelas_id) {
+      const { data: siswaAngkatan } = await admin
+        .from("siswa")
+        .select("id")
+        .eq("angkatan_id", angkatan_id)
+        .in(
+          "id",
+          kelasSiswaList.map((ks) => ks.siswa_id)
+        );
+      const validSiswaIds = new Set((siswaAngkatan || []).map((s) => s.id));
+      kelasSiswaList = kelasSiswaList.filter((ks) =>
+        validSiswaIds.has(ks.siswa_id)
+      );
     }
 
     let generated = 0;

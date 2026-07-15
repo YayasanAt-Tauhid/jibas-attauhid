@@ -66,6 +66,7 @@ export function useGenerateTagihan() {
       bulan?: number;
       bulan_list?: number[];
       departemen_id?: string;
+      angkatan_id?: string; // generate langsung untuk satu angkatan (tahun masuk)
       siswa_id?: string;   // T1 fix: expose ke type — edge function sudah support ini
       kelas_id?: string;   // T1 fix: expose ke type — edge function sudah support ini
       siswa_ids?: string[]; // input tarif massal: generate untuk daftar siswa sekaligus

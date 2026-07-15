@@ -20,7 +20,9 @@ import {
   useLembaga, formatRupiah,
 } from "@/hooks/useKeuangan";
 import { useAllAkunRekening, useCreateAkunRekening, useUpdateAkunRekening, useDeleteAkunRekening, useAkunByJenis, usePengaturanAkun, useUpdatePengaturanAkun, useCreatePengaturanAkun, useDeletePengaturanAkun } from "@/hooks/useJurnal";
+import { useAngkatan } from "@/hooks/useAkademikData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, AlertTriangle, Save, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -62,6 +64,7 @@ export default function ReferensiKeuangan() {
 function TabJenisPembayaran() {
   const { data, isLoading } = useAllJenisPembayaran();
   const { data: lembagaList } = useLembaga();
+  const { data: angkatanList } = useAngkatan();
   const [filterLembaga, setFilterLembaga] = useState("");
   const dataFiltered = useMemo(() => {
     if (!data) return data;
@@ -85,12 +88,29 @@ function TabJenisPembayaran() {
   const [akunPendapatanId, setAkunPendapatanId] = useState("");
   const [akunDimukaId, setAkunDimukaId] = useState("");
   const [tipe, setTipe] = useState("bulanan");
+  const [angkatanIds, setAngkatanIds] = useState<string[]>([]);
 
-  const openAdd = () => { setEditItem(null); setNama(""); setNominal(""); setKeterangan(""); setAktif(true); setFormDepartemenId(""); setAkunPendapatanId(""); setAkunDimukaId(""); setTipe("bulanan"); setDialogOpen(true); };
-  const openEdit = (item: any) => { setEditItem(item); setNama(item.nama); setNominal(String(item.nominal || "")); setKeterangan(item.keterangan || ""); setAktif(item.aktif !== false); setFormDepartemenId(item.departemen_id || ""); setAkunPendapatanId(item.akun_pendapatan_id || ""); setAkunDimukaId(item.akun_dimuka_id || ""); setTipe(item.tipe || "bulanan"); setDialogOpen(true); };
+  // Kalau Lembaga dipilih, ciutkan daftar angkatan yang ditawarkan supaya
+  // tidak perlu scroll semua angkatan lintas lembaga.
+  const angkatanListForForm = useMemo(() => {
+    if (!angkatanList) return [];
+    if (!formDepartemenId) return angkatanList;
+    return angkatanList.filter((a: any) => !a.departemen_id || a.departemen_id === formDepartemenId);
+  }, [angkatanList, formDepartemenId]);
+
+  const toggleAngkatan = (id: string) => {
+    setAngkatanIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const openAdd = () => { setEditItem(null); setNama(""); setNominal(""); setKeterangan(""); setAktif(true); setFormDepartemenId(""); setAkunPendapatanId(""); setAkunDimukaId(""); setTipe("bulanan"); setAngkatanIds([]); setDialogOpen(true); };
+  const openEdit = (item: any) => {
+    setEditItem(item); setNama(item.nama); setNominal(String(item.nominal || "")); setKeterangan(item.keterangan || ""); setAktif(item.aktif !== false); setFormDepartemenId(item.departemen_id || ""); setAkunPendapatanId(item.akun_pendapatan_id || ""); setAkunDimukaId(item.akun_dimuka_id || ""); setTipe(item.tipe || "bulanan");
+    setAngkatanIds((item.jenis_pembayaran_angkatan || []).map((r: any) => r.angkatan_id));
+    setDialogOpen(true);
+  };
 
   const handleSave = async () => {
-    const values = { nama, nominal: nominal ? Number(nominal) : undefined, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined, akun_pendapatan_id: akunPendapatanId || null, akun_dimuka_id: akunDimukaId || null, tipe };
+    const values = { nama, nominal: nominal ? Number(nominal) : undefined, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined, akun_pendapatan_id: akunPendapatanId || null, akun_dimuka_id: akunDimukaId || null, tipe, angkatan_ids: angkatanIds };
     if (editItem) await updateMut.mutateAsync({ id: editItem.id, ...values });
     else await createMut.mutateAsync(values);
     setDialogOpen(false);
@@ -101,6 +121,14 @@ function TabJenisPembayaran() {
     { key: "nominal", label: "Nominal", render: (v) => v ? formatRupiah(Number(v)) : "-" },
     { key: "tipe", label: "Tipe", render: (v) => v === "sekali" ? <Badge variant="secondary">Sekali Bayar</Badge> : <Badge variant="outline">Bulanan</Badge> },
     { key: "departemen", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "Semua" },
+    {
+      key: "angkatan", label: "Angkatan",
+      render: (_, r) => {
+        const rows = (r as any).jenis_pembayaran_angkatan as { angkatan?: { nama: string } }[] | undefined;
+        if (!rows || rows.length === 0) return <span className="text-xs text-muted-foreground">Semua</span>;
+        return <span className="text-sm">{rows.map((x) => x.angkatan?.nama).filter(Boolean).join(", ")}</span>;
+      },
+    },
     {
       key: "akun_pendapatan", label: "Akun Pendapatan",
       render: (_, r) => {
@@ -191,6 +219,24 @@ function TabJenisPembayaran() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Angkatan (kosongkan jika berlaku untuk semua angkatan)</Label>
+              <div className="max-h-40 overflow-y-auto rounded-md border p-2 space-y-1.5 mt-1">
+                {angkatanListForForm.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-1">Tidak ada data angkatan.</p>
+                ) : (
+                  angkatanListForForm.map((a: any) => (
+                    <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox checked={angkatanIds.includes(a.id)} onCheckedChange={() => toggleAngkatan(a.id)} />
+                      {a.nama}{a.departemen ? ` — ${a.departemen.nama}` : ""}
+                    </label>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Pilih satu/lebih untuk membatasi jenis ini hanya berlaku bagi siswa angkatan tsb (mis. "Uang Gedung Baru" cuma angkatan 2024 &amp; 2025).
+              </p>
             </div>
             <div>
               <Label>Akun Pendapatan (untuk jurnal otomatis)</Label>
