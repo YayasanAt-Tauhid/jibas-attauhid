@@ -189,7 +189,7 @@ export const createPayment = createServerFn({ method: "POST" })
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const orderId = `JIBAS-${dateStr}-${random}`;
+    const orderId = `HAT-${dateStr}-${random}`;
 
     const { data: transaksi, error: txError } = await admin
       .from("transaksi_midtrans")

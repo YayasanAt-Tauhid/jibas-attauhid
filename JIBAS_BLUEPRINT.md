@@ -1,6 +1,6 @@
-# 🏫 JIBAS — Blueprint & Panduan Pembangunan Versi Baru
+# 🏫 Hijrah At-Tauhid — Blueprint & Panduan Pembangunan Versi Baru
 
-> **JIBAS** — Jaringan Informasi Bersama Antar Sekolah  
+> **Hijrah At-Tauhid** — Sistem Informasi Sekolah (penerus konsep Jaringan Informasi Bersama Antar Sekolah/JIBAS)  
 > Versi Baru: React 18 + TypeScript + Supabase  
 > Referensi Lama: JIBAS 32.0 (PHP + MySQL + frame-based layout)
 
@@ -50,7 +50,7 @@
 
 ### Perbedaan Konsep Utama
 - **JIBAS 32.0** menggunakan konsep **1 sekolah per instalasi**, dengan modul terpisah (`/akademik`, `/keuangan`, `/kepegawaian`) yang memiliki login masing-masing.
-- **JIBAS Baru** menggunakan konsep **yayasan multi-lembaga**: satu login, satu dashboard, semua lembaga (TK/SD/SMP/SMA/MTQ) terkelola dalam satu aplikasi dengan data yang terpisah per lembaga (`departemen_id`) namun bisa dilihat secara konsolidasi.
+- **Hijrah At-Tauhid** menggunakan konsep **yayasan multi-lembaga**: satu login, satu dashboard, semua lembaga (TK/SD/SMP/SMA/MTQ) terkelola dalam satu aplikasi dengan data yang terpisah per lembaga (`departemen_id`) namun bisa dilihat secara konsolidasi.
 
 ---
 
@@ -870,12 +870,12 @@ Setelah setup database, buat user admin melalui Supabase Dashboard:
 
 ```sql
 -- 1. Daftar via Supabase Auth (Dashboard → Authentication → Users → Add User)
--- Email: admin@jibas.sch.id  Password: (password kuat)
+-- Email: admin@hijrahattauhid.sch.id  Password: (password kuat)
 
 -- 2. Update role menjadi admin
 UPDATE public.users_profile
 SET role = 'admin'
-WHERE email = 'admin@jibas.sch.id';
+WHERE email = 'admin@hijrahattauhid.sch.id';
 ```
 
 ### Environment Variables yang Dibutuhkan
@@ -886,7 +886,7 @@ VITE_SUPABASE_URL=         # URL project Supabase
 VITE_SUPABASE_ANON_KEY=    # Anon/public key Supabase
 
 # Opsional
-VITE_APP_NAME=JIBAS
+VITE_APP_NAME=Hijrah At-Tauhid
 VITE_APP_VERSION=2.0.0
 ```
 
@@ -1147,5 +1147,5 @@ function NamaForm() {
 
 ---
 
-*Dokumen ini dibuat berdasarkan analisis kode JIBAS 32.0 dan JIBAS versi baru (React/Supabase).*  
+*Dokumen ini dibuat berdasarkan analisis kode JIBAS 32.0 dan Hijrah At-Tauhid versi baru (React/Supabase).*  
 *Update dokumen ini setiap ada modul baru yang selesai dibangun.*

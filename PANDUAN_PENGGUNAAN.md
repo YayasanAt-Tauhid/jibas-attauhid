@@ -1,6 +1,6 @@
-# Panduan Penggunaan JIBAS — Dari PSB hingga Pembayaran
+# Panduan Penggunaan Hijrah At-Tauhid — Dari PSB hingga Pembayaran
 
-Dokumen ini menjelaskan alur penggunaan aplikasi JIBAS dari awal setup data referensi, pendaftaran siswa baru (PSB), hingga proses pembayaran.
+Dokumen ini menjelaskan alur penggunaan aplikasi Hijrah At-Tauhid dari awal setup data referensi, pendaftaran siswa baru (PSB), hingga proses pembayaran.
 
 ---
 

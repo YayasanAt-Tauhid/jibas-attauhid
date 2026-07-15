@@ -62,7 +62,7 @@ export default function BackupExport() {
         XLSX.utils.book_append_sheet(wb, ws, key.substring(0, 31));
       }
       const dateStr = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `backup_jibas_${dateStr}.xlsx`);
+      XLSX.writeFile(wb, `backup_hijrah_attauhid_${dateStr}.xlsx`);
       toast.success(`Berhasil export ${selected.size} tabel`);
     } catch (e: any) {
       toast.error("Gagal export: " + e.message);

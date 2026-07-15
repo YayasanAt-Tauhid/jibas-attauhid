@@ -4,7 +4,7 @@ Panduan untuk Claude Code saat bekerja di repo ini.
 
 ## Tentang Proyek
 
-**JIBAS At-Tauhid** — Sistem Informasi Sekolah (Jaringan Informasi Bersama Antar Sekolah), penulisan ulang JIBAS 32.0 (PHP + MySQL) ke stack modern:
+**Hijrah At-Tauhid** — Sistem Informasi Sekolah (penerus konsep Jaringan Informasi Bersama Antar Sekolah/JIBAS), penulisan ulang JIBAS 32.0 (PHP + MySQL) ke stack modern:
 
 - **TanStack Start** (full-stack React framework, SSR) + **TanStack Router** (file-based routing di `src/routes`)
 - **React 18 + TypeScript**, Vite + Nitro
@@ -32,7 +32,7 @@ Rekomendasi model saat memakai Claude Code di proyek ini (proyek ini adalah apli
 | Jenis tugas | Model | Alasan |
 |---|---|---|
 | **Default harian** — fitur CRUD baru, halaman/komponen shadcn, form, query Supabase, perbaikan bug biasa | `claude-sonnet-5` | Kualitas coding mendekati Opus dengan biaya jauh lebih rendah dan respons lebih cepat; lebih dari cukup untuk pola-pola berulang di proyek ini |
-| **Tugas berat** — refactor besar lintas modul, migrasi skema database, debugging rumit, desain arsitektur, migrasi fitur dari JIBAS lama | `claude-opus-4-8` | Model Opus paling mumpuni untuk pekerjaan agentic jangka panjang dan penalaran kompleks |
+| **Tugas berat** — refactor besar lintas modul, migrasi skema database, debugging rumit, desain arsitektur, migrasi fitur dari JIBAS 32.0 lama | `claude-opus-4-8` | Model Opus paling mumpuni untuk pekerjaan agentic jangka panjang dan penalaran kompleks |
 | **Tugas ringan** — edit kecil, rename, update dokumentasi, pertanyaan singkat | `claude-haiku-4-5` | Paling cepat dan hemat untuk tugas sederhana |
 
 Cara mengatur model:

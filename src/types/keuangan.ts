@@ -1,6 +1,6 @@
 /**
  * @file keuangan.ts
- * Domain types untuk modul Keuangan JIBAS.
+ * Domain types untuk modul Keuangan Hijrah At-Tauhid.
  * Semua tipe di sini di-derive dari Database types (types.ts) — tidak ada duplikasi manual.
  */
 
