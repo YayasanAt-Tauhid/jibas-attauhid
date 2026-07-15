@@ -55,12 +55,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const [kelasPickId, setKelasPickId] = useState("");
   const [loadingKelas, setLoadingKelas] = useState(false);
 
-  const filteredKelasList = useMemo(() => {
-    if (!kelasList) return [];
-    if (!deptId) return kelasList;
-    return kelasList.filter((k: any) => k.departemen?.id === deptId);
-  }, [kelasList, deptId]);
-
   const [autoGenerate, setAutoGenerate] = useState(true);
   const [genBulanList, setGenBulanList] = useState<number[]>([]);
 
