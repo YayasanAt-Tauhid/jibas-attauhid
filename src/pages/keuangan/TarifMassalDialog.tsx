@@ -11,8 +11,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { SiswaCombobox, SiswaRingkas } from "@/components/shared/SiswaCombobox";
 import { RupiahInput } from "@/components/shared/RupiahInput";
-import { Trash2, Info, Download, Upload, AlertCircle, X } from "lucide-react";
+import { Trash2, Info, Download, Upload, AlertCircle, X, Users } from "lucide-react";
 import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan } from "@/hooks/useKeuangan";
+import { useKelas } from "@/hooks/useAkademikData";
 import { useAllTarifTagihan, useCreateTarifTagihanBulk } from "@/hooks/useTarifTagihan";
 import { useGenerateTagihan } from "@/hooks/useTagihan";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const { data: tahunList } = useTahunBuku();
   const { data: lembagaList } = useLembaga();
   const { data: tarifList } = useAllTarifTagihan();
+  const { data: kelasList } = useKelas();
 
   const bulkMut = useCreateTarifTagihanBulk();
   const generateMut = useGenerateTagihan();
@@ -49,6 +51,15 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [kelasPickId, setKelasPickId] = useState("");
+  const [loadingKelas, setLoadingKelas] = useState(false);
+
+  const filteredKelasList = useMemo(() => {
+    if (!kelasList) return [];
+    if (!deptId) return kelasList;
+    return kelasList.filter((k: any) => k.departemen?.id === deptId);
+  }, [kelasList, deptId]);
 
   const [autoGenerate, setAutoGenerate] = useState(true);
   const [genBulanList, setGenBulanList] = useState<number[]>([]);
@@ -71,7 +82,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const resetState = () => {
     setDeptId(""); setJenisId(""); setTahunAjaranId(""); setRows([]);
     setNominalUmum(""); setKeteranganUmum(""); setImportErrors([]);
-    setAutoGenerate(true); setGenBulanList([]);
+    setAutoGenerate(true); setGenBulanList([]); setKelasPickId("");
   };
 
   const handleClose = (v: boolean) => {
@@ -191,6 +202,47 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     };
     reader.readAsBinaryString(file);
     e.target.value = "";
+  };
+
+  // ── Tambah dari daftar kelas (tanpa import) ─────────────────────────────────
+  const addFromKelas = async () => {
+    if (!kelasPickId) return;
+    setLoadingKelas(true);
+    try {
+      const { data, error } = await supabase
+        .from("kelas_siswa")
+        .select("siswa:siswa_id(id, nama, nis, departemen_id)")
+        .eq("kelas_id", kelasPickId)
+        .eq("aktif", true);
+      if (error) throw error;
+
+      const siswaList = (data || [])
+        .map((ks: any) => ks.siswa as SiswaRingkas | null)
+        .filter((s): s is SiswaRingkas => !!s);
+
+      if (siswaList.length === 0) {
+        toast.info("Tidak ada siswa aktif di kelas ini.");
+        return;
+      }
+
+      const seen = new Set(rows.map((r) => r.siswa.id));
+      const newRows: RowSiswa[] = [];
+      let skipped = 0;
+      for (const s of siswaList) {
+        if (seen.has(s.id)) { skipped++; continue; }
+        if (rows.length + newRows.length >= MAX_ROWS) break;
+        seen.add(s.id);
+        newRows.push({ siswa: s, nominal: defaultNominal(), keterangan: keteranganUmum });
+      }
+
+      setRows((prev) => [...prev, ...newRows]);
+      if (newRows.length > 0) toast.success(`${newRows.length} siswa dari kelas berhasil ditambahkan.`);
+      if (skipped > 0) toast.info(`${skipped} siswa dilewati karena sudah ada di daftar.`);
+    } catch (err: any) {
+      toast.error(`Gagal memuat siswa kelas: ${err.message}`);
+    } finally {
+      setLoadingKelas(false);
+    }
   };
 
   // ── Validasi ──────────────────────────────────────────────────────────────
@@ -339,6 +391,25 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
               <Upload className="h-4 w-4 mr-1.5" />{importing ? "Memproses..." : "Import Excel"}
             </Button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleUpload} />
+          </div>
+
+          {/* ── Tambah dari kelas (tanpa import) ── */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[220px]">
+              <Label>Atau Tambah dari Kelas</Label>
+              <Select value={kelasPickId || "__none__"} onValueChange={(v) => setKelasPickId(v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Pilih Kelas —</SelectItem>
+                  {filteredKelasList?.map((k: any) => (
+                    <SelectItem key={k.id} value={k.id}>{k.nama} {k.tingkat?.nama ? `(${k.tingkat.nama})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="sm" onClick={addFromKelas} disabled={!kelasPickId || loadingKelas}>
+              <Users className="h-4 w-4 mr-1.5" />{loadingKelas ? "Memuat..." : "Tambah Semua Siswa Kelas"}
+            </Button>
           </div>
 
           {importErrors.length > 0 && (
