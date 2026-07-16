@@ -89,6 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Hapus token push perangkat ini dulu (selagi sesi masih valid, karena
+    // RLS delete butuh auth.uid) supaya akun lama berhenti dapat notifikasi.
+    const { hapusPushToken } = await import("./push");
+    await hapusPushToken();
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);

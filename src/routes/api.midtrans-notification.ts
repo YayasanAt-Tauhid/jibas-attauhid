@@ -11,6 +11,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createAdminClient, readEnv } from "@/server/supabase";
+import { kirimPushKeOrtu } from "@/server/push";
 
 async function sha512(str: string): Promise<string> {
   const data = new TextEncoder().encode(str);
@@ -196,14 +197,16 @@ async function handleNotification(request: Request): Promise<Response> {
         })
         .eq("order_id", order_id);
 
-      // Notifikasi orang tua
+      // Notifikasi orang tua (in-app + push ke perangkat mobile) — best-effort
+      const judulNotif = "Pembayaran Berhasil";
+      const pesanNotif = `Pembayaran ${items.length} tagihan senilai Rp ${Number(
+        transaksi.total_amount
+      ).toLocaleString("id-ID")} berhasil diproses via ${payment_type}. Order: ${order_id}`;
       try {
         await admin.from("notifikasi_ortu").insert({
           user_id: transaksi.user_id,
-          judul: "Pembayaran Berhasil",
-          pesan: `Pembayaran ${items.length} tagihan senilai Rp ${Number(
-            transaksi.total_amount
-          ).toLocaleString("id-ID")} berhasil diproses via ${payment_type}. Order: ${order_id}`,
+          judul: judulNotif,
+          pesan: pesanNotif,
           tipe: "pembayaran",
           url: `/portal/pembayaran?order=${order_id}`,
           dibaca: false,
@@ -211,6 +214,10 @@ async function handleNotification(request: Request): Promise<Response> {
       } catch {
         // best-effort
       }
+      await kirimPushKeOrtu(admin, transaksi.user_id, judulNotif, pesanNotif, {
+        url: "/riwayat",
+        order_id,
+      });
     }
 
     return new Response(

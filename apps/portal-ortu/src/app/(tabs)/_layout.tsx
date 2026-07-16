@@ -1,12 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
+import { useEffect } from "react";
 import { Spinner } from "@/components/ui";
 import { useTheme } from "@/constants/theme";
 import { useAuth } from "@/lib/auth";
+import { daftarkanPushToken } from "@/lib/push";
 
 export default function TabsLayout() {
   const theme = useTheme();
   const { user, role, isLoading } = useAuth();
+
+  // Daftarkan token push setelah login/restore sesi ortu — layout ini hanya
+  // ter-mount saat guard di bawah lolos, jadi cukup dipicu dari sini.
+  const sudahLogin = !!user && role === "ortu";
+  useEffect(() => {
+    if (sudahLogin) daftarkanPushToken();
+  }, [sudahLogin]);
 
   if (isLoading) {
     return <Spinner />;

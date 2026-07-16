@@ -20,9 +20,9 @@ Isi `.env`:
 - `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — sama
   dengan `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` di web
   (gunakan key `sb_publishable_...`, bukan anon key JWT lama)
-- `EXPO_PUBLIC_PORTAL_WEB_URL` — URL portal web ter-deploy, dipakai tombol
-  "Bayar" untuk melanjutkan pembayaran Midtrans lewat browser (sementara,
-  sampai checkout in-app fase 2 selesai)
+- `EXPO_PUBLIC_PORTAL_WEB_URL` — URL portal web ter-deploy, dipakai checkout
+  in-app untuk memanggil API route `/api/portal/checkout` saat membuat
+  transaksi Midtrans
 
 Perintah lain: `npm run typecheck` (tsc), `npm run lint` (expo lint).
 
@@ -59,17 +59,27 @@ sebelum rilis publik.
   Badge, dst.) dengan tema emerald yang sama, mendukung light/dark.
 - **Login hanya role `ortu`** — akun role lain ditolak, sama seperti guard
   portal web.
+- **Checkout Midtrans in-app (fase 2).** Tab Tagihan mengisi keranjang
+  (`src/lib/keranjang.ts`), layar `/checkout` memanggil API route web
+  `POST /api/portal/checkout` (auth: bearer access token Supabase) yang
+  mengembalikan `snap_token` + `redirect_url`, lalu halaman Snap dibuka via
+  `WebBrowser.openAuthSessionAsync`. Callback Midtrans diarahkan ke deep
+  link `portalortu://riwayat?order=...` sehingga sesi browser tertutup
+  otomatis dan pengguna mendarat di Riwayat Pembayaran; status akhir tetap
+  ditentukan webhook Midtrans di server.
+- **Push notification (fase 2).** Setelah login, app meminta izin notifikasi
+  dan mendaftarkan Expo push token via RPC `daftarkan_push_token` (tabel
+  `perangkat_push_ortu`; token dihapus saat logout). Server mengirim push
+  lewat Expo Push API — saat ini dari webhook Midtrans ketika pembayaran
+  lunas (`src/server/push.ts` di root repo). Tap notifikasi membuka layar
+  yang disebut `data.url`. Catatan: butuh **EAS projectId** (`eas init`)
+  agar `getExpoPushTokenAsync` jalan; tanpa itu registrasi dilewati. Remote
+  push TIDAK bisa diuji di Expo Go (SDK 53+) — pakai development build/APK.
 
-## Belum Dikerjakan (Fase 2)
+## Belum Dikerjakan
 
-1. **Checkout Midtrans in-app.** Midtrans Snap adalah JS web dan pembuatan
-   snap token terjadi di server function TanStack Start (`src/server/payment.ts`)
-   yang tidak bisa dipanggil lintas app. Rencana: tambah API route di web
-   app (mis. `src/routes/api.portal.checkout.ts`) yang memvalidasi JWT
-   Supabase lalu mengembalikan `snap_token` + `redirect_url`, dan app
-   membukanya via WebView/`expo-web-browser`. Sementara itu tombol "Bayar"
-   mengarahkan ke portal web.
-2. **Push notification** pengingat tagihan & pengumuman — `expo-notifications`
-   + tabel token perangkat + trigger dari backend.
-3. **Ikon & splash resmi** menggantikan aset template.
-4. **Rilis iOS** (butuh akun Apple Developer; build via EAS tanpa Mac).
+1. **Ikon & splash resmi** menggantikan aset template (butuh aset resmi
+   dari yayasan).
+2. **Rilis iOS** (butuh akun Apple Developer; build via EAS tanpa Mac).
+3. **Pemicu push tambahan** — pengingat tagihan bulanan & pengumuman
+   (helper `kirimPushKeOrtu` sudah siap dipakai dari kode server mana pun).

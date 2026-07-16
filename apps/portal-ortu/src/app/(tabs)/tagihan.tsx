@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import * as WebBrowser from "expo-web-browser";
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button, Card, EmptyState, Spinner, Subtitle, Title } from "@/components/ui";
 import { useTheme } from "@/constants/theme";
 import { useAuth } from "@/lib/auth";
 import { BULAN_ORDER_AKADEMIK, formatRupiah, labelBulanTA } from "@/lib/format";
+import { setKeranjang } from "@/lib/keranjang";
 import { supabase } from "@/lib/supabase";
 
 interface TagihanItem {
@@ -29,6 +30,7 @@ interface TagihanItem {
 export default function TagihanScreen() {
   const theme = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data: anakIds = [] } = useQuery({
@@ -117,29 +119,27 @@ export default function TagihanScreen() {
   const selectedItems = tagihan.filter((t) => selected.has(getKey(t)));
   const totalSelected = selectedItems.reduce((sum, t) => sum + (t.nominal || 0), 0);
 
-  // Fase 1: pembayaran Midtrans dilanjutkan lewat portal web (Snap adalah
-  // JS web dan pembuatan token butuh endpoint server). Checkout in-app
-  // (API route + WebView Snap) menyusul di fase 2.
-  const handleCheckout = async () => {
-    const webUrl = process.env.EXPO_PUBLIC_PORTAL_WEB_URL;
-    if (!webUrl) {
-      Alert.alert(
-        "Belum dikonfigurasi",
-        "EXPO_PUBLIC_PORTAL_WEB_URL belum diset. Silakan bayar melalui portal web sekolah."
-      );
-      return;
-    }
-    Alert.alert(
-      "Lanjutkan di Portal Web",
-      "Pembayaran online untuk saat ini diproses melalui portal web. Pilih kembali tagihan Anda di sana, lalu selesaikan pembayaran.",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Buka Portal Web",
-          onPress: () => WebBrowser.openBrowserAsync(`${webUrl}/portal/tagihan`),
-        },
-      ]
+  // Checkout in-app (fase 2): keranjang diisi di sini, dibayar lewat layar
+  // /checkout yang memanggil API route web /api/portal/checkout lalu membuka
+  // halaman Midtrans Snap di browser in-app.
+  const handleCheckout = () => {
+    setKeranjang(
+      selectedItems.map((t) => ({
+        siswa_id: t.siswa_id,
+        nama_siswa: t.nama_siswa,
+        jenis_id: t.jenis_id,
+        jenis_nama: t.jenis_nama,
+        bulan: t.bulan,
+        jumlah: t.nominal,
+        departemen_id: t.departemen_id,
+        departemen_nama: t.departemen_nama,
+        tahun_ajaran_id: t.tahun_ajaran_id,
+        tahun_ajaran_nama: t.tahun_ajaran_nama,
+        tahun_ajaran_mulai: t.tahun_ajaran_mulai,
+        kelas_nama: t.kelas_nama,
+      }))
     );
+    router.push("/checkout");
   };
 
   if (isLoading) {

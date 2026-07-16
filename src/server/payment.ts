@@ -4,6 +4,8 @@
  *
  * createPayment: buat transaksi Midtrans Snap untuk pembayaran online orang tua.
  * getMidtransConfig: kembalikan client key + mode (sandbox/produksi) untuk Snap.js.
+ * buatTransaksiSnap: inti logika yang juga dipakai API route /api/portal/checkout
+ * untuk app mobile Portal Ortu.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./auth";
@@ -41,6 +43,8 @@ export interface CreatePaymentResult {
   transaksi_id: string;
   total_amount: number;
   biaya_admin: number;
+  /** URL halaman Snap (vtweb) — dipakai app mobile untuk membuka pembayaran di browser/WebView. */
+  redirect_url: string;
 }
 
 const NAMA_BULAN = [
@@ -89,146 +93,237 @@ function getEnabledPaymentsForCategory(category: PaymentCategory): string[] {
   return all.filter((p) => p !== "gopay" && p !== "other_qris");
 }
 
+export interface SnapCallbacks {
+  finish: string;
+  unfinish: string;
+  error: string;
+}
+
+/**
+ * Inti pembuatan transaksi Midtrans Snap — dipakai dua jalur:
+ *   - server function `createPayment` (portal web, callback ke halaman portal)
+ *   - API route `/api/portal/checkout` (app mobile, callback ke deep link app)
+ * Validasi kepemilikan siswa, anti double-payment, dan re-fetch nominal dari DB
+ * semuanya terjadi di sini sehingga kedua jalur setara keamanannya.
+ */
+export async function buatTransaksiSnap(params: {
+  userId: string;
+  input: CreatePaymentInput;
+  /** Dipanggil dengan order_id yang baru dibuat agar callback bisa menyematkannya. */
+  callbacks: (orderId: string) => SnapCallbacks;
+}): Promise<CreatePaymentResult> {
+  const admin = createAdminClient();
+  const { userId, callbacks } = params;
+
+  const { items, customer, payment_category } = params.input;
+  if (!items || items.length === 0) {
+    throw new Error("Tidak ada tagihan yang dipilih");
+  }
+  if (payment_category !== "qris_gopay" && payment_category !== "lainnya") {
+    throw new Error("Kategori pembayaran tidak valid");
+  }
+
+  // Validasi: semua siswa_id memang anak dari user ini
+  const siswaIds = [...new Set(items.map((i) => i.siswa_id))];
+  const { data: ortuData, error: ortuError } = await admin
+    .from("ortu_siswa")
+    .select("siswa_id")
+    .eq("user_id", userId)
+    .in("siswa_id", siswaIds);
+  if (ortuError) throw ortuError;
+  if (!ortuData || ortuData.length !== siswaIds.length) {
+    throw new Error("Akses ditolak: beberapa siswa bukan anak Anda");
+  }
+
+  // Anti double payment
+  for (const item of items) {
+    const { data: existingPayment } = await admin
+      .from("pembayaran")
+      .select("id")
+      .eq("siswa_id", item.siswa_id)
+      .eq("jenis_id", item.jenis_id)
+      .eq("bulan", item.bulan)
+      .maybeSingle();
+    if (existingPayment) {
+      throw new Error(
+        `Tagihan ${item.jenis_nama} bulan ke-${item.bulan} untuk ${item.nama_siswa} sudah dibayar`
+      );
+    }
+  }
+
+  // Re-fetch nominal dari DB (JANGAN percaya frontend)
+  const { data: kelasSiswaData } = await admin
+    .from("kelas_siswa")
+    .select("siswa_id, kelas_id, tahun_ajaran_id")
+    .in("siswa_id", siswaIds)
+    .eq("aktif", true);
+
+  const kelasMap = new Map<
+    string,
+    { kelas_id: string | null; tahun_ajaran_id: string | null }
+  >();
+  (kelasSiswaData || []).forEach((ks) => {
+    kelasMap.set(ks.siswa_id, {
+      kelas_id: ks.kelas_id,
+      tahun_ajaran_id: ks.tahun_ajaran_id,
+    });
+  });
+
+  const validatedItems: TagihanItem[] = [];
+  for (const item of items) {
+    const kelasInfo = kelasMap.get(item.siswa_id);
+    const { data: tarifNominal } = await admin.rpc("get_tarif_siswa", {
+      p_jenis_id: item.jenis_id,
+      p_siswa_id: item.siswa_id,
+      p_kelas_id: kelasInfo?.kelas_id || null,
+      p_tahun_ajaran_id:
+        item.tahun_ajaran_id || kelasInfo?.tahun_ajaran_id || null,
+    });
+
+    const nominalDB = Number(tarifNominal) || 0;
+    if (nominalDB <= 0) {
+      throw new Error(
+        `Tarif tidak ditemukan untuk ${item.jenis_nama} - ${item.nama_siswa}`
+      );
+    }
+
+    validatedItems.push({
+      ...item,
+      jumlah: nominalDB,
+      departemen_id: item.departemen_id || undefined,
+      // PENTING: prioritaskan tahun_ajaran_id dari tagihan yang dipilih (item),
+      // BUKAN dari kelas_siswa aktif siswa saat ini. Jika dibalik, pembayaran
+      // tunggakan tahun ajaran lama via portal ortu akan tersimpan dengan
+      // tahun_ajaran_id tahun berjalan — tidak match ke tagihan lama, sehingga
+      // tagihan lama tetap muncul belum lunas walau sudah dibayar (sama seperti
+      // bug tahun_ajaran_id nyangkut di InputPembayaran.tsx sisi kasir).
+      tahun_ajaran_id:
+        item.tahun_ajaran_id || kelasInfo?.tahun_ajaran_id || undefined,
+    });
+  }
+
+  const totalAmount = validatedItems.reduce((sum, i) => sum + i.jumlah, 0);
+  const biayaAdmin = hitungBiayaAdmin(payment_category, totalAmount);
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const orderId = `HAT-${dateStr}-${random}`;
+
+  const { data: transaksi, error: txError } = await admin
+    .from("transaksi_midtrans")
+    .insert({
+      order_id: orderId,
+      user_id: userId,
+      total_amount: totalAmount,
+      biaya_admin: biayaAdmin,
+      status: "pending",
+      expired_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .select()
+    .single();
+  if (txError) throw txError;
+
+  const itemsToInsert = validatedItems.map((item) => ({
+    transaksi_id: transaksi.id,
+    siswa_id: item.siswa_id,
+    jenis_id: item.jenis_id,
+    bulan: item.bulan,
+    jumlah: item.jumlah,
+    nama_item: `${item.jenis_nama} - ${item.nama_siswa} - ${NAMA_BULAN[item.bulan]}`,
+    departemen_id: item.departemen_id || null,
+    tahun_ajaran_id: item.tahun_ajaran_id || null,
+  }));
+
+  const { error: itemError } = await admin
+    .from("transaksi_midtrans_item")
+    .insert(itemsToInsert);
+  if (itemError) throw itemError;
+
+  // Panggil Midtrans Snap
+  const serverKey = readEnv("MIDTRANS_SERVER_KEY");
+  if (!serverKey) throw new Error("MIDTRANS_SERVER_KEY belum dikonfigurasi");
+  const baseUrl = serverKey.startsWith("SB-")
+    ? "https://app.sandbox.midtrans.com"
+    : "https://app.midtrans.com";
+  const authString = btoa(`${serverKey}:`);
+
+  const itemDetails = validatedItems.map((item, idx) => ({
+    id: `ITEM-${idx + 1}-${item.bulan}`,
+    price: Math.round(item.jumlah),
+    quantity: 1,
+    name: `${item.jenis_nama} ${NAMA_BULAN[item.bulan]} - ${item.nama_siswa}`.substring(
+      0,
+      50
+    ),
+  }));
+  if (biayaAdmin > 0) {
+    itemDetails.push({
+      id: "BIAYA-ADMIN",
+      price: biayaAdmin,
+      quantity: 1,
+      name: "Biaya Admin",
+    });
+  }
+
+  const midtransPayload: Record<string, unknown> = {
+    transaction_details: {
+      order_id: orderId,
+      gross_amount: Math.round(totalAmount + biayaAdmin),
+    },
+    customer_details: {
+      first_name: customer.nama,
+      email: customer.email,
+      phone: customer.telepon || "",
+    },
+    item_details: itemDetails,
+    callbacks: callbacks(orderId),
+    expiry: { unit: "hours", duration: 24 },
+    enabled_payments: getEnabledPaymentsForCategory(payment_category),
+  };
+  if (payment_category === "qris_gopay") {
+    // "other_qris" (channel QRIS generik) wajib disertai acquirer di Snap.
+    midtransPayload.qris = { acquirer: "gopay" };
+  }
+
+  const midtransRes = await fetch(`${baseUrl}/snap/v1/transactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${authString}`,
+    },
+    body: JSON.stringify(midtransPayload),
+  });
+  const midtransData = await midtransRes.json();
+
+  if (!midtransRes.ok || !midtransData.token) {
+    await admin.from("transaksi_midtrans").delete().eq("id", transaksi.id);
+    throw new Error(
+      midtransData.error_messages?.[0] || "Gagal membuat transaksi Midtrans"
+    );
+  }
+
+  await admin
+    .from("transaksi_midtrans")
+    .update({ snap_token: midtransData.token })
+    .eq("id", transaksi.id);
+
+  return {
+    success: true,
+    snap_token: midtransData.token,
+    order_id: orderId,
+    transaksi_id: transaksi.id,
+    total_amount: totalAmount,
+    biaya_admin: biayaAdmin,
+    redirect_url:
+      midtransData.redirect_url || `${baseUrl}/snap/v2/vtweb/${midtransData.token}`,
+  };
+}
+
 export const createPayment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .inputValidator((d: CreatePaymentInput) => d)
   .handler(async ({ data, context }): Promise<CreatePaymentResult> => {
-    const admin = createAdminClient();
-    const userId = context.userId;
-
-    const { items, customer, payment_category } = data;
-    if (!items || items.length === 0) {
-      throw new Error("Tidak ada tagihan yang dipilih");
-    }
-    if (payment_category !== "qris_gopay" && payment_category !== "lainnya") {
-      throw new Error("Kategori pembayaran tidak valid");
-    }
-
-    // Validasi: semua siswa_id memang anak dari user ini
-    const siswaIds = [...new Set(items.map((i) => i.siswa_id))];
-    const { data: ortuData, error: ortuError } = await admin
-      .from("ortu_siswa")
-      .select("siswa_id")
-      .eq("user_id", userId)
-      .in("siswa_id", siswaIds);
-    if (ortuError) throw ortuError;
-    if (!ortuData || ortuData.length !== siswaIds.length) {
-      throw new Error("Akses ditolak: beberapa siswa bukan anak Anda");
-    }
-
-    // Anti double payment
-    for (const item of items) {
-      const { data: existingPayment } = await admin
-        .from("pembayaran")
-        .select("id")
-        .eq("siswa_id", item.siswa_id)
-        .eq("jenis_id", item.jenis_id)
-        .eq("bulan", item.bulan)
-        .maybeSingle();
-      if (existingPayment) {
-        throw new Error(
-          `Tagihan ${item.jenis_nama} bulan ke-${item.bulan} untuk ${item.nama_siswa} sudah dibayar`
-        );
-      }
-    }
-
-    // Re-fetch nominal dari DB (JANGAN percaya frontend)
-    const { data: kelasSiswaData } = await admin
-      .from("kelas_siswa")
-      .select("siswa_id, kelas_id, tahun_ajaran_id")
-      .in("siswa_id", siswaIds)
-      .eq("aktif", true);
-
-    const kelasMap = new Map<
-      string,
-      { kelas_id: string | null; tahun_ajaran_id: string | null }
-    >();
-    (kelasSiswaData || []).forEach((ks) => {
-      kelasMap.set(ks.siswa_id, {
-        kelas_id: ks.kelas_id,
-        tahun_ajaran_id: ks.tahun_ajaran_id,
-      });
-    });
-
-    const validatedItems: TagihanItem[] = [];
-    for (const item of items) {
-      const kelasInfo = kelasMap.get(item.siswa_id);
-      const { data: tarifNominal } = await admin.rpc("get_tarif_siswa", {
-        p_jenis_id: item.jenis_id,
-        p_siswa_id: item.siswa_id,
-        p_kelas_id: kelasInfo?.kelas_id || null,
-        p_tahun_ajaran_id:
-          item.tahun_ajaran_id || kelasInfo?.tahun_ajaran_id || null,
-      });
-
-      const nominalDB = Number(tarifNominal) || 0;
-      if (nominalDB <= 0) {
-        throw new Error(
-          `Tarif tidak ditemukan untuk ${item.jenis_nama} - ${item.nama_siswa}`
-        );
-      }
-
-      validatedItems.push({
-        ...item,
-        jumlah: nominalDB,
-        departemen_id: item.departemen_id || undefined,
-        // PENTING: prioritaskan tahun_ajaran_id dari tagihan yang dipilih (item),
-        // BUKAN dari kelas_siswa aktif siswa saat ini. Jika dibalik, pembayaran
-        // tunggakan tahun ajaran lama via portal ortu akan tersimpan dengan
-        // tahun_ajaran_id tahun berjalan — tidak match ke tagihan lama, sehingga
-        // tagihan lama tetap muncul belum lunas walau sudah dibayar (sama seperti
-        // bug tahun_ajaran_id nyangkut di InputPembayaran.tsx sisi kasir).
-        tahun_ajaran_id:
-          item.tahun_ajaran_id || kelasInfo?.tahun_ajaran_id || undefined,
-      });
-    }
-
-    const totalAmount = validatedItems.reduce((sum, i) => sum + i.jumlah, 0);
-    const biayaAdmin = hitungBiayaAdmin(payment_category, totalAmount);
-
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const orderId = `HAT-${dateStr}-${random}`;
-
-    const { data: transaksi, error: txError } = await admin
-      .from("transaksi_midtrans")
-      .insert({
-        order_id: orderId,
-        user_id: userId,
-        total_amount: totalAmount,
-        biaya_admin: biayaAdmin,
-        status: "pending",
-        expired_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      })
-      .select()
-      .single();
-    if (txError) throw txError;
-
-    const itemsToInsert = validatedItems.map((item) => ({
-      transaksi_id: transaksi.id,
-      siswa_id: item.siswa_id,
-      jenis_id: item.jenis_id,
-      bulan: item.bulan,
-      jumlah: item.jumlah,
-      nama_item: `${item.jenis_nama} - ${item.nama_siswa} - ${NAMA_BULAN[item.bulan]}`,
-      departemen_id: item.departemen_id || null,
-      tahun_ajaran_id: item.tahun_ajaran_id || null,
-    }));
-
-    const { error: itemError } = await admin
-      .from("transaksi_midtrans_item")
-      .insert(itemsToInsert);
-    if (itemError) throw itemError;
-
-    // Panggil Midtrans Snap
-    const serverKey = readEnv("MIDTRANS_SERVER_KEY");
-    if (!serverKey) throw new Error("MIDTRANS_SERVER_KEY belum dikonfigurasi");
-    const baseUrl = serverKey.startsWith("SB-")
-      ? "https://app.sandbox.midtrans.com"
-      : "https://app.midtrans.com";
-    const authString = btoa(`${serverKey}:`);
-
     // Origin untuk callback URL (browser mengirim header ini)
     const { getRequestHeader } = await import("@tanstack/react-start/server");
     const origin =
@@ -236,78 +331,16 @@ export const createPayment = createServerFn({ method: "POST" })
       getRequestHeader("referer")?.replace(/\/$/, "") ||
       "http://localhost:8080";
 
-    const itemDetails = validatedItems.map((item, idx) => ({
-      id: `ITEM-${idx + 1}-${item.bulan}`,
-      price: Math.round(item.jumlah),
-      quantity: 1,
-      name: `${item.jenis_nama} ${NAMA_BULAN[item.bulan]} - ${item.nama_siswa}`.substring(
-        0,
-        50
-      ),
-    }));
-    if (biayaAdmin > 0) {
-      itemDetails.push({
-        id: "BIAYA-ADMIN",
-        price: biayaAdmin,
-        quantity: 1,
-        name: "Biaya Admin",
-      });
-    }
-
-    const midtransPayload: Record<string, unknown> = {
-      transaction_details: {
-        order_id: orderId,
-        gross_amount: Math.round(totalAmount + biayaAdmin),
-      },
-      customer_details: {
-        first_name: customer.nama,
-        email: customer.email,
-        phone: customer.telepon || "",
-      },
-      item_details: itemDetails,
-      callbacks: {
+    const result = await buatTransaksiSnap({
+      userId: context.userId,
+      input: data,
+      callbacks: (orderId) => ({
         finish: `${origin}/portal/pembayaran?order=${orderId}`,
         unfinish: `${origin}/portal/tagihan`,
         error: `${origin}/portal/tagihan`,
-      },
-      expiry: { unit: "hours", duration: 24 },
-      enabled_payments: getEnabledPaymentsForCategory(payment_category),
-    };
-    if (payment_category === "qris_gopay") {
-      // "other_qris" (channel QRIS generik) wajib disertai acquirer di Snap.
-      midtransPayload.qris = { acquirer: "gopay" };
-    }
-
-    const midtransRes = await fetch(`${baseUrl}/snap/v1/transactions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${authString}`,
-      },
-      body: JSON.stringify(midtransPayload),
+      }),
     });
-    const midtransData = await midtransRes.json();
-
-    if (!midtransRes.ok || !midtransData.token) {
-      await admin.from("transaksi_midtrans").delete().eq("id", transaksi.id);
-      throw new Error(
-        midtransData.error_messages?.[0] || "Gagal membuat transaksi Midtrans"
-      );
-    }
-
-    await admin
-      .from("transaksi_midtrans")
-      .update({ snap_token: midtransData.token })
-      .eq("id", transaksi.id);
-
-    return {
-      success: true,
-      snap_token: midtransData.token,
-      order_id: orderId,
-      transaksi_id: transaksi.id,
-      total_amount: totalAmount,
-      biaya_admin: biayaAdmin,
-    };
+    return result;
   });
 
 export interface MidtransConfig {
