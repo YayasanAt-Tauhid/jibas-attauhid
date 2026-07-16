@@ -1,4 +1,4 @@
-# Catatan Sesi — terakhir diperbarui 14 Juli 2026
+# Catatan Sesi — terakhir diperbarui 16 Juli 2026
 
 > File ini dibaca otomatis oleh Claude Code di awal sesi (lihat CLAUDE.md → Kontinuitas Antar Sesi).
 > Update file ini di akhir setiap pengerjaan yang berarti: apa yang selesai, keputusan + alasannya, langkah berikutnya.
@@ -40,7 +40,11 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 - **Input tarif massal per-siswa (14 Juli):** dialog "Tambah Massal" di Tab Tarif Tagihan — pilih siswa via combobox atau import Excel (template: nis, nominal, keterangan; lookup NIS satu query), nominal bisa per-baris atau seragam, deteksi duplikat vs tarif yang sudah ada, insert satu batch atomik, generate tagihan sekali panggil via param baru `siswa_ids` di server function (RPC `generate_tagihan_batch` sudah mendukung daftar siswa — TANPA perubahan skema DB)
 - **UX Tab Tarif Tagihan (14 Juli):** input nominal berformat Rupiah (komponen `RupiahInput`, tolak nilai ≤ 0), pesan validasi eksplisit (bukan tombol disabled bisu), urutan field mengikuti dependensi (Lembaga → Jenis → target), reset pilihan kini diberi notifikasi toast, pencarian siswa diganti `SiswaCombobox` (debounce, keyboard nav, loading/empty state — dipakai di 3 tempat), konfirmasi khusus untuk generate semua-siswa, mode edit jadi ringkasan read-only, deteksi tarif duplikat, filter Angkatan ikut Lembaga
 
+- **App mobile Portal Ortu — fase 1 (16 Juli):** aplikasi Expo baru di `apps/portal-ortu/` (React Native + Expo Router, SDK 57, branch `claude/react-native-expo-ssr-ssg-3qt5m1`). Login khusus role `ortu`, tab Beranda/Tagihan/Presensi/Nilai/Profil + layar Riwayat Pembayaran; query Supabase identik dengan portal web (queryKey sama). Keputusan: dipilih **app Expo khusus portal** (bukan migrasi seluruh proyek ke Expo, bukan Capacitor/PWA) — scope kecil (7 layar), memungkinkan push notification native, web admin + SSR tak tersentuh; SSR/SSG tidak relevan untuk app native. Tipe DB di-share type-only dari `src/integrations/supabase/types.ts`; util format (Rupiah, bulan akademik) disalin karena Metro tidak bisa bundle modul Vite — detail di `apps/portal-ortu/README.md`
+
 ## Pekerjaan Terbuka
+
+- **App mobile Portal Ortu — fase 2:** (1) checkout Midtrans in-app — perlu API route baru di web app (mis. `api.portal.checkout`) yang validasi JWT Supabase dan kembalikan `snap_token`, lalu buka via WebView; sementara tombol Bayar mengarah ke portal web via env `EXPO_PUBLIC_PORTAL_WEB_URL`; (2) push notification (`expo-notifications` + tabel token perangkat); (3) ikon & splash resmi pengganti aset template; (4) rilis iOS. Catatan: `expo install` gagal di jaringan sesi container (versi native module diambil manual dari `bundledNativeModules.json`)
 
 - **Rencana diskon/keringanan SPP (beasiswa, kakak-adik, bantuan, kurang mampu)** — belum diimplementasi, rencana lengkap (skema tabel, RPC, deteksi kakak-adik semi-otomatis, halaman UI, urutan migrasi) ada di `RENCANA_DISKON_KERINGANAN.md`. Rekomendasi kerjakan dengan `claude-opus-4-8`. Ada 3 keputusan desain yang perlu diambil dulu sebelum coding (lihat bagian akhir file tsb: kombinasi diskon ganda, approval workflow, nilai default berjenjang kakak-adik)
 - **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
