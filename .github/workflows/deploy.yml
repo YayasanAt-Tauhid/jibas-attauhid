@@ -20,7 +20,7 @@ name: Deploy to Cloudflare Workers
 
 on:
   push:
-    branches: [dev]
+    branches: [versi-2]
   workflow_dispatch: {}
 
 # Never run two deploys at once; cancel superseded ones.
