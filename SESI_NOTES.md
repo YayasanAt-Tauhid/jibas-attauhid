@@ -1,4 +1,4 @@
-# Catatan Sesi — terakhir diperbarui 14 Juli 2026
+# Catatan Sesi — terakhir diperbarui 16 Juli 2026
 
 > File ini dibaca otomatis oleh Claude Code di awal sesi (lihat CLAUDE.md → Kontinuitas Antar Sesi).
 > Update file ini di akhir setiap pengerjaan yang berarti: apa yang selesai, keputusan + alasannya, langkah berikutnya.
@@ -7,7 +7,8 @@
 ## Info Penting
 
 ### Infrastruktur
-- **Supabase project aktif:** `Hijrah At-Tauhid v2` (ID: `leyfwwmroijwnkrcblxe`)
+- **Supabase project aktif:** `Hijrah At-Tauhid v2` (ID: `rumdeqkrtfjxckqgokoy`) — dikonfirmasi user 16 Juli 2026. Project lama `leyfwwmroijwnkrcblxe` TIDAK dipakai lagi (tak terjangkau MCP; referensi di kode sudah diganti). Project `cnvkfvhvmhswhsrdynll` ("Hijrah At-Tauhid Clone V2") = clone untuk uji coba
+- **Perhatian `supabase db push`:** nomor versi di ledger migrasi remote berbeda dari nama file di `supabase/migrations/` (banyak migrasi diterapkan via MCP `apply_migration` dengan timestamp sendiri) — jangan jalankan `db push` buta; objek DB-nya sendiri sudah sesuai file migrasi terbaru (diverifikasi 16 Juli)
 - **Repo:** `YayasanAt-Tauhid/jibas-attauhid` (GitHub)
 - **MCP VPS2** terpasang — stack VPS di `/home/attauhid/` (script migrasi jurnal dari MariaDB lama)
 - Deploy: Cloudflare Worker — `VITE_SUPABASE_URL`/`PUBLISHABLE_KEY` di-sync via CI ke Worker runtime secret
@@ -40,12 +41,20 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 - **Input tarif massal per-siswa (14 Juli):** dialog "Tambah Massal" di Tab Tarif Tagihan — pilih siswa via combobox atau import Excel (template: nis, nominal, keterangan; lookup NIS satu query), nominal bisa per-baris atau seragam, deteksi duplikat vs tarif yang sudah ada, insert satu batch atomik, generate tagihan sekali panggil via param baru `siswa_ids` di server function (RPC `generate_tagihan_batch` sudah mendukung daftar siswa — TANPA perubahan skema DB)
 - **UX Tab Tarif Tagihan (14 Juli):** input nominal berformat Rupiah (komponen `RupiahInput`, tolak nilai ≤ 0), pesan validasi eksplisit (bukan tombol disabled bisu), urutan field mengikuti dependensi (Lembaga → Jenis → target), reset pilihan kini diberi notifikasi toast, pencarian siswa diganti `SiswaCombobox` (debounce, keyboard nav, loading/empty state — dipakai di 3 tempat), konfirmasi khusus untuk generate semua-siswa, mode edit jadi ringkasan read-only, deteksi tarif duplikat, filter Angkatan ikut Lembaga
 
+- **App mobile Portal Ortu — fase 2 (16 Juli):** (1) **Checkout Midtrans in-app**: logika `createPayment` diekstrak jadi `buatTransaksiSnap()` (validasi & keamanan identik untuk kedua jalur), API route baru `POST /api/portal/checkout` (auth bearer JWT Supabase, identitas customer diambil dari token — bukan dari body), respons kini menyertakan `redirect_url` Snap; di app: keranjang module-level + layar `/checkout`, Snap dibuka via `openAuthSessionAsync` dengan callback deep link `portalortu://riwayat?order=...`. (2) **Push notification**: migrasi `20260716080000_perangkat_push_ortu.sql` (tabel token + RPC `daftarkan_push_token` SECURITY DEFINER agar token bisa pindah akun secara atomik; `types.ts` dipatch manual), helper server `kirimPushKeOrtu()` (Expo Push API, best-effort, hapus token DeviceNotRegistered) dipanggil dari webhook Midtrans saat lunas; app registrasi token setelah login (tabs layout), hapus token saat logout, tap notifikasi navigasi ke `data.url`. Endpoint di-smoke-test via vite dev (401 tanpa/dgn token invalid, OPTIONS 204+CORS); `tsc` app mobile bersih; build web sukses. Catatan: `expo lint` di apps/portal-ortu belum jalan (config eslint root tak menjangkau subfolder — kondisi bawaan fase 1)
+
+- **Beres-beres Supabase (16 Juli):** user mengonfirmasi project aktif = `rumdeqkrtfjxckqgokoy` (catatan lama soal `leyfwwmroijwnkrcblxe` usang). Migrasi `20260716080000_perangkat_push_ortu` **sudah diterapkan** ke project aktif via MCP (tabel + RPC + 2 policy terverifikasi) — push notification tinggal menunggu EAS projectId. Migrasi `20260714120000_generate_tagihan_batch_rpc` terverifikasi ada di project aktif (fungsi + index `tagihan_unique`). Ditemukan & dibereskan: `buku_besar_mutasi`/`buku_besar_saldo_awal` punya overload ganda (versi lama tanpa `p_exclude_koreksi` tertinggal — pola bug `get_tarif_siswa`); overload lama di-drop via migrasi `20260716090000_drop_buku_besar_old_overloads.sql`. Referensi hardcoded `leyfwwmroijwnkrcblxe` diganti di `ManajemenPengguna.tsx` (link dashboard) & `scripts/migrasi_jurnal.py`/`migrasi_jbsfina.py` (default URL)
+
+- **App mobile Portal Ortu — fase 1 (16 Juli):** aplikasi Expo baru di `apps/portal-ortu/` (React Native + Expo Router, SDK 57, branch `claude/react-native-expo-ssr-ssg-3qt5m1`). Login khusus role `ortu`, tab Beranda/Tagihan/Presensi/Nilai/Profil + layar Riwayat Pembayaran; query Supabase identik dengan portal web (queryKey sama). Keputusan: dipilih **app Expo khusus portal** (bukan migrasi seluruh proyek ke Expo, bukan Capacitor/PWA) — scope kecil (7 layar), memungkinkan push notification native, web admin + SSR tak tersentuh; SSR/SSG tidak relevan untuk app native. Tipe DB di-share type-only dari `src/integrations/supabase/types.ts`; util format (Rupiah, bulan akademik) disalin karena Metro tidak bisa bundle modul Vite — detail di `apps/portal-ortu/README.md`
+
 ## Pekerjaan Terbuka
+
+- **App mobile Portal Ortu — sisa fase 2 (butuh aset/akun dari user, tidak bisa dari sesi):** (1) ikon & splash resmi pengganti aset template; (2) rilis iOS (akun Apple Developer + build EAS); (3) `eas init` untuk mendapat EAS projectId — **prasyarat push notification jalan** (`getExpoPushTokenAsync` butuh projectId; tanpa itu registrasi token dilewati diam-diam); remote push tidak bisa diuji di Expo Go SDK 53+, harus development build/APK
+- **Uji end-to-end checkout in-app dengan Midtrans sandbox** — smoke test baru sampai lapisan auth/CORS; perilaku deep link callback `portalortu://` di halaman Snap perlu diverifikasi di perangkat nyata (kalau bermasalah, fallback: arahkan finish ke halaman web yang menampilkan tombol "kembali ke aplikasi")
 
 - **Rencana diskon/keringanan SPP (beasiswa, kakak-adik, bantuan, kurang mampu)** — belum diimplementasi, rencana lengkap (skema tabel, RPC, deteksi kakak-adik semi-otomatis, halaman UI, urutan migrasi) ada di `RENCANA_DISKON_KERINGANAN.md`. Rekomendasi kerjakan dengan `claude-opus-4-8`. Ada 3 keputusan desain yang perlu diambil dulu sebelum coding (lihat bagian akhir file tsb: kombinasi diskon ganda, approval workflow, nilai default berjenjang kakak-adik)
 - **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
 - **Error tsc `context is possibly undefined`** di semua file `src/server/*.ts` (typing authMiddleware) — pola lama, belum diperbaiki
-- **Verifikasi migrasi `20260714120000_generate_tagihan_batch_rpc.sql` di produksi** — file migrasi dibuat dari definisi verbatim database (via project Clone `rumdeqkrtfjxckqgokoy`; project produksi `leyfwwmroijwnkrcblxe` tidak terjangkau dari MCP sesi ini). Isinya idempoten (IF NOT EXISTS + CREATE OR REPLACE), tapi tetap cocokkan sekali dengan produksi saat menjalankan `supabase db push` / apply berikutnya
 
 ---
 

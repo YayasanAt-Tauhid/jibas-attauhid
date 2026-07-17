@@ -2491,6 +2491,44 @@ export type Database = {
           },
         ]
       }
+      perangkat_push_ortu: {
+        Row: {
+          created_at: string
+          device_name: string | null
+          expo_push_token: string
+          id: string
+          platform: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_name?: string | null
+          expo_push_token: string
+          id?: string
+          platform?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_name?: string | null
+          expo_push_token?: string
+          id?: string
+          platform?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perangkat_push_ortu_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       presensi_kbm: {
         Row: {
           id: string
@@ -4733,6 +4771,14 @@ export type Database = {
           p_tgl_awal: string
         }
         Returns: number
+      }
+      daftarkan_push_token: {
+        Args: {
+          p_token: string
+          p_platform?: string
+          p_device_name?: string
+        }
+        Returns: undefined
       }
       fn_cari_kandidat_pasangan: {
         Args: {

@@ -141,7 +141,7 @@ function UserManager() {
         <Info className="h-4 w-4" />
         <AlertDescription>
           Buat akun login baru lewat tombol <strong>Tambah Pengguna</strong>. Atau lewat{" "}
-          <a href="https://supabase.com/dashboard/project/leyfwwmroijwnkrcblxe/auth/users" target="_blank" rel="noopener noreferrer" className="font-medium underline">
+          <a href="https://supabase.com/dashboard/project/rumdeqkrtfjxckqgokoy/auth/users" target="_blank" rel="noopener noreferrer" className="font-medium underline">
             Supabase Dashboard → Authentication → Invite User
           </a>.
         </AlertDescription>
