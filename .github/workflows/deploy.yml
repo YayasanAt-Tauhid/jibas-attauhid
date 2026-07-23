@@ -4,7 +4,7 @@ name: Deploy to Cloudflare Workers
 # the Worker. Two apps share this one workflow but point at different
 # Supabase projects and different Cloudflare Workers, selected via GitHub
 # Environments:
-#   - push to `versi-2`  -> environment `production`
+#   - push to `versi-4`  -> environment `production`
 #   - push to `staging`  -> environment `staging`
 #
 # Each environment (Settings -> Environments) must define its own:
@@ -26,7 +26,7 @@ name: Deploy to Cloudflare Workers
 
 on:
   push:
-    branches: [versi-2, staging]
+    branches: [versi-4, staging]
   workflow_dispatch: {}
 
 # Never run two deploys of the same app at once; cancel superseded ones.
@@ -41,7 +41,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'versi-2' && 'production' || 'staging' }}
+    environment: ${{ github.ref_name == 'versi-4' && 'production' || 'staging' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
