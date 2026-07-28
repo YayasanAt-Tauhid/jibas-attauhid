@@ -7,7 +7,7 @@ Dependensi:
     pip install pymysql requests
 
 Env vars (bisa di .env atau export langsung):
-    SUPABASE_URL              https://rumdeqkrtfjxckqgokoy.supabase.co
+    SUPABASE_URL              https://oquzygbekjpbmafuqiot.supabase.co
     SUPABASE_SERVICE_ROLE_KEY eyJ...
     DB_HOST                   localhost
     DB_PORT                   3306 (default)
@@ -25,7 +25,7 @@ import requests
 
 # ── Konfigurasi ──────────────────────────────────────────────────────────────
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rumdeqkrtfjxckqgokoy.supabase.co")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://oquzygbekjpbmafuqiot.supabase.co")
 SERVICE_ROLE  = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 DB_HOST = os.environ.get("DB_HOST", "localhost")
