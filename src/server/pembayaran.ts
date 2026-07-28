@@ -7,7 +7,7 @@
  *   - batalkan_pembayaran_atomik
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireRole } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface ProsesPembayaranInput {
@@ -41,7 +41,8 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
   .inputValidator((d: ProsesPembayaranInput) => d)
   .handler(async ({ data, context }): Promise<ProsesPembayaranResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, [
+    const { userId } = requireContext(context);
+    await requireRole(admin, userId, [
       "admin",
       "kepala_sekolah",
       "keuangan",
@@ -241,7 +242,7 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
         p_kredit_akun_id: kreditAkunId,
         p_kredit_label: kreditLabel,
         p_prefix_jurnal: pakaiDimuka ? "JD" : "JP",
-        p_petugas_id: context.userId,
+        p_petugas_id: userId,
         p_jenis_nama: jenis.nama,
       }
     );
@@ -278,8 +279,9 @@ export const batalkanPembayaran = createServerFn({ method: "POST" })
       context,
     }): Promise<{ success: true; jurnal_pembalik_id: string | null }> => {
       const admin = createAdminClient();
+      const { userId } = requireContext(context);
       // BUKAN kasir — hanya admin/kepala/keuangan
-      await requireRole(admin, context.userId, [
+      await requireRole(admin, userId, [
         "admin",
         "kepala_sekolah",
         "keuangan",
@@ -310,7 +312,7 @@ export const batalkanPembayaran = createServerFn({ method: "POST" })
           p_pembayaran_id: pembayaran_id,
           p_alasan: alasan,
           p_tanggal: tanggal,
-          p_user_id: context.userId,
+          p_user_id: userId,
         }
       );
       if (rpcErr)

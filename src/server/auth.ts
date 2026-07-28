@@ -56,6 +56,26 @@ export const authMiddleware = createMiddleware({ type: "function" })
     return next({ context: { userId: user.id, userEmail: user.email ?? null } });
   });
 
+export interface AuthContext {
+  userId: string;
+  userEmail: string | null;
+}
+
+/**
+ * Handler server function selalu menerima context ini via `authMiddleware`
+ * (dijamin ada, atau middleware sudah melempar UnauthorizedError lebih dulu).
+ * TanStack Start tidak berhasil menginferensi tipe context hasil komposisi
+ * middleware di `.handler()` — parameter di sini bertipe `unknown` (bukan
+ * `AuthContext | undefined`) supaya tidak bergantung pada inferensi itu;
+ * `requireContext` cukup memastikan runtime-nya (harusnya tidak pernah throw
+ * dalam praktik) lalu menyempitkan ke tipe yang benar.
+ */
+export function requireContext(context: unknown): AuthContext {
+  const ctx = context as AuthContext | undefined;
+  if (!ctx) throw new UnauthorizedError();
+  return ctx;
+}
+
 /**
  * Pastikan user punya salah satu peran yang diizinkan.
  * Melempar ForbiddenError bila tidak. Mengembalikan role user.

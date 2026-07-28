@@ -8,7 +8,7 @@
  * untuk app mobile Portal Ortu.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware } from "./auth";
+import { authMiddleware, requireContext } from "./auth";
 import { createAdminClient, readEnv } from "./supabase";
 
 interface TagihanItem {
@@ -332,7 +332,7 @@ export const createPayment = createServerFn({ method: "POST" })
       "http://localhost:8080";
 
     const result = await buatTransaksiSnap({
-      userId: context.userId,
+      userId: requireContext(context).userId,
       input: data,
       callbacks: (orderId) => ({
         finish: `${origin}/portal/pembayaran?order=${orderId}`,

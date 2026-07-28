@@ -21,7 +21,7 @@
  * "tagihan mendatang".
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 import { hariTerlambat, sudahMenunggak } from "@/lib/jatuhTempo";
 
@@ -83,7 +83,7 @@ export const rekapTunggakan = createServerFn({ method: "POST" })
   .inputValidator((d: RekapTunggakanInput) => d)
   .handler(async ({ data, context }): Promise<RekapTunggakanResult> => {
     const admin = createAdminClient();
-    const userId = context.userId;
+    const { userId } = requireContext(context);
     const {
       siswa_id,
       tahun_ajaran_id,
@@ -252,7 +252,7 @@ export const rekapTunggakanBatch = createServerFn({ method: "POST" })
   .inputValidator((d: RekapTunggakanBatchInput) => d)
   .handler(async ({ data, context }): Promise<RekapTunggakanBatchResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, [
+    await requireRole(admin, requireContext(context).userId, [
       "admin",
       "kepala_sekolah",
       "keuangan",

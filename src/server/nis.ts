@@ -4,7 +4,7 @@
  * Generate & simpan NIS unik untuk siswa. Hanya admin / kepala_sekolah.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireRole } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface GenerateNisInput {
@@ -25,7 +25,7 @@ export const generateNis = createServerFn({ method: "POST" })
   .inputValidator((d: GenerateNisInput) => d)
   .handler(async ({ data, context }): Promise<{ success: true; nis: string }> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, ["admin", "kepala_sekolah"]);
+    await requireRole(admin, requireContext(context).userId, ["admin", "kepala_sekolah"]);
 
     const { siswa_id, departemen_id, angkatan_id, kelas_id } = data;
     if (!siswa_id || !departemen_id || !angkatan_id || !kelas_id) {

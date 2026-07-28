@@ -89,7 +89,13 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 
 - **Rencana diskon/keringanan SPP (beasiswa, kakak-adik, bantuan, kurang mampu)** — belum diimplementasi, rencana lengkap (skema tabel, RPC, deteksi kakak-adik semi-otomatis, halaman UI, urutan migrasi) ada di `RENCANA_DISKON_KERINGANAN.md`. Rekomendasi kerjakan dengan `claude-opus-4-8`. Ada 3 keputusan desain yang perlu diambil dulu sebelum coding (lihat bagian akhir file tsb: kombinasi diskon ganda, approval workflow, nilai default berjenjang kakak-adik)
 - **Refactor form Tarif Tagihan ke react-hook-form + zod** — form masih pakai `useState` mentah, menyimpang dari konvensi proyek; ditunda agar perubahan UX tetap mudah direview
-- **Error tsc `context is possibly undefined`** di semua file `src/server/*.ts` (typing authMiddleware) — pola lama, belum diperbaiki
+
+### Error tsc `context is possibly undefined` — SELESAI (28 Juli, sesi lanjutan)
+
+- **Akar masalah bukan strictNullChecks** (proyek ini `strict: false`). TanStack Start (v `@tanstack/react-start`, dicek versi via node_modules) gagal menginferensi tipe `context` hasil komposisi `.middleware([authMiddleware])` di `.handler()` — tipe efektifnya kolaps jadi `undefined` polos (bukan union `{userId,...} | undefined`), diverifikasi dengan probe manual (`const x: never = context` → TS hanya komplain soal `undefined`, bukan objeknya). Ini murni keterbatasan/bug tipe generik framework, bukan salah pakai di kode proyek — runtime-nya selalu benar (middleware selalu set context atau throw `UnauthorizedError` duluan)
+- **Perbaikan:** helper `requireContext(context: unknown): AuthContext` baru di `src/server/auth.ts` — parameter sengaja `unknown` (bukan mengandalkan tipe context yang rusak), assert ke `AuthContext` (`{userId, userEmail}`), guard runtime `if (!ctx) throw UnauthorizedError()` (murni jaga-jaga, seharusnya tak pernah kepicu). Dipakai di titik pertama akses `context.userId` pada 10 server function di 9 file (`akademik.ts`, `akrual.ts`, `nis.ts`, `notifikasi.ts` ×2, `payment.ts`, `pembayaran.ts` ×2, `tagihan.ts` ×3, `tunggakan.ts` ×2, `users.ts`)
+- **Bug nyata yang ikut ketemu:** `rekapTunggakanBatch` di `tunggakan.ts` memanggil `requireRole(...)` tanpa mengimpornya sama sekali (`TS2304: Cannot find name`) — akan crash runtime kalau endpoint ini benar-benar dipanggil. Ditambahkan ke import. Kemungkinan luput karena fungsi ini baru ditambah sesi sebelumnya dan belum sempat diuji end-to-end lewat jalur yang memicu compile
+- Diverifikasi: `npx tsc --noEmit -p tsconfig.app.json` sudah nol error untuk seluruh `src/server/*.ts` (sisa error tsc di proyek — `useKeuangan.ts`, `router-compat.tsx`, `InputPembayaran.tsx`, dll — pre-existing, di luar cakupan ini, tidak disentuh). `npm run lint` bersih untuk file yang diubah, `npm run test` 40/40 tetap lulus
 
 ---
 

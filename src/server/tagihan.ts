@@ -18,7 +18,7 @@
  * subrequest dan juga jauh lebih cepat.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireRole } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface GenerateTagihanInput {
@@ -60,7 +60,8 @@ export const generateTagihan = createServerFn({ method: "POST" })
   .inputValidator((d: GenerateTagihanInput) => d)
   .handler(async ({ data, context }): Promise<GenerateTagihanResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, [
+    const { userId } = requireContext(context);
+    await requireRole(admin, userId, [
       "admin",
       "kepala_sekolah",
       "keuangan",
@@ -238,7 +239,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
               siswa_id: ks.siswa_id,
               kelas_id: ks.kelas_id || null,
             })),
-            p_created_by: context.userId,
+            p_created_by: userId,
           }
         );
 
@@ -315,7 +316,8 @@ export const batalkanTagihan = createServerFn({ method: "POST" })
   .inputValidator((d: KoreksiTagihanInput) => d)
   .handler(async ({ data, context }): Promise<KoreksiTagihanResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, [
+    const { userId } = requireContext(context);
+    await requireRole(admin, userId, [
       "admin",
       "kepala_sekolah",
       "keuangan",
@@ -337,7 +339,7 @@ export const batalkanTagihan = createServerFn({ method: "POST" })
         p_mode: mode,
         p_alasan: alasan,
         p_tanggal: tanggal,
-        p_user_id: context.userId,
+        p_user_id: userId,
         p_nominal_baru: mode === "koreksi_nominal" ? nominal_baru : null,
       }
     );
@@ -388,7 +390,8 @@ export const batalkanTagihanBatch = createServerFn({ method: "POST" })
   .inputValidator((d: BatalkanTagihanBatchInput) => d)
   .handler(async ({ data, context }): Promise<BatalkanTagihanBatchResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, [
+    const { userId } = requireContext(context);
+    await requireRole(admin, userId, [
       "admin",
       "kepala_sekolah",
       "keuangan",
@@ -420,7 +423,7 @@ export const batalkanTagihanBatch = createServerFn({ method: "POST" })
       p_tagihan_ids: tagihan_ids,
       p_alasan: alasan,
       p_tanggal: tanggal,
-      p_user_id: context.userId,
+      p_user_id: userId,
     });
     if (rpcErr) {
       throw new Error("Gagal memproses pembatalan massal: " + rpcErr.message);

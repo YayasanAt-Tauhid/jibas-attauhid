@@ -4,7 +4,7 @@
  * Hitung nilai akhir berbobot per mapel. Boleh staff, atau siswa/ortu terkait.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware } from "./auth";
+import { authMiddleware, requireContext } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface HitungNilaiAkhirInput {
@@ -32,7 +32,7 @@ export const hitungNilaiAkhir = createServerFn({ method: "POST" })
       context,
     }): Promise<{ nilai_akhir: number; predikat: string }> => {
       const admin = createAdminClient();
-      const userId = context.userId;
+      const userId = requireContext(context).userId;
 
       const { siswa_id, mapel_id, kelas_id, tahun_ajaran_id, semester_id } =
         data;

@@ -4,7 +4,7 @@
  * Hanya admin / kepala_sekolah. Mendukung kirim tunggal maupun bulk.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireRole } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient, readEnv } from "./supabase";
 
 export interface SendTelegramInput {
@@ -32,7 +32,7 @@ export const sendTelegram = createServerFn({ method: "POST" })
   .inputValidator((d: SendTelegramInput) => d)
   .handler(async ({ data, context }): Promise<SendResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, ["admin", "kepala_sekolah"]);
+    await requireRole(admin, requireContext(context).userId, ["admin", "kepala_sekolah"]);
 
     const token = readEnv("TELEGRAM_BOT_TOKEN");
     if (!token) throw new Error("TELEGRAM_BOT_TOKEN belum dikonfigurasi");
@@ -83,7 +83,7 @@ export const sendWhatsapp = createServerFn({ method: "POST" })
   .inputValidator((d: SendWhatsappInput) => d)
   .handler(async ({ data, context }): Promise<SendResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, ["admin", "kepala_sekolah"]);
+    await requireRole(admin, requireContext(context).userId, ["admin", "kepala_sekolah"]);
 
     const gatewayUrl = readEnv("WA_GATEWAY_URL");
     const gatewayToken = readEnv("WA_GATEWAY_TOKEN");

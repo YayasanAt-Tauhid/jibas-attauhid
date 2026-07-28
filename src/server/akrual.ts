@@ -18,7 +18,7 @@
  * berkali-kali — baris yang sudah diproses tidak akan diproses ulang.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireRole } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface JalankanAkrualInput {
@@ -50,7 +50,8 @@ export const jalankanAkrualJatuhTempo = createServerFn({ method: "POST" })
   .inputValidator((d: JalankanAkrualInput) => d ?? {})
   .handler(async ({ data, context }): Promise<JalankanAkrualResult> => {
     const admin = createAdminClient();
-    await requireRole(admin, context.userId, [
+    const { userId } = requireContext(context);
+    await requireRole(admin, userId, [
       "admin",
       "kepala_sekolah",
       "keuangan",
@@ -63,7 +64,7 @@ export const jalankanAkrualJatuhTempo = createServerFn({ method: "POST" })
       "jalankan_akrual_jatuh_tempo",
       {
         p_sampai_tanggal: sampaiTanggal,
-        p_user_id: context.userId,
+        p_user_id: userId,
         p_limit: data?.limit ?? 5000,
       }
     );

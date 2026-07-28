@@ -4,7 +4,7 @@
  * Membuat akun login baru + mengatur profilnya. Hanya admin.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireRole } from "./auth";
+import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 
 const ALLOWED_ROLES = [
@@ -32,7 +32,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
   .handler(
     async ({ data, context }): Promise<{ success: true; id: string; email: string }> => {
       const admin = createAdminClient();
-      await requireRole(admin, context.userId, ["admin"]);
+      await requireRole(admin, requireContext(context).userId, ["admin"]);
 
       const email = (data.email || "").trim().toLowerCase();
       const password = data.password || "";
