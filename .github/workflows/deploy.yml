@@ -17,12 +17,12 @@ name: Deploy to Cloudflare Workers
 #                                       use the new sb_publishable_... key, not the
 #                                       legacy anon JWT key; also synced to the
 #                                       Worker as SUPABASE_ANON_KEY)
+#   - SUPABASE_SERVICE_ROLE_KEY       [secret] admin key (bypasses RLS, full DB access) —
+#                                       synced to the Worker as SUPABASE_SERVICE_ROLE_KEY
+#                                       runtime secret in the deploy step below. Protect
+#                                       this environment with required reviewers since
+#                                       this secret grants full DB access.
 #   - WORKER_NAME                     [variable] name of the Cloudflare Worker to deploy to
-#
-# NOTE: SUPABASE_SERVICE_ROLE_KEY is NOT managed here. Set it manually via the
-# Cloudflare dashboard (Workers & Pages -> worker -> Settings -> Variables and
-# Secrets) since it is not currently a repository/environment secret and
-# grants full DB access bypassing RLS.
 
 on:
   push:
@@ -83,8 +83,4 @@ jobs:
         run: |
           echo -n "${{ secrets.VITE_SUPABASE_URL }}" | npx --yes wrangler@4 secret put SUPABASE_URL --name "$WORKER_NAME"
           echo -n "${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}" | npx --yes wrangler@4 secret put SUPABASE_ANON_KEY --name "$WORKER_NAME"
-          # SUPABASE_SERVICE_ROLE_KEY sengaja TIDAK disinkron di sini karena
-          # belum ada repository secret untuknya. Kelola manual lewat
-          # dashboard Cloudflare (Workers & Pages -> nama worker -> Settings
-          # -> Variables and Secrets), atau tambahkan sebagai repo secret
-          # + baris serupa di atas kalau ingin ikut otomatis.
+          echo -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" | npx --yes wrangler@4 secret put SUPABASE_SERVICE_ROLE_KEY --name "$WORKER_NAME"
