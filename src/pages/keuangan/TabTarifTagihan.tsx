@@ -1,4 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,6 +24,70 @@ import { useKelas, useAngkatan } from "@/hooks/useAkademikData";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 
+// Skema field Tambah/Edit Tarif. Field scope (jenis/siswa/kelas/dst) hanya
+// wajib & divalidasi saat mode tambah -- di mode edit field-field itu terkunci
+// (lihat superRefine di buildTarifSchema, dan render read-only summary di JSX).
+const tarifFormSchema = z.object({
+  deptId: z.string(),
+  jenisId: z.string(),
+  siswa: z.custom<SiswaRingkas | null>(),
+  kelasId: z.string(),
+  angkatanId: z.string(),
+  tahunAjaranId: z.string(),
+  nominal: z.string(),
+  keterangan: z.string(),
+  autoGenerate: z.boolean(),
+  genBulanList: z.array(z.number()),
+  genDeptId: z.string(),
+});
+type TarifFormValues = z.infer<typeof tarifFormSchema>;
+
+const tarifFormDefaults: TarifFormValues = {
+  deptId: "", jenisId: "", siswa: null, kelasId: "", angkatanId: "", tahunAjaranId: "",
+  nominal: "", keterangan: "", autoGenerate: true, genBulanList: [], genDeptId: "",
+};
+
+// Validasi bertingkat: field wajib (create-only) + deteksi tarif duplikat —
+// keduanya butuh data live (jenisList, tarifList) makanya schema dibangun
+// lewat factory, bukan objek statis.
+function buildTarifSchema(opts: { isEditMode: boolean; jenisById: Map<string, any>; tarifList: any[] | undefined }) {
+  return tarifFormSchema.superRefine((data, ctx) => {
+    if (!data.nominal) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nominal"], message: "Nominal belum diisi" });
+    } else if (Number(data.nominal) <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nominal"], message: "Nominal harus lebih dari 0" });
+    }
+    if (opts.isEditMode) return;
+
+    if (!data.jenisId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jenisId"], message: "Jenis Pembayaran belum dipilih" });
+    }
+    if (data.autoGenerate) {
+      if (!data.tahunAjaranId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["tahunAjaranId"], message: "Tahun Buku wajib dipilih saat opsi generate tagihan aktif" });
+      }
+      const isSekali = data.jenisId ? opts.jenisById.get(data.jenisId)?.tipe === "sekali" : false;
+      if (data.jenisId && !isSekali && data.genBulanList.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["genBulanList"], message: "Pilih minimal satu bulan untuk generate tagihan" });
+      }
+    }
+
+    if (data.jenisId) {
+      const norm = (x: string) => x || null;
+      const duplicate = opts.tarifList?.find((t: any) =>
+        t.jenis_id === data.jenisId &&
+        norm(t.siswa_id) === norm(data.siswa?.id ?? "") &&
+        norm(t.kelas_id) === norm(data.kelasId) &&
+        norm(t.angkatan_id) === norm(data.angkatanId) &&
+        norm(t.tahun_ajaran_id) === norm(data.tahunAjaranId)
+      );
+      if (duplicate) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jenisId"], message: "Tarif dengan jenis & scope persis sama sudah ada — edit tarif yang lama, jangan buat duplikat" });
+      }
+    }
+  });
+}
+
 export default function TabTarifTagihan() {
   const { data: tarifList, isLoading } = useAllTarifTagihan();
   const { data: jenisList } = useAllJenisPembayaran();
@@ -39,19 +106,26 @@ export default function TabTarifTagihan() {
   const [editItem, setEditItem] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [broadConfirmOpen, setBroadConfirmOpen] = useState(false);
+  const [pendingSaveData, setPendingSaveData] = useState<TarifFormValues | null>(null);
   const [massalOpen, setMassalOpen] = useState(false);
 
-  // Form fields — urutan mengikuti ketergantungan: Lembaga → Jenis → target → nominal
-  const [deptId, setDeptId] = useState("");
-  const [jenisId, setJenisId] = useState("");
-  const [siswa, setSiswa] = useState<SiswaRingkas | null>(null);
-  const [kelasId, setKelasId] = useState("");
-  const [angkatanId, setAngkatanId] = useState("");
-  const [tahunAjaranId, setTahunAjaranId] = useState("");
-  const [nominal, setNominal] = useState("");
-  const [keterangan, setKeterangan] = useState("");
+  const jenisById = useMemo(() => new Map((jenisList ?? []).map((j: any) => [j.id, j])), [jenisList]);
 
-  const selectedJenisForm = jenisList?.find((j: any) => j.id === jenisId);
+  // Form fields — urutan mengikuti ketergantungan: Lembaga → Jenis → target → nominal
+  const form = useForm<TarifFormValues>({
+    resolver: zodResolver(buildTarifSchema({ isEditMode: !!editItem, jenisById, tarifList })),
+    mode: "onChange",
+    defaultValues: tarifFormDefaults,
+  });
+  const deptId = form.watch("deptId");
+  const jenisId = form.watch("jenisId");
+  const siswa = form.watch("siswa");
+  const kelasId = form.watch("kelasId");
+  const angkatanId = form.watch("angkatanId");
+  const tahunAjaranId = form.watch("tahunAjaranId");
+  const nominal = form.watch("nominal");
+
+  const selectedJenisForm = jenisById.get(jenisId);
   // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
   // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai untuk
   // membatasi pilihan Kelas/Angkatan (target scope tarif). Siswa TIDAK
@@ -86,18 +160,18 @@ export default function TabTarifTagihan() {
 
   const handleLembagaChange = (v: string) => {
     const newDept = v === "__none__" ? "" : v;
-    setDeptId(newDept);
-    setKelasId("");
+    form.setValue("deptId", newDept, { shouldValidate: true });
+    form.setValue("kelasId", "", { shouldValidate: true });
     // Kalau jenis/angkatan/siswa yang sudah dipilih tidak berlaku untuk
     // lembaga baru, reset — dan BERI TAHU user, jangan diam-diam.
-    const jenisTerpilih = jenisList?.find((j: any) => j.id === jenisId);
+    const jenisTerpilih = jenisById.get(jenisId);
     if (newDept && jenisTerpilih?.departemen_id && jenisTerpilih.departemen_id !== newDept) {
-      setJenisId("");
+      form.setValue("jenisId", "", { shouldValidate: true });
       toast.info("Pilihan Jenis Pembayaran direset karena tidak berlaku untuk lembaga yang dipilih.");
     }
     const angkatanTerpilih = angkatanList?.find((a: any) => a.id === angkatanId);
     if (newDept && angkatanTerpilih?.departemen_id && angkatanTerpilih.departemen_id !== newDept) {
-      setAngkatanId("");
+      form.setValue("angkatanId", "", { shouldValidate: true });
       toast.info("Pilihan Angkatan direset karena tidak berlaku untuk lembaga yang dipilih.");
     }
     // Siswa SENGAJA tidak direset/dibatasi ke lembaga ini — kasus umum:
@@ -106,10 +180,9 @@ export default function TabTarifTagihan() {
     // validationWarnings), bukan diblokir.
   };
 
-  // Auto-generate options
-  const [autoGenerate, setAutoGenerate] = useState(true);
-  const [genBulanList, setGenBulanList] = useState<number[]>([]);
-  const [genDeptId, setGenDeptId] = useState("");
+  const autoGenerate = form.watch("autoGenerate");
+  const genBulanList = form.watch("genBulanList");
+  const genDeptId = form.watch("genDeptId");
 
   // Filter tarif
   const [filterJenis, setFilterJenis] = useState("");
@@ -152,56 +225,35 @@ export default function TabTarifTagihan() {
     return result;
   }, [tarifList, filterJenis, filterTarifKelas, filterTarifTahun, filterTarifSiswa]);
 
-  const selectedJenis = jenisList?.find((j: any) => j.id === jenisId);
+  const selectedJenis = jenisById.get(jenisId);
   const isSekali = selectedJenis?.tipe === "sekali";
   const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
   const allSelected = genBulanList.length === 12;
 
   const toggleBulan = (b: number) => {
-    setGenBulanList((prev) => prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b].sort((a, c) => a - c));
+    const next = genBulanList.includes(b) ? genBulanList.filter((x) => x !== b) : [...genBulanList, b].sort((a, c) => a - c);
+    form.setValue("genBulanList", next, { shouldValidate: true });
   };
 
   const openAdd = () => {
-    setEditItem(null); setJenisId(""); setSiswa(null); setDeptId(""); setKelasId(""); setAngkatanId(""); setTahunAjaranId(""); setNominal(""); setKeterangan("");
-    setAutoGenerate(true); setGenBulanList([]); setGenDeptId("");
+    setEditItem(null);
+    form.reset(tarifFormDefaults);
     setDialogOpen(true);
   };
 
   const openEdit = (item: any) => {
     setEditItem(item);
-    setNominal(String(item.nominal ?? "").replace(/\D/g, ""));
-    setKeterangan(item.keterangan || "");
+    form.reset({ ...tarifFormDefaults, nominal: String(item.nominal ?? "").replace(/\D/g, ""), keterangan: item.keterangan || "" });
     setDialogOpen(true);
   };
 
-  // Deteksi tarif duplikat: jenis + scope persis sama dengan yang sudah ada
-  const duplicateTarif = useMemo(() => {
-    if (editItem || !jenisId || !tarifList) return null;
-    const norm = (x: any) => x || null;
-    return tarifList.find((t: any) =>
-      t.jenis_id === jenisId &&
-      norm(t.siswa_id) === norm(siswa?.id) &&
-      norm(t.kelas_id) === norm(kelasId) &&
-      norm(t.angkatan_id) === norm(angkatanId) &&
-      norm(t.tahun_ajaran_id) === norm(tahunAjaranId)
-    ) ?? null;
-  }, [editItem, jenisId, siswa, kelasId, angkatanId, tahunAjaranId, tarifList]);
-
-  // Validasi form — daftar alasan kenapa belum bisa disimpan, ditampilkan ke
-  // user (bukan cuma tombol disabled tanpa penjelasan)
-  const nominalNum = Number(nominal || 0);
-  const validationErrors = useMemo(() => {
-    const errs: string[] = [];
-    if (!editItem && !jenisId) errs.push("Jenis Pembayaran belum dipilih");
-    if (!nominal) errs.push("Nominal belum diisi");
-    else if (nominalNum <= 0) errs.push("Nominal harus lebih dari 0");
-    if (!editItem && autoGenerate) {
-      if (!tahunAjaranId) errs.push("Tahun Buku wajib dipilih saat opsi generate tagihan aktif");
-      if (jenisId && !isSekali && genBulanList.length === 0) errs.push("Pilih minimal satu bulan untuk generate tagihan");
-    }
-    if (duplicateTarif) errs.push("Tarif dengan jenis & scope persis sama sudah ada — edit tarif yang lama, jangan buat duplikat");
-    return errs;
-  }, [editItem, jenisId, nominal, nominalNum, autoGenerate, tahunAjaranId, isSekali, genBulanList, duplicateTarif]);
+  // Pastikan checklist validasi & tombol Simpan langsung akurat saat dialog
+  // dibuka -- mode "onChange" baru menghitung ulang isValid/errors setelah
+  // field pertama disentuh, dan resolver-nya sendiri butuh render berikutnya
+  // supaya bergantung ke editItem/tarifList yang terbaru.
+  useEffect(() => {
+    if (dialogOpen) void form.trigger();
+  }, [dialogOpen, editItem, form]);
 
   // Peringatan (tidak memblokir simpan) — mis. siswa masih tercatat di
   // lembaga lain dari Lembaga/Jenis Pembayaran terpilih. Ini SAH untuk kasus
@@ -215,32 +267,37 @@ export default function TabTarifTagihan() {
     return warns;
   }, [editItem, siswa, effectiveDeptId]);
 
-  const canSave = validationErrors.length === 0;
+  // Checklist kekurangan ditampilkan ke user (bukan cuma tombol disabled tanpa
+  // penjelasan) — sumbernya sekarang error zod dari buildTarifSchema di atas.
+  const validationErrors = useMemo(
+    () => Object.values(form.formState.errors).map((e) => e?.message).filter((m): m is string => !!m),
+    [form.formState.errors]
+  );
+  const canSave = form.formState.isValid;
   const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;
 
-  // Generate tanpa siswa/kelas/lembaga = SEMUA siswa aktif → wajib konfirmasi
-  const isBroadGenerate = !editItem && autoGenerate && !siswa && !kelasId && !(genDeptId || deptId);
-
-  const performSave = async () => {
+  const performSave = async (data: TarifFormValues) => {
+    const nominalNum = Number(data.nominal || 0);
+    const isSekaliData = data.jenisId ? jenisById.get(data.jenisId)?.tipe === "sekali" : false;
     try {
       if (editItem) {
-        await updateMut.mutateAsync({ id: editItem.id, nominal: nominalNum, keterangan: keterangan || undefined });
+        await updateMut.mutateAsync({ id: editItem.id, nominal: nominalNum, keterangan: data.keterangan || undefined });
       } else {
-        await createMut.mutateAsync({ jenis_id: jenisId, siswa_id: siswa?.id || null, kelas_id: kelasId || null, angkatan_id: angkatanId || null, tahun_ajaran_id: tahunAjaranId || null, nominal: nominalNum, keterangan: keterangan || undefined });
+        await createMut.mutateAsync({ jenis_id: data.jenisId, siswa_id: data.siswa?.id || null, kelas_id: data.kelasId || null, angkatan_id: data.angkatanId || null, tahun_ajaran_id: data.tahunAjaranId || null, nominal: nominalNum, keterangan: data.keterangan || undefined });
 
         // Auto-generate tagihan if checked
-        if (autoGenerate && tahunAjaranId && jenisId) {
+        if (data.autoGenerate && data.tahunAjaranId && data.jenisId) {
           try {
             const params: any = {
-              tahun_ajaran_id: tahunAjaranId,
-              jenis_id: jenisId,
+              tahun_ajaran_id: data.tahunAjaranId,
+              jenis_id: data.jenisId,
             };
-            if (siswa) params.siswa_id = siswa.id;
-            if (kelasId) params.kelas_id = kelasId;
-            const effectiveDeptId = genDeptId || deptId;
-            if (effectiveDeptId) params.departemen_id = effectiveDeptId;
-            if (!isSekali && genBulanList.length > 0) {
-              params.bulan_list = genBulanList;
+            if (data.siswa) params.siswa_id = data.siswa.id;
+            if (data.kelasId) params.kelas_id = data.kelasId;
+            const effectiveGenDeptId = data.genDeptId || data.deptId;
+            if (effectiveGenDeptId) params.departemen_id = effectiveGenDeptId;
+            if (!isSekaliData && data.genBulanList.length > 0) {
+              params.bulan_list = data.genBulanList;
             }
             const genResult = await generateMut.mutateAsync(params);
             // Lapis pengaman tambahan: server function selalu resolve
@@ -265,13 +322,15 @@ export default function TabTarifTagihan() {
     }
   };
 
-  const handleSave = () => {
-    if (!canSave) return;
+  const onSubmit = (data: TarifFormValues) => {
+    // Generate tanpa siswa/kelas/lembaga = SEMUA siswa aktif → wajib konfirmasi
+    const isBroadGenerate = !editItem && data.autoGenerate && !data.siswa && !data.kelasId && !(data.genDeptId || data.deptId);
     if (isBroadGenerate) {
+      setPendingSaveData(data);
       setBroadConfirmOpen(true); // konfirmasi dulu — dampaknya semua siswa aktif
       return;
     }
-    void performSave();
+    void performSave(data);
   };
 
   const getLevelBadge = (row: any) => {
@@ -463,7 +522,7 @@ export default function TabTarifTagihan() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Tambah"} Tarif Tagihan</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {editItem ? (
               /* Mode edit: jenis & scope terkunci — tampilkan sebagai ringkasan
                  read-only, bukan deretan dropdown disabled dengan peringatan
@@ -493,69 +552,81 @@ export default function TabTarifTagihan() {
                 </div>
                 <div>
                   <Label>Jenis Pembayaran *</Label>
-                  <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setGenBulanList([]); }}>
-                    <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
-                    <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Controller control={form.control} name="jenisId" render={({ field }) => (
+                    <Select value={field.value} onValueChange={(v) => { field.onChange(v); form.setValue("genBulanList", [], { shouldValidate: true }); }}>
+                      <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
+                      <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )} />
                 </div>
                 <div>
                   <Label>Siswa (opsional)</Label>
-                  <SiswaCombobox
-                    value={siswa}
-                    onChange={(s) => {
-                      setSiswa(s);
-                      // Auto-isi Lembaga dari data siswa sebagai default yang nyaman
-                      // untuk kasus umum (tarif untuk lembaga siswa saat ini). Tetap
-                      // bisa diganti manual -- mis. siswa kelas 6 SD yang mau
-                      // diinputkan tarif SPP/Uang Pangkal untuk SMP (jenjang berikutnya).
-                      if (s && !deptId && s.departemen_id) {
-                        setDeptId(s.departemen_id);
-                        setKelasId("");
-                        toast.info("Lembaga otomatis diisi dari data siswa — bisa diganti manual jika perlu.");
-                      }
-                    }}
-                    placeholder="Semua siswa — atau cari nama/NIS..."
-                  />
+                  <Controller control={form.control} name="siswa" render={({ field }) => (
+                    <SiswaCombobox
+                      value={field.value}
+                      onChange={(s) => {
+                        field.onChange(s);
+                        // Auto-isi Lembaga dari data siswa sebagai default yang nyaman
+                        // untuk kasus umum (tarif untuk lembaga siswa saat ini). Tetap
+                        // bisa diganti manual -- mis. siswa kelas 6 SD yang mau
+                        // diinputkan tarif SPP/Uang Pangkal untuk SMP (jenjang berikutnya).
+                        if (s && !deptId && s.departemen_id) {
+                          form.setValue("deptId", s.departemen_id, { shouldValidate: true });
+                          form.setValue("kelasId", "", { shouldValidate: true });
+                          toast.info("Lembaga otomatis diisi dari data siswa — bisa diganti manual jika perlu.");
+                        }
+                      }}
+                      placeholder="Semua siswa — atau cari nama/NIS..."
+                    />
+                  )} />
                 </div>
                 <div>
                   <Label>Kelas (opsional)</Label>
-                  <Select value={kelasId || "__none__"} onValueChange={(v) => setKelasId(v === "__none__" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Semua Kelas —</SelectItem>
-                      {filteredKelasList.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Controller control={form.control} name="kelasId" render={({ field }) => (
+                    <Select value={field.value || "__none__"} onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Semua Kelas —</SelectItem>
+                        {filteredKelasList.map((k: any) => <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )} />
                 </div>
                 <div>
                   <Label>Angkatan (opsional)</Label>
-                  <Select value={angkatanId || "__none__"} onValueChange={(v) => setAngkatanId(v === "__none__" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Semua angkatan" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Semua Angkatan —</SelectItem>
-                      {filteredAngkatanList.map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.nama}{a.departemen ? ` — ${a.departemen.nama}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller control={form.control} name="angkatanId" render={({ field }) => (
+                    <Select value={field.value || "__none__"} onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Semua angkatan" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Semua Angkatan —</SelectItem>
+                        {filteredAngkatanList.map((a: any) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.nama}{a.departemen ? ` — ${a.departemen.nama}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )} />
                 </div>
                 <div>
                   <Label>Tahun Buku {autoGenerate ? "*" : "(opsional)"}</Label>
-                  <Select value={tahunAjaranId || "__none__"} onValueChange={(v) => setTahunAjaranId(v === "__none__" ? "" : v)}>
-                    <SelectTrigger><SelectValue placeholder="Semua tahun buku" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Semua Tahun Buku —</SelectItem>
-                      {tahunList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Controller control={form.control} name="tahunAjaranId" render={({ field }) => (
+                    <Select value={field.value || "__none__"} onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Semua tahun buku" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Semua Tahun Buku —</SelectItem>
+                        {tahunList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )} />
                 </div>
               </>
             )}
             <div>
               <Label>Nominal Override *</Label>
-              <RupiahInput value={nominal} onChange={setNominal} />
+              <Controller control={form.control} name="nominal" render={({ field }) => (
+                <RupiahInput value={field.value} onChange={field.onChange} />
+              )} />
               <p className="text-xs text-muted-foreground mt-1">
                 Nominal ini akan menggantikan nominal default
                 {!editItem && selectedJenis?.nominal ? <> (default saat ini: <strong>{formatRupiah(Number(selectedJenis.nominal))}</strong>)</> : null}
@@ -563,7 +634,7 @@ export default function TabTarifTagihan() {
             </div>
             <div>
               <Label>Keterangan</Label>
-              <Textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Misal: Beasiswa prestasi, potongan 50%" />
+              <Textarea {...form.register("keterangan")} placeholder="Misal: Beasiswa prestasi, potongan 50%" />
             </div>
 
             {/* Auto-generate section - only for new tarif */}
@@ -572,10 +643,12 @@ export default function TabTarifTagihan() {
                 <Separator />
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                      checked={autoGenerate}
-                      onCheckedChange={(v) => setAutoGenerate(!!v)}
-                    />
+                    <Controller control={form.control} name="autoGenerate" render={({ field }) => (
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={(v) => field.onChange(!!v)}
+                      />
+                    )} />
                     <span className="text-sm font-medium">Generate tagihan & jurnal piutang otomatis</span>
                   </label>
 
@@ -609,7 +682,7 @@ export default function TabTarifTagihan() {
                             <Checkbox
                               id="select-all-months"
                               checked={allSelected}
-                              onCheckedChange={(checked) => setGenBulanList(checked ? [...allMonths] : [])}
+                              onCheckedChange={(checked) => form.setValue("genBulanList", checked ? [...allMonths] : [], { shouldValidate: true })}
                             />
                             <label htmlFor="select-all-months" className="text-sm cursor-pointer">Pilih semua (12 bulan)</label>
                           </div>
@@ -635,13 +708,15 @@ export default function TabTarifTagihan() {
                       {!deptId && !siswa && !kelasId && (
                         <div>
                           <Label className="text-xs">Lembaga (opsional — filter generate)</Label>
-                          <Select value={genDeptId || "__all__"} onValueChange={(v) => setGenDeptId(v === "__all__" ? "" : v)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__all__">Semua Lembaga</SelectItem>
-                              {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <Controller control={form.control} name="genDeptId" render={({ field }) => (
+                            <Select value={field.value || "__all__"} onValueChange={(v) => field.onChange(v === "__all__" ? "" : v)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__all__">Semua Lembaga</SelectItem>
+                                {lembagaList?.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.kode} — {l.nama}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          )} />
                         </div>
                       )}
                     </div>
@@ -673,13 +748,13 @@ export default function TabTarifTagihan() {
                 ))}
               </div>
             )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleSave} disabled={!canSave || isSaving}>
-              {isSaving ? "Memproses..." : editItem ? "Simpan" : autoGenerate ? "Simpan & Generate" : "Simpan"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={!canSave || isSaving}>
+                {isSaving ? "Memproses..." : editItem ? "Simpan" : autoGenerate ? "Simpan & Generate" : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -691,7 +766,7 @@ export default function TabTarifTagihan() {
         onOpenChange={setBroadConfirmOpen}
         title="Generate untuk Semua Siswa Aktif?"
         description="Tidak ada siswa, kelas, atau lembaga yang dipilih — tagihan & jurnal piutang akan dibuat untuk SEMUA siswa aktif pada tahun buku terpilih. Siswa yang sudah punya tagihan akan di-skip. Lanjutkan?"
-        onConfirm={() => { setBroadConfirmOpen(false); void performSave(); }}
+        onConfirm={() => { setBroadConfirmOpen(false); if (pendingSaveData) void performSave(pendingSaveData); }}
       />
 
       <ConfirmDialog
