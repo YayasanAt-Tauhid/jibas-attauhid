@@ -9,10 +9,9 @@ import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
 import { useJenisPembayaran, useLembaga, useTahunBukuAktif, useTahunBuku, formatRupiah, namaBulan, BULAN_ORDER_AKADEMIK } from "@/hooks/useKeuangan";
-import { getTarifBatch } from "@/hooks/useTarifTagihan";
 import { useKelas } from "@/hooks/useAkademikData";
-import { supabase } from "@/integrations/supabase/client";
 import { prosesPembayaran } from "@/server/pembayaran";
+import { rekapTunggakanBatch } from "@/server/tunggakan";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@/lib/router-compat";
 import { AlertTriangle, Users, X, CheckCircle2 } from "lucide-react";
@@ -54,114 +53,45 @@ export default function TunggakanPembayaran() {
   const selectedJenis = jenisList?.find((j: any) => j.id === jenisId);
   const isSekaliBayar = (selectedJenis as any)?.tipe === "sekali";
 
+  // Rentang bulan yang dicek (mendukung wrap-around, mis. 7→6), hanya
+  // relevan untuk jenis tipe bulanan -- tagihan tipe sekali tidak punya bulan.
+  const bulanRange = useMemo(() => {
+    if (isSekaliBayar) return undefined;
+    const dari = Number(bulanDari);
+    const sampai = Number(bulanSampai);
+    const range: number[] = [];
+    if (dari <= sampai) {
+      for (let b = dari; b <= sampai; b++) range.push(b);
+    } else {
+      for (let b = dari; b <= 12; b++) range.push(b);
+      for (let b = 1; b <= sampai; b++) range.push(b);
+    }
+    return range;
+  }, [isSekaliBayar, bulanDari, bulanSampai]);
+
   const { data: tunggakanData, isLoading } = useQuery({
-    queryKey: ["tunggakan", departemenId, kelasId, jenisId, bulanDari, bulanSampai, tahunAjaranId],
+    queryKey: ["tunggakan", departemenId, kelasId, jenisId, tahunAjaranId, bulanRange],
     enabled: !!jenisId && !!tahunAjaranId,
     queryFn: async () => {
-      let siswaQuery = supabase
-        .from("kelas_siswa")
-        .select("siswa_id, kelas_id, siswa:siswa_id(id, nis, nama), kelas:kelas_id(nama, departemen_id)")
-        .eq("aktif", true)
-        .eq("tahun_ajaran_id", tahunAjaranId);
-      if (kelasId) siswaQuery = siswaQuery.eq("kelas_id", kelasId);
-      const { data: siswaList } = await siswaQuery;
-      if (!siswaList?.length) return [];
-
-      const filtered = departemenId
-        ? siswaList.filter((s: any) => s.kelas?.departemen_id === departemenId)
-        : siswaList;
-
-      if (!filtered.length) return [];
-
-      const siswaIds = filtered.map((s: any) => s.siswa_id);
-      const tarifMap = await getTarifBatch(jenisId, siswaIds, kelasId || undefined, tahunAjaranId);
-      const tipe = (selectedJenis as any)?.tipe || "bulanan";
-
-      if (tipe === "sekali") {
-        const { data: payments } = await supabase
-          .from("pembayaran")
-          .select("siswa_id, jumlah")
-          .eq("jenis_id", jenisId)
-          .eq("tahun_ajaran_id", tahunAjaranId)
-          .in("siswa_id", siswaIds);
-
-        const paidMap = new Map<string, number>();
-        payments?.forEach((p) => {
-          paidMap.set(p.siswa_id!, (paidMap.get(p.siswa_id!) || 0) + Number(p.jumlah || 0));
-        });
-
-        const result: any[] = [];
-        filtered.forEach((ks: any) => {
-          const nominal = tarifMap.get(ks.siswa_id) || 0;
-          if (nominal === 0) return;
-          const paid = paidMap.get(ks.siswa_id) || 0;
-          const sisa = nominal - paid;
-          if (sisa > 0) {
-            result.push({
-              id: ks.siswa_id,
-              nama: ks.siswa?.nama || "-",
-              nis: ks.siswa?.nis || "-",
-              kelas: ks.kelas?.nama || "-",
-              nominal,
-              bulan_tunggak: "Sekali Bayar",
-              bulan_tunggak_arr: [0],
-              jumlah_bulan: 1,
-              total: sisa,
-            });
-          }
-        });
-        return result;
-      } else {
-        // Build the list of months to check (supports wrap-around e.g. 7→6)
-        const dari = Number(bulanDari);
-        const sampai = Number(bulanSampai);
-        const bulanRange: number[] = [];
-        if (dari <= sampai) {
-          for (let b = dari; b <= sampai; b++) bulanRange.push(b);
-        } else {
-          for (let b = dari; b <= 12; b++) bulanRange.push(b);
-          for (let b = 1; b <= sampai; b++) bulanRange.push(b);
-        }
-
-        const { data: payments } = await supabase
-          .from("pembayaran")
-          .select("siswa_id, bulan")
-          .eq("jenis_id", jenisId)
-          .eq("tahun_ajaran_id", tahunAjaranId)
-          .in("siswa_id", siswaIds)
-          .in("bulan", bulanRange);
-
-        const paidMap = new Map<string, Set<number>>();
-        payments?.forEach((p) => {
-          if (!paidMap.has(p.siswa_id!)) paidMap.set(p.siswa_id!, new Set());
-          paidMap.get(p.siswa_id!)!.add(p.bulan!);
-        });
-
-        const result: any[] = [];
-        filtered.forEach((ks: any) => {
-          const nominal = tarifMap.get(ks.siswa_id) || 0;
-          if (nominal === 0) return;
-          const paid = paidMap.get(ks.siswa_id) || new Set();
-          const bulanTunggak: number[] = [];
-          for (const b of bulanRange) {
-            if (!paid.has(b)) bulanTunggak.push(b);
-          }
-          if (bulanTunggak.length > 0) {
-            result.push({
-              id: ks.siswa_id,
-              nama: ks.siswa?.nama || "-",
-              nis: ks.siswa?.nis || "-",
-              kelas: ks.kelas?.nama || "-",
-              nominal,
-              bulan_tunggak: bulanTunggak.map(namaBulan).join(", "),
-              bulan_tunggak_arr: bulanTunggak,
-              jumlah_bulan: bulanTunggak.length,
-              total: bulanTunggak.length * nominal,
-            });
-          }
-        });
-        return result;
-      }
+      const res = await rekapTunggakanBatch({
+        data: {
+          jenis_id: jenisId,
+          tahun_ajaran_id: tahunAjaranId,
+          kelas_id: kelasId || undefined,
+          departemen_id: departemenId || undefined,
+          bulan_list: bulanRange,
+        },
+      });
+      return res.rows.map((r) => ({
+        id: r.siswa_id,
+        nis: r.nis || "-",
+        nama: r.nama || "-",
+        kelas: r.kelas || "-",
+        bulan_tunggak: isSekaliBayar ? "Sekali Bayar" : r.bulan_tunggak.map(namaBulan).join(", "),
+        bulan_tunggak_arr: r.bulan_tunggak,
+        jumlah_bulan: r.bulan_tunggak.length,
+        total: r.total,
+      }));
     },
   });
 
@@ -194,7 +124,7 @@ export default function TunggakanPembayaran() {
 
     // Hitung total transaksi (bisa lebih dari jumlah siswa karena multi-bulan)
     const allTx = selectedRows.flatMap((sr) =>
-      sr.bulan_tunggak_arr.map((b: number) => ({ siswaId: sr.id, bulan: b, nominal: sr.nominal }))
+      sr.bulan_tunggak_arr.map((b: number) => ({ siswaId: sr.id, bulan: b }))
     );
     setBulkProgress({ done: 0, total: allTx.length });
 
@@ -210,7 +140,9 @@ export default function TunggakanPembayaran() {
             siswa_id: tx.siswaId,
             jenis_id: jenisId,
             bulan: tx.bulan,
-            jumlah: tx.nominal,
+            // Server mengambil tarif otoritatif sendiri dari get_tarif_siswa,
+            // nilai jumlah yang dikirim dari sini tidak dipakai.
+            jumlah: 0,
             tanggal_bayar: today,
             departemen_id: departemenId || undefined,
             tahun_ajaran_id: tahunAjaranId,
@@ -287,7 +219,6 @@ export default function TunggakanPembayaran() {
     { key: "nis", label: "NIS", sortable: true },
     { key: "nama", label: "Nama Siswa", sortable: true },
     { key: "kelas", label: "Kelas" },
-    { key: "nominal", label: "Tarif", render: (v: unknown) => formatRupiah(Number(v)) },
     { key: "bulan_tunggak", label: isSekaliBayar ? "Tipe" : "Bulan Tunggak" },
     ...(!isSekaliBayar ? [{ key: "jumlah_bulan", label: "Jml Bulan" }] : []),
     { key: "total", label: "Total Tunggakan", render: (v: unknown) => formatRupiah(Number(v)) },

@@ -208,3 +208,143 @@ export const rekapTunggakan = createServerFn({ method: "POST" })
       per_tanggal: perTanggal,
     };
   });
+
+// ─── rekapTunggakanBatch: sama seperti rekapTunggakan, tapi untuk BANYAK ────
+// siswa sekaligus (dipakai halaman TunggakanPembayaran untuk bayar massal).
+//
+// CATATAN PERBAIKAN (2026-07-28): versi lama halaman ini (lihat git log
+// TunggakanPembayaran.tsx) tidak membaca tabel `tagihan` sama sekali --
+// "menunggak" dihitung dari ada/tidaknya baris `pembayaran` untuk kombinasi
+// siswa+jenis+bulan dalam rentang bulan yang dipilih user secara manual.
+// Akibatnya bulan yang belum pernah ditagih (tagihan belum di-generate, atau
+// sudah di-generate tapi masih berstatus 'terjadwal' karena belum jatuh
+// tempo) tetap tampil sebagai tunggakan. Sekarang sumbernya tabel `tagihan`
+// yang sebenarnya, dan hanya baris yang jatuh temponya SUDAH LEWAT yang
+// dihitung -- persis logika rekapTunggakan di atas, hanya digeneralisasi ke
+// banyak siswa dalam satu kelas/jenis pembayaran sekaligus.
+export interface RekapTunggakanBatchInput {
+  jenis_id: string;
+  tahun_ajaran_id: string;
+  kelas_id?: string;
+  departemen_id?: string;
+  /** Filter bulan (tipe bulanan). Kosong/undefined = semua bulan. */
+  bulan_list?: number[];
+  per_tanggal?: string;
+}
+
+export interface TunggakanSiswaRow {
+  siswa_id: string;
+  nis: string | null;
+  nama: string | null;
+  kelas: string | null;
+  /** 0 = sekali bayar (konvensi UI), 1-12 = bulanan; hanya bulan yang menunggak. */
+  bulan_tunggak: number[];
+  total: number;
+}
+
+export interface RekapTunggakanBatchResult {
+  rows: TunggakanSiswaRow[];
+  per_tanggal: string;
+}
+
+export const rekapTunggakanBatch = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .inputValidator((d: RekapTunggakanBatchInput) => d)
+  .handler(async ({ data, context }): Promise<RekapTunggakanBatchResult> => {
+    const admin = createAdminClient();
+    await requireRole(admin, context.userId, [
+      "admin",
+      "kepala_sekolah",
+      "keuangan",
+      "kasir",
+    ]);
+
+    const { jenis_id, tahun_ajaran_id, kelas_id, departemen_id, bulan_list } = data;
+    const perTanggal = data.per_tanggal || new Date().toISOString().split("T")[0];
+
+    if (!jenis_id || !tahun_ajaran_id) {
+      throw new Error("jenis_id dan tahun_ajaran_id wajib diisi");
+    }
+
+    // Siswa aktif sesuai filter kelas/lembaga
+    let siswaQuery = admin
+      .from("kelas_siswa")
+      .select("siswa_id, siswa:siswa_id(nis, nama), kelas:kelas_id(nama, departemen_id)")
+      .eq("aktif", true)
+      .eq("tahun_ajaran_id", tahun_ajaran_id);
+    if (kelas_id) siswaQuery = siswaQuery.eq("kelas_id", kelas_id);
+    const { data: kelasSiswaRows, error: ksErr } = await siswaQuery;
+    if (ksErr)
+      throw new Error("Gagal mengambil data kelas siswa: " + ksErr.message);
+
+    interface KelasSiswaRow {
+      siswa_id: string;
+      siswa: { nis: string | null; nama: string | null } | null;
+      kelas: { nama: string | null; departemen_id: string | null } | null;
+    }
+    let filtered = (kelasSiswaRows || []) as unknown as KelasSiswaRow[];
+    if (departemen_id)
+      filtered = filtered.filter((r) => r.kelas?.departemen_id === departemen_id);
+    if (!filtered.length) return { rows: [], per_tanggal: perTanggal };
+
+    const siswaIds = filtered.map((r) => r.siswa_id);
+
+    // Tagihan yang masih menagih (belum lunas/dibatalkan/dihapusbuku)
+    let tagihanQuery = admin
+      .from("tagihan")
+      .select("siswa_id, bulan, nominal, jatuh_tempo")
+      .eq("jenis_id", jenis_id)
+      .eq("tahun_ajaran_id", tahun_ajaran_id)
+      .in("siswa_id", siswaIds)
+      .not("status", "in", `(${STATUS_SELESAI.join(",")})`);
+    if (bulan_list && bulan_list.length > 0) tagihanQuery = tagihanQuery.in("bulan", bulan_list);
+    const { data: tagihanRows, error: tErr } = await tagihanQuery;
+    if (tErr) throw new Error("Gagal mengambil data tagihan: " + tErr.message);
+    if (!tagihanRows?.length) return { rows: [], per_tanggal: perTanggal };
+
+    // Pembayaran (untuk sisa parsial -- satu tagihan bisa dicicil)
+    const { data: payments } = await admin
+      .from("pembayaran")
+      .select("siswa_id, bulan, jumlah")
+      .eq("jenis_id", jenis_id)
+      .eq("tahun_ajaran_id", tahun_ajaran_id)
+      .in("siswa_id", siswaIds);
+
+    const kunci = (siswaId: string, bulan: number | null) => `${siswaId}|${bulan ?? "x"}`;
+    const terbayarMap = new Map<string, number>();
+    for (const p of payments || []) {
+      const k = kunci(p.siswa_id!, p.bulan);
+      terbayarMap.set(k, (terbayarMap.get(k) || 0) + (Number(p.jumlah) || 0));
+    }
+
+    const bySiswa = new Map<string, { bulanTunggak: number[]; total: number }>();
+    for (const t of tagihanRows) {
+      const nominal = Number(t.nominal) || 0;
+      const k = kunci(t.siswa_id!, t.bulan);
+      const terbayar = Math.min(terbayarMap.get(k) || 0, nominal);
+      const sisa = nominal - terbayar;
+      if (sisa <= 0) continue;
+      if (!sudahMenunggak(t.jatuh_tempo, perTanggal)) continue; // belum jatuh tempo -> bukan tunggakan
+
+      const entry = bySiswa.get(t.siswa_id!) || { bulanTunggak: [], total: 0 };
+      entry.bulanTunggak.push(t.bulan ?? 0);
+      entry.total += sisa;
+      bySiswa.set(t.siswa_id!, entry);
+    }
+
+    const rows: TunggakanSiswaRow[] = [];
+    for (const ks of filtered) {
+      const agg = bySiswa.get(ks.siswa_id);
+      if (!agg) continue;
+      rows.push({
+        siswa_id: ks.siswa_id,
+        nis: ks.siswa?.nis ?? null,
+        nama: ks.siswa?.nama ?? null,
+        kelas: ks.kelas?.nama ?? null,
+        bulan_tunggak: agg.bulanTunggak.sort((a, b) => a - b),
+        total: agg.total,
+      });
+    }
+
+    return { rows, per_tanggal: perTanggal };
+  });
