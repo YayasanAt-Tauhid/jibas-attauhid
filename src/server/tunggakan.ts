@@ -2,28 +2,80 @@
  * Server function: rekapTunggakan
  * Migrasi dari supabase/functions/rekap-tunggakan.
  * Rekap sisa tunggakan siswa. Boleh staff, atau siswa/ortu terkait.
+ *
+ * CATATAN PERBAIKAN (2026-07-28): versi lama menganggap SEMUA tagihan yang
+ * belum lunas sebagai tunggakan. Dua akibatnya:
+ *
+ *   1. Bulan yang belum tiba ikut dihitung menunggak. Sekolah meng-input SPP
+ *      sampai 6 tahun ke depan (kelas 1 SD) — dengan logika lama, siswa baru
+ *      yang belum telat sepeser pun langsung tampil menunggak 72 bulan.
+ *   2. Nominalnya diambil dari `jenis_pembayaran.nominal` (tarif umum) dan
+ *      bulan 1..12 di-loop untuk setiap jenis aktif, tanpa melihat tabel
+ *      `tagihan` sama sekali — jadi siswa yang tarifnya beda (beasiswa,
+ *      keringanan) atau yang memang tidak ditagih bulan tsb tetap muncul.
+ *
+ * Sekarang tunggakan dibaca dari tabel `tagihan` yang benar-benar ada, dan
+ * hanya tagihan yang tanggal jatuh temponya SUDAH LEWAT yang dihitung sebagai
+ * tunggakan. Tagihan yang belum jatuh tempo dilaporkan terpisah (tidak
+ * dijumlahkan ke total tunggakan) supaya tetap bisa ditampilkan sebagai
+ * "tagihan mendatang".
  */
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./auth";
 import { createAdminClient } from "./supabase";
+import { hariTerlambat, sudahMenunggak } from "@/lib/jatuhTempo";
 
 export interface RekapTunggakanInput {
   siswa_id: string;
   tahun_ajaran_id?: string;
+  /** Ikut sertakan tagihan yang belum jatuh tempo di daftar (default false). */
+  sertakan_belum_jatuh_tempo?: boolean;
+  /** Tanggal acuan "hari ini" dalam format yyyy-MM-dd. Default: hari ini. */
+  per_tanggal?: string;
 }
 
 export interface TunggakanRow {
+  tagihan_id: string;
   jenis: string;
+  /** 0 = sekali bayar (konvensi UI), 1-12 = bulanan. */
   bulan: number;
   nominal: number;
   terbayar: number;
   sisa: number;
   tipe: string;
+  status: string;
+  jatuh_tempo: string | null;
+  /** Selisih hari sejak jatuh tempo; 0 kalau belum jatuh tempo. */
+  hari_terlambat: number;
+  menunggak: boolean;
 }
 
 export interface RekapTunggakanResult {
   tunggakan: TunggakanRow[];
+  /** Total yang benar-benar menunggak (sudah lewat jatuh tempo). */
   total: number;
+  /** Total tagihan yang sudah terbit tapi belum jatuh tempo. */
+  total_belum_jatuh_tempo: number;
+  per_tanggal: string;
+}
+
+/** Status tagihan yang sudah tidak menagih apa pun lagi. */
+const STATUS_SELESAI = ["lunas", "dibatalkan", "dihapusbuku"];
+
+/**
+ * Bentuk baris tagihan yang dibaca di sini. Relasi `jenis` di-embed lewat
+ * PostgREST, yang tidak tercermin di tipe hasil generate — karena itu hasil
+ * query di-cast ke tipe ini secara eksplisit.
+ */
+interface TagihanRow {
+  id: string;
+  jenis_id: string;
+  bulan: number | null;
+  nominal: number;
+  status: string;
+  jatuh_tempo: string | null;
+  tahun_ajaran_id: string;
+  jenis: { nama: string | null; tipe: string | null } | null;
 }
 
 export const rekapTunggakan = createServerFn({ method: "POST" })
@@ -32,7 +84,13 @@ export const rekapTunggakan = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<RekapTunggakanResult> => {
     const admin = createAdminClient();
     const userId = context.userId;
-    const { siswa_id, tahun_ajaran_id } = data;
+    const {
+      siswa_id,
+      tahun_ajaran_id,
+      sertakan_belum_jatuh_tempo = false,
+    } = data;
+    const perTanggal =
+      data.per_tanggal || new Date().toISOString().split("T")[0];
 
     const { data: profile } = await admin
       .from("users_profile")
@@ -55,64 +113,98 @@ export const rekapTunggakan = createServerFn({ method: "POST" })
       if (!isOwn && !isParent) throw new Error("Forbidden: akses ditolak");
     }
 
-    const { data: jenisList } = await admin
-      .from("jenis_pembayaran")
-      .select("id, nama, nominal, tipe")
-      .eq("aktif", true);
+    let tagihanQuery = admin
+      .from("tagihan")
+      .select(
+        "id, jenis_id, bulan, nominal, status, jatuh_tempo, tahun_ajaran_id, jenis:jenis_id(nama, tipe)"
+      )
+      .eq("siswa_id", siswa_id)
+      .not("status", "in", `(${STATUS_SELESAI.join(",")})`);
+    if (tahun_ajaran_id)
+      tagihanQuery = tagihanQuery.eq("tahun_ajaran_id", tahun_ajaran_id);
 
-    if (!jenisList) return { tunggakan: [], total: 0 };
+    const { data: tagihanList, error: tagihanErr } = await tagihanQuery;
+    if (tagihanErr)
+      throw new Error("Gagal mengambil data tagihan: " + tagihanErr.message);
+    if (!tagihanList?.length)
+      return {
+        tunggakan: [],
+        total: 0,
+        total_belum_jatuh_tempo: 0,
+        per_tanggal: perTanggal,
+      };
 
-    let query = admin
+    // Pembayaran parsial: satu tagihan bisa dicicil lewat beberapa baris
+    // pembayaran, jadi sisa dihitung dari total yang sudah masuk untuk
+    // kombinasi jenis+bulan+periode yang sama.
+    let pembayaranQuery = admin
       .from("pembayaran")
-      .select("jenis_id, bulan, jumlah")
+      .select("jenis_id, bulan, jumlah, tahun_ajaran_id")
       .eq("siswa_id", siswa_id);
-    if (tahun_ajaran_id) query = query.eq("tahun_ajaran_id", tahun_ajaran_id);
+    if (tahun_ajaran_id)
+      pembayaranQuery = pembayaranQuery.eq("tahun_ajaran_id", tahun_ajaran_id);
 
-    const { data: payments } = await query;
+    const { data: payments } = await pembayaranQuery;
+
+    const kunci = (
+      jenisId: string,
+      bulan: number | null,
+      periodeId: string | null
+    ) => `${jenisId}|${bulan ?? "x"}|${periodeId ?? "x"}`;
+
+    const terbayarMap = new Map<string, number>();
+    for (const p of payments || []) {
+      const k = kunci(p.jenis_id!, p.bulan, p.tahun_ajaran_id);
+      terbayarMap.set(k, (terbayarMap.get(k) || 0) + (Number(p.jumlah) || 0));
+    }
 
     const tunggakan: TunggakanRow[] = [];
     let total = 0;
+    let totalBelumJatuhTempo = 0;
 
-    for (const jenis of jenisList) {
-      const nominal = Number(jenis.nominal) || 0;
-      const tipe = jenis.tipe || "bulanan";
+    for (const t of tagihanList as unknown as TagihanRow[]) {
+      const nominal = Number(t.nominal) || 0;
+      const k = kunci(t.jenis_id, t.bulan, t.tahun_ajaran_id);
+      const terbayar = Math.min(terbayarMap.get(k) || 0, nominal);
+      const sisa = nominal - terbayar;
+      if (sisa <= 0) continue;
 
-      if (tipe === "sekali") {
-        const paid = (payments || [])
-          .filter((p) => p.jenis_id === jenis.id)
-          .reduce((sum, p) => sum + (Number(p.jumlah) || 0), 0);
-        const sisa = nominal - paid;
-        if (sisa > 0) {
-          tunggakan.push({
-            jenis: jenis.nama,
-            bulan: 0,
-            nominal,
-            terbayar: paid,
-            sisa,
-            tipe: "sekali",
-          });
-          total += sisa;
-        }
+      const jatuhTempo: string | null = t.jatuh_tempo ?? null;
+      const menunggak = sudahMenunggak(jatuhTempo, perTanggal);
+      const terlambat = hariTerlambat(jatuhTempo, perTanggal);
+
+      if (menunggak) {
+        total += sisa;
       } else {
-        for (let bulan = 1; bulan <= 12; bulan++) {
-          const paid = (payments || [])
-            .filter((p) => p.jenis_id === jenis.id && p.bulan === bulan)
-            .reduce((sum, p) => sum + (Number(p.jumlah) || 0), 0);
-          const sisa = nominal - paid;
-          if (sisa > 0) {
-            tunggakan.push({
-              jenis: jenis.nama,
-              bulan,
-              nominal,
-              terbayar: paid,
-              sisa,
-              tipe: "bulanan",
-            });
-            total += sisa;
-          }
-        }
+        totalBelumJatuhTempo += sisa;
+        if (!sertakan_belum_jatuh_tempo) continue;
       }
+
+      tunggakan.push({
+        tagihan_id: t.id,
+        jenis: t.jenis?.nama ?? "-",
+        bulan: t.bulan ?? 0,
+        nominal,
+        terbayar,
+        sisa,
+        tipe: t.jenis?.tipe ?? "bulanan",
+        status: t.status,
+        jatuh_tempo: jatuhTempo,
+        hari_terlambat: terlambat,
+        menunggak,
+      });
     }
 
-    return { tunggakan, total };
+    // Paling telat di atas; tagihan mendatang menyusul secara kronologis.
+    tunggakan.sort((a, b) => {
+      if (a.menunggak !== b.menunggak) return a.menunggak ? -1 : 1;
+      return (a.jatuh_tempo ?? "").localeCompare(b.jatuh_tempo ?? "");
+    });
+
+    return {
+      tunggakan,
+      total,
+      total_belum_jatuh_tempo: totalBelumJatuhTempo,
+      per_tanggal: perTanggal,
+    };
   });

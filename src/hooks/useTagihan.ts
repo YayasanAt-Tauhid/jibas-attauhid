@@ -106,7 +106,16 @@ export function useGenerateTagihan() {
         return;
       }
 
-      toast.success(`Tagihan berhasil di-generate: ${data.generated} tagihan baru, ${data.skipped} sudah ada`);
+      // Tagihan periode mendatang sengaja belum dijurnal (status 'terjadwal') --
+      // sebutkan eksplisit supaya petugas keuangan tidak bingung mencari jurnal
+      // piutangnya yang memang belum ada.
+      const infoTerjadwal =
+        data.scheduled > 0
+          ? `, ${data.scheduled} di antaranya belum jatuh tempo (dijadwalkan, jurnal piutang menyusul saat jatuh tempo)`
+          : "";
+      toast.success(
+        `Tagihan berhasil di-generate: ${data.generated} tagihan baru, ${data.skipped} sudah ada${infoTerjadwal}`
+      );
     },
     onError: (e: any) => toast.error(e.message),
   });

@@ -1,4 +1,4 @@
-# Catatan Sesi — terakhir diperbarui 16 Juli 2026
+# Catatan Sesi — terakhir diperbarui 28 Juli 2026
 
 > File ini dibaca otomatis oleh Claude Code di awal sesi (lihat CLAUDE.md → Kontinuitas Antar Sesi).
 > Update file ini di akhir setiap pengerjaan yang berarti: apa yang selesai, keputusan + alasannya, langkah berikutnya.
@@ -25,7 +25,16 @@
 - UUID `tahun_buku` disamakan dengan `tahun_ajaran` asal — data lama langsung valid tanpa UPDATE
 - Pembatalan tagihan/pembayaran dan pembayaran Midtrans harus **atomik via RPC** (bukan loop per-baris dari client) — hindari silent-fail dan limit subrequest Worker
 
-## Status Terkini (per 14 Juli 2026)
+### Akrual tagihan (28 Juli 2026)
+
+- **Piutang diakui saat JATUH TEMPO, bukan saat tagihan di-input.** Sekolah meng-input SPP jauh di muka (6 tahun untuk kelas 1 SD, 3 tahun untuk kelas 7/10). Sebelum ini `generate_tagihan_batch` langsung memposting D Piutang / K Pendapatan untuk setiap tagihan — artinya pendapatan 6 tahun ke depan diakui hari ini. Sekarang tagihan yang belum jatuh tempo berstatus `terjadwal`: **tersimpan sebagai jadwal tanpa jurnal sama sekali** (bukan pendapatan diterima di muka — belum ada transaksi apa pun yang perlu dibukukan)
+- **Tunggakan bukan akun tersendiri.** Lewat jatuh tempo tanpa bayar tetap memakai akun Piutang Siswa yang sama; yang berubah hanya umur piutangnya (aging). Karena itu tidak ada jurnal tambahan saat tagihan menjadi tunggakan
+- **Bayar sebelum jatuh tempo → liabilitas, bukan pendapatan.** Kas masuk tapi jasa belum diberikan, jadi K Pendapatan Diterima di Muka (akun 2107/2106), diakui jadi pendapatan saat periodenya tiba. Ini menyambungkan mesin `pendapatan_dimuka` yang sudah ada — dulu hanya terpicu oleh pembayaran untuk tahun ajaran lain, sekarang juga oleh pembayaran atas tagihan `terjadwal`
+- **Hari jatuh tempo** diatur per jenis pembayaran (`jenis_pembayaran.hari_jatuh_tempo`, default 10)
+- **Tahun kalender sebuah bulan diturunkan dari bulan awal periodenya**, bukan di-hardcode Juli–Juni. Alasannya sistem ini memakai dua konvensi sekaligus (tahun buku Jan–Des, tahun ajaran Jul–Jun) dan keduanya memakai kolom `tagihan.bulan` yang sama — rumus turunan itu benar untuk keduanya. Logika ini kembar di SQL (`hitung_jatuh_tempo_tagihan`) dan TS (`src/lib/jatuhTempo.ts`); **kalau salah satu diubah, ubah keduanya**
+- **Tanggal jurnal akrual memakai `current_date`, bukan tanggal jatuh tempo** — supaya job yang telat jalan tidak menyisipkan jurnal bertanggal mundur ke bulan yang laporannya sudah terbit / bukunya sudah ditutup. Tanggal jatuh tempo yang presisi tetap tersimpan di `tagihan.jatuh_tempo` untuk laporan umur piutang
+
+## Status Sebelumnya (per 14 Juli 2026)
 
 Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 
@@ -47,7 +56,22 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 
 - **App mobile Portal Ortu — fase 1 (16 Juli):** aplikasi Expo baru di `apps/portal-ortu/` (React Native + Expo Router, SDK 57, branch `claude/react-native-expo-ssr-ssg-3qt5m1`). Login khusus role `ortu`, tab Beranda/Tagihan/Presensi/Nilai/Profil + layar Riwayat Pembayaran; query Supabase identik dengan portal web (queryKey sama). Keputusan: dipilih **app Expo khusus portal** (bukan migrasi seluruh proyek ke Expo, bukan Capacitor/PWA) — scope kecil (7 layar), memungkinkan push notification native, web admin + SSR tak tersentuh; SSR/SSG tidak relevan untuk app native. Tipe DB di-share type-only dari `src/integrations/supabase/types.ts`; util format (Rupiah, bulan akademik) disalin karena Metro tidak bisa bundle modul Vite — detail di `apps/portal-ortu/README.md`
 
+## Status Terkini (per 28 Juli 2026)
+
+- **Akrual piutang SPP berbasis jatuh tempo (28 Juli):** 4 migrasi (`20260728100000`–`20260728100003`) + RPC `jalankan_akrual_jatuh_tempo`, server function `src/server/akrual.ts`, tab **Akrual Jatuh Tempo** di Manajemen Piutang. Keputusan desainnya di bagian "Akrual tagihan" di atas
+  - **Migrasi BELUM diterapkan ke Supabase** — MCP Supabase di sesi ini tidak punya izin `execute_sql`/`apply_migration`. Harus di-push manual (`supabase db push` atau apply per file), dan **ingat catatan `db push` di atas** (ledger migrasi remote tidak sinkron dengan nama file)
+  - Divalidasi dengan menjalankan keempat migrasi di Postgres 16 lokal (throwaway) di atas harness skema minimal, lalu mengetes skenario nyata 6 tahun × 12 bulan: dari 72 tagihan hanya 13 yang jatuh temponya sudah lewat yang terjurnal (Rp 4,55 jt); 59 sisanya (Rp 20,65 jt) tersimpan `terjadwal` tanpa jurnal. Juga diuji: idempotensi (jalan 2×, jurnal tidak bertambah), bayar di muka → kredit 2107 + baris `pendapatan_dimuka`, pengakuan → D 2107 / K 4101, semua jurnal balance, dan pemotongan hari akhir bulan (31 Feb → 28/29). Harness-nya throwaway, tidak masuk repo — repo memang belum punya infrastruktur tes SQL
+- **Dua bug lama yang ikut ketahuan & diperbaiki:**
+  - `proses_pembayaran_atomik` langkah 8 meng-INSERT ke `pendapatan_dimuka` memakai nama kolom yang tidak ada (`tahun_ajaran_id`, `tanggal`, `jurnal_id`, `keterangan`). PL/pgSQL baru mem-parse statement saat dieksekusi, jadi ini tidak pernah terlihat saat fungsi dibuat — **setiap pembayaran dengan "bayar di muka" dicentang pasti gagal runtime**
+  - `proses_pembayaran_midtrans_atomik` selalu mengkredit Pendapatan dan hanya menutup tagihan `belum_bayar`. Begitu tagihan `terjadwal` tampil di portal, tagihan yang dibayar online tidak akan tertutup lalu **tertagih dua kali** saat jatuh tempo
+- **Drift skema yang ditemukan:** view `v_tagihan_belum_bayar` di DB live punya kolom `tahun_ajaran_mulai` (dipakai `PortalTagihan`) yang tidak ada di file migrasi mana pun. Sudah ikut ditulis ulang di migrasi baru. `CREATE OR REPLACE VIEW` tidak bisa menghapus/menyusun ulang kolom, jadi urutan kolom lama wajib dipertahankan persis — kolom baru hanya boleh ditambah di akhir
+
 ## Pekerjaan Terbuka
+
+- **Pembatalan tagihan berstatus `terjadwal` belum didukung** — menu Koreksi/Pembatalan hanya menyaring `belum_bayar`, jadi tagihan periode mendatang yang salah input belum bisa dibatalkan lewat UI (sudah diberi catatan di panduan tab tsb). Perbaikannya ada di `batalkan_tagihan_atomik`/`batalkan_tagihan_batch` — **definisi kedua RPC ini tidak ada di `supabase/migrations/`** (hanya pernah diterapkan via MCP), jadi harus di-dump dulu dari DB (`pg_get_functiondef`) ke file migrasi sebelum diubah; menulis ulang dari nol berisiko menghilangkan logika audit/jurnal pembalik/periode-lock-nya. Secara akuntansi pembatalannya sepele: tagihan `terjadwal` tidak punya jurnal, jadi tidak perlu jurnal pembalik
+- **Belum ada penjadwal otomatis** untuk `jalankan_akrual_jatuh_tempo` — sekarang dijalankan manual dari tab Akrual Jatuh Tempo. Idealnya cron harian (pg_cron atau Cloudflare Cron Trigger memanggil server function). RPC-nya sudah idempoten & dibatasi `p_limit`, jadi aman dipanggil berkala
+- **`TunggakanPembayaran.tsx` masih menghitung tunggakan sendiri** dari `pembayaran` + tarif (tanpa melihat `tagihan.jatuh_tempo`), dengan rentang bulan dipilih manual user. Yang sudah diperbaiki jadi sadar jatuh tempo adalah server function `rekapTunggakan` (`src/server/tunggakan.ts`) — tapi **fungsi itu belum dipakai UI mana pun**; menyatukan keduanya belum dikerjakan
+- **Pembayaran tanpa `tagihan_id` bisa menggandakan pendapatan** — di `src/server/pembayaran.ts`, akun kredit dipilih Piutang hanya kalau `tagihan_id` dikirim eksplisit; kalau tidak, langsung kredit Pendapatan meski tagihannya ada dan piutangnya sudah dibukukan (pendapatan dobel, piutang tak pernah lunas). Sengaja TIDAK diubah di sesi ini agar tidak mengubah perilaku posting pembayaran di luar cakupan akrual
 
 - **App mobile Portal Ortu — sisa fase 2 (butuh aset/akun dari user, tidak bisa dari sesi):** (1) ikon & splash resmi pengganti aset template; (2) rilis iOS (akun Apple Developer + build EAS); (3) `eas init` untuk mendapat EAS projectId — **prasyarat push notification jalan** (`getExpoPushTokenAsync` butuh projectId; tanpa itu registrasi token dilewati diam-diam); remote push tidak bisa diuji di Expo Go SDK 53+, harus development build/APK
 - **Uji end-to-end checkout in-app dengan Midtrans sandbox** — smoke test baru sampai lapisan auth/CORS; perilaku deep link callback `portalortu://` di halaman Snap perlu diverifikasi di perangkat nyata (kalau bermasalah, fallback: arahkan finish ke halaman web yang menampilkan tombol "kembali ke aplikasi")

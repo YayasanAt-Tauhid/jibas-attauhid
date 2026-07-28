@@ -40,6 +40,13 @@ function labelBulanTA(bulan: number, tahunAjaranMulai: string): string {
   return `${nama} ${tahunKalender}`;
 }
 
+// Tanggal ringkas "10 Jul 2027" untuk label jatuh tempo.
+function labelTanggal(tgl: string): string {
+  const d = new Date(tgl);
+  if (Number.isNaN(d.getTime())) return tgl;
+  return `${d.getDate()} ${NAMA_BULAN[d.getMonth() + 1]?.slice(0, 3) ?? ""} ${d.getFullYear()}`;
+}
+
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -62,6 +69,9 @@ interface TagihanItem {
   tahun_ajaran_id: string;
   tahun_ajaran_nama: string;
   tahun_ajaran_mulai: string;
+  jatuh_tempo: string | null;
+  /** Sudah lewat jatuh tempo dan belum lunas. */
+  menunggak: boolean | null;
 }
 
 export default function PortalTagihan() {
@@ -272,6 +282,19 @@ export default function PortalTagihan() {
                               ? `Sekali Bayar — TA ${t.tahun_ajaran_nama}`
                               : labelBulanTA(t.bulan, t.tahun_ajaran_mulai)}
                           </span>
+                          {/* Bedakan tagihan yang sudah lewat tempo dari yang
+                              memang belum waktunya, supaya daftar tagihan
+                              bertahun-tahun ke depan tidak terbaca sebagai
+                              tunggakan. Keduanya tetap boleh dibayar. */}
+                          {t.menunggak ? (
+                            <span className="ml-2 text-[10px] font-medium rounded px-1.5 py-0.5 bg-destructive/10 text-destructive">
+                              Lewat jatuh tempo
+                            </span>
+                          ) : t.jatuh_tempo ? (
+                            <span className="ml-2 text-[10px] rounded px-1.5 py-0.5 bg-muted text-muted-foreground">
+                              Jatuh tempo {labelTanggal(t.jatuh_tempo)}
+                            </span>
+                          ) : null}
                         </div>
                         <span className="text-sm font-semibold">
                           {formatRupiah(t.nominal || 0)}

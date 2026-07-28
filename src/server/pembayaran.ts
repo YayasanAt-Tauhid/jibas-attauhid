@@ -173,10 +173,33 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
     if (!kasAkunId)
       throw new Error("Akun Kas Tunai belum dikonfigurasi di Pengaturan Akun");
 
+    // Tagihan yang belum jatuh tempo (status 'terjadwal') belum pernah
+    // dibukukan sebagai piutang dan jasanya belum diberikan, jadi uangnya tidak
+    // boleh mengkredit Piutang maupun Pendapatan — harus masuk liabilitas
+    // Pendapatan Diterima di Muka, lalu diakui saat periodenya tiba oleh RPC
+    // akui_pendapatan_dimuka_jatuh_tempo. Kasir tidak perlu (dan gampang lupa)
+    // mencentang "bayar di muka" sendiri; status tagihanlah yang menentukan.
+    let tagihanQuery = admin
+      .from("tagihan")
+      .select("id, status")
+      .eq("siswa_id", siswa_id)
+      .eq("jenis_id", jenis_id)
+      .eq("tahun_ajaran_id", tahun_ajaran_id)
+      .in("status", ["belum_bayar", "terjadwal"]);
+    tagihanQuery =
+      bulanNormalized == null
+        ? tagihanQuery.is("bulan", null)
+        : tagihanQuery.eq("bulan", bulanNormalized);
+    if (tagihan_id) tagihanQuery = tagihanQuery.eq("id", tagihan_id);
+
+    const { data: tagihanRows } = await tagihanQuery.limit(1);
+    const belumJatuhTempo = tagihanRows?.[0]?.status === "terjadwal";
+    const pakaiDimuka = is_bayar_dimuka || belumJatuhTempo;
+
     let kreditAkunId: string | null;
     let kreditLabel: string;
 
-    if (is_bayar_dimuka) {
+    if (pakaiDimuka) {
       const dimukaJenisAkunId = jenis.akun_dimuka_id ?? dimukaAkunId;
       if (!dimukaJenisAkunId)
         throw new Error(
@@ -212,12 +235,12 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
         p_keterangan: keteranganFinal,
         p_departemen_id: departemen_id ?? null,
         p_tahun_ajaran_id: tahun_ajaran_id,
-        p_is_bayar_dimuka: is_bayar_dimuka,
+        p_is_bayar_dimuka: pakaiDimuka,
         p_tagihan_id: tagihan_id ?? null,
         p_kas_akun_id: kasAkunId,
         p_kredit_akun_id: kreditAkunId,
         p_kredit_label: kreditLabel,
-        p_prefix_jurnal: is_bayar_dimuka ? "JD" : "JP",
+        p_prefix_jurnal: pakaiDimuka ? "JD" : "JP",
         p_petugas_id: context.userId,
         p_jenis_nama: jenis.nama,
       }

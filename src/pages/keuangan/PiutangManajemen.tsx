@@ -17,10 +17,11 @@ import { StatsCard } from "@/components/shared/StatsCard";
 import { useLembaga, formatRupiah, BULAN_ORDER_AKADEMIK, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
 import { usePengaturanAkun, logAuditKeuangan } from "@/hooks/useJurnal";
 import { useBatalkanTagihan, useBatalkanTagihanBatch } from "@/hooks/useTagihan";
+import { jalankanAkrualJatuhTempo } from "@/server/akrual";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { Plus, Trash2, AlertTriangle, ShieldAlert, BookOpen, TrendingDown } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, ShieldAlert, BookOpen, TrendingDown, CalendarClock, PlayCircle } from "lucide-react";
 
 const now = new Date();
 const currentYear = now.getFullYear();
@@ -127,6 +128,43 @@ function useTagihanDibatalkanList(departemenId?: string) {
   });
 }
 
+interface TagihanTerjadwal {
+  id: string;
+  nominal: number;
+  bulan: number | null;
+  status: string;
+  jatuh_tempo: string | null;
+  siswa: { id: string; nis: string | null; nama: string | null; departemen_id: string | null } | null;
+  jenis: { nama: string | null } | null;
+  tahun_ajaran: { nama: string | null } | null;
+}
+
+// Tagihan yang sudah di-input tapi BELUM jatuh tempo — masih sekadar jadwal,
+// belum menimbulkan jurnal apa pun. Yang jatuh temponya sudah lewat tapi masih
+// berstatus 'terjadwal' berarti proses akrual belum dijalankan untuk baris itu.
+function useTagihanTerjadwalList(departemenId?: string) {
+  return useQuery({
+    queryKey: ["tagihan_terjadwal", departemenId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tagihan")
+        .select(`
+          id, nominal, bulan, status, jatuh_tempo,
+          siswa:siswa_id(id, nis, nama, departemen_id),
+          jenis:jenis_id(nama),
+          tahun_ajaran:tahun_ajaran_id(nama)
+        `)
+        .eq("status", "terjadwal")
+        .order("jatuh_tempo", { ascending: true })
+        .limit(1000);
+      if (error) throw error;
+      let rows = (data || []) as unknown as TagihanTerjadwal[];
+      if (departemenId) rows = rows.filter((r) => r.siswa?.departemen_id === departemenId);
+      return rows;
+    },
+  });
+}
+
 async function generateNomorJurnal(prefix: string, tahun: number) {
   const { data, error } = await supabase.rpc("generate_nomor_jurnal", { p_prefix: prefix, p_tahun: tahun });
   if (error) throw error;
@@ -199,6 +237,48 @@ export default function PiutangManajemen() {
   const koreksiTagihan = useBatalkanTagihan();
   const batalMassalMutation = useBatalkanTagihanBatch();
   const { data: dibatalkanList, isLoading: loadDibatalkan } = useTagihanDibatalkanList(departemenId || undefined);
+
+  // ── Akrual jatuh tempo ──
+  const hariIni = format(now, "yyyy-MM-dd");
+  const { data: terjadwalList, isLoading: loadTerjadwal } = useTagihanTerjadwalList(departemenId || undefined);
+  const [konfirmAkrual, setKonfirmAkrual] = useState(false);
+
+  // Tagihan yang jatuh temponya sudah lewat/tiba tapi statusnya masih
+  // 'terjadwal' = piutangnya belum diakui; itulah yang akan diproses.
+  const terjadwalJatuhTempo = useMemo(
+    () => (terjadwalList || []).filter((t) => t.jatuh_tempo && t.jatuh_tempo <= hariIni),
+    [terjadwalList, hariIni]
+  );
+  const totalTerjadwal = useMemo(
+    () => (terjadwalList || []).reduce((s, t) => s + Number(t.nominal || 0), 0),
+    [terjadwalList]
+  );
+  const totalSiapDiakui = useMemo(
+    () => terjadwalJatuhTempo.reduce((s, t) => s + Number(t.nominal || 0), 0),
+    [terjadwalJatuhTempo]
+  );
+
+  const akrualMutation = useMutation({
+    mutationFn: async () => jalankanAkrualJatuhTempo({ data: { sampai_tanggal: hariIni } }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["tagihan_terjadwal"] });
+      qc.invalidateQueries({ queryKey: ["tagihan"] });
+      qc.invalidateQueries({ queryKey: ["jurnal"] });
+      qc.invalidateQueries({ queryKey: ["pendapatan_dimuka"] });
+      const bagian: string[] = [];
+      if (res.piutang_diposting > 0)
+        bagian.push(`${res.piutang_diposting} tagihan jadi piutang (${formatRupiah(res.piutang_nominal)})`);
+      if (res.pendapatan_diakui > 0)
+        bagian.push(`${res.pendapatan_diakui} pendapatan diterima di muka diakui (${formatRupiah(res.pendapatan_nominal)})`);
+      toast.success(
+        bagian.length > 0
+          ? `Akrual selesai: ${bagian.join(", ")}`
+          : "Tidak ada tagihan yang jatuh tempo hari ini — tidak ada jurnal yang dibuat"
+      );
+      if (res.errors?.length) toast.error(`${res.errors.length} baris gagal diproses: ${res.errors[0]}`);
+    },
+    onError: (e: any) => toast.error(e?.message || "Gagal menjalankan proses akrual"),
+  });
   // hanya tagihan belum_bayar yang boleh dikoreksi/dibatalkan (bukan sebagian/lunas)
   const tagihanBelumBayar = useMemo(
     () => (tagihanList || []).filter((t: any) => t.status === "belum_bayar"),
@@ -537,6 +617,32 @@ export default function PiutangManajemen() {
       }},
   ];
 
+  const colsTerjadwal: DataTableColumn<TagihanTerjadwal>[] = [
+    { key: "jatuh_tempo", label: "Jatuh Tempo", sortable: true,
+      render: (v) => {
+        if (!v) return <span className="text-muted-foreground">-</span>;
+        const tgl = v as string;
+        const lewat = tgl <= hariIni;
+        return (
+          <span className={lewat ? "text-warning font-medium" : ""}>
+            {format(new Date(tgl), "d MMM yyyy", { locale: idLocale })}
+          </span>
+        );
+      }},
+    { key: "siswa", label: "Siswa", render: (_, r) => `${r.siswa?.nis || "-"} — ${r.siswa?.nama || "-"}` },
+    { key: "jenis", label: "Jenis", render: (_, r) => {
+        const bln = r.bulan ? namaBulanTahun(r.bulan, { tahunBukuNama: r.tahun_ajaran?.nama }) : "";
+        return <span className="text-xs">{r.jenis?.nama || "-"}{bln ? ` (${bln})` : ""}</span>;
+      }},
+    { key: "nominal", label: "Nominal", render: (v) => formatRupiah(Number(v)) },
+    { key: "status", label: "Keterangan",
+      render: (_, r) => (
+        r.jatuh_tempo && r.jatuh_tempo <= hariIni
+          ? <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Siap diakui jadi piutang</Badge>
+          : <Badge variant="outline" className="bg-muted text-muted-foreground">Belum jatuh tempo</Badge>
+      )},
+  ];
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4 animate-fade-in">
@@ -587,10 +693,56 @@ export default function PiutangManajemen() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
+          <TabsTrigger value="akrual">Akrual Jatuh Tempo</TabsTrigger>
           <TabsTrigger value="penyisihan">Penyisihan Piutang</TabsTrigger>
           <TabsTrigger value="writeoff">Write-Off Piutang</TabsTrigger>
           <TabsTrigger value="koreksi">Koreksi / Pembatalan Tagihan</TabsTrigger>
         </TabsList>
+
+        {/* ── Tab Akrual Jatuh Tempo ── */}
+        <TabsContent value="akrual" className="space-y-3 mt-3">
+          <div className="rounded-md border border-info/30 bg-info/5 p-3 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium text-foreground">
+              Tagihan yang di-input di muka belum jadi piutang sampai jatuh temponya tiba.
+            </p>
+            <p>
+              • <strong>Belum jatuh tempo</strong> — tagihan hanya berupa jadwal (status{" "}
+              <em>terjadwal</em>): <strong>tidak ada jurnal sama sekali</strong>, tidak muncul di neraca
+              maupun laporan pendapatan. Kalau orang tua membayarnya lebih awal, uangnya dicatat sebagai{" "}
+              <strong>Pendapatan Diterima di Muka</strong> (liabilitas), bukan pendapatan.
+            </p>
+            <p>
+              • <strong>Saat jatuh tempo</strong> — proses ini memposting{" "}
+              <strong>(D) Piutang Siswa / (K) Pendapatan</strong> dan mengubah status jadi{" "}
+              <em>belum bayar</em>. Untuk yang sudah dibayar di muka, yang diposting{" "}
+              <strong>(D) Pendapatan Diterima di Muka / (K) Pendapatan</strong>.
+            </p>
+            <p>
+              • <strong>Lewat jatuh tempo tanpa bayar</strong> = <strong>tunggakan</strong>. Tidak ada
+              jurnal tambahan — akunnya tetap Piutang Siswa, yang berubah hanya umur piutangnya.
+            </p>
+            <p>Proses ini aman dijalankan berulang kali; baris yang sudah diproses tidak diproses lagi.</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatsCard title="Tagihan Terjadwal (belum jadi piutang)" value={formatRupiah(totalTerjadwal)}
+              icon={CalendarClock} color="info" />
+            <StatsCard title="Siap diakui jadi piutang hari ini" value={formatRupiah(totalSiapDiakui)}
+              icon={AlertTriangle} color="warning" />
+          </div>
+
+          <div className="flex justify-end">
+            <Button size="sm" className="h-8 text-xs"
+              disabled={akrualMutation.isPending}
+              onClick={() => setKonfirmAkrual(true)}>
+              <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+              {akrualMutation.isPending ? "Memproses…" : "Jalankan Akrual Jatuh Tempo"}
+            </Button>
+          </div>
+
+          <DataTable columns={colsTerjadwal} data={terjadwalList || []} loading={loadTerjadwal}
+            pageSize={20} exportable exportFilename={`tagihan-terjadwal-${hariIni}`} />
+        </TabsContent>
 
         {/* ── Tab Penyisihan ── */}
         <TabsContent value="penyisihan" className="space-y-3 mt-3">
@@ -623,6 +775,12 @@ export default function PiutangManajemen() {
             <p>• <strong>Koreksi nominal</strong> — jika tagihan benar tapi angkanya salah; isi nominal yang benar.</p>
             <p>Keduanya otomatis membuat <strong>jurnal pembalik (posted)</strong>, wajib isi alasan, dan tercatat di <strong>Audit Perubahan Data</strong>.</p>
             <p>Tagihan yang <strong>sudah dibayar</strong> tidak muncul di sini — perbaiki lewat <strong>Input Pembayaran → tabel Riwayat → Batalkan</strong>.</p>
+            <p>
+              Tagihan yang <strong>belum jatuh tempo</strong> (status <em>terjadwal</em>, lihat tab{" "}
+              <strong>Akrual Jatuh Tempo</strong>) juga belum muncul di sini. Tagihan tersebut belum
+              punya jurnal piutang, jadi pembatalannya tidak butuh jurnal pembalik — dukungannya
+              menyusul.
+            </p>
           </div>
           <div className="flex justify-end">
             <Button size="sm" className="h-8 text-xs" variant="outline"
@@ -997,6 +1155,18 @@ export default function PiutangManajemen() {
         description="Jurnal terkait tidak akan otomatis dibatalkan. Hapus catatan penyisihan ini?"
         onConfirm={() => { if (deletePs) deletePenyisihan.mutate(deletePs); setDeletePs(null); }}
         loading={deletePenyisihan.isPending} />
+
+      <ConfirmDialog open={konfirmAkrual} onOpenChange={setKonfirmAkrual}
+        title="Jalankan Akrual Jatuh Tempo"
+        variant="default"
+        confirmLabel="Ya, Jalankan"
+        description={
+          terjadwalJatuhTempo.length > 0
+            ? `${terjadwalJatuhTempo.length} tagihan (${formatRupiah(totalSiapDiakui)}) akan diakui jadi piutang dengan jurnal posted per hari ini. Pembayaran yang sudah diterima di muka untuk periode yang sama juga akan diakui jadi pendapatan.`
+            : "Tidak ada tagihan terjadwal yang jatuh tempo hari ini. Proses tetap akan memeriksa pendapatan diterima di muka yang sudah waktunya diakui."
+        }
+        onConfirm={() => { setKonfirmAkrual(false); akrualMutation.mutate(); }}
+        loading={akrualMutation.isPending} />
     </div>
   );
 }

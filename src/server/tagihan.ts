@@ -42,6 +42,13 @@ export interface GenerateTagihanResult {
   success: true;
   generated: number;
   skipped: number;
+  /**
+   * Bagian dari `generated` yang periodenya belum jatuh tempo, sehingga baru
+   * tersimpan sebagai jadwal (status 'terjadwal') TANPA jurnal piutang.
+   * Piutang & pendapatannya baru diakui saat jatuh tempo, lewat RPC
+   * jalankan_akrual_jatuh_tempo.
+   */
+  scheduled: number;
   total_siswa?: number;
   bulan_count?: number;
   message?: string;
@@ -166,6 +173,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
         success: true,
         generated: 0,
         skipped: 0,
+        scheduled: 0,
         message: "Tidak ada siswa yang cocok dengan kriteria",
       };
     }
@@ -208,6 +216,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
 
     let generated = 0;
     let skipped = 0;
+    let scheduled = 0;
     const errors: string[] = [];
 
     // Satu panggilan RPC PER BULAN, bukan per siswa. Stored procedure
@@ -244,6 +253,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
         const row = Array.isArray(result) ? result[0] : result;
         generated += row?.generated ?? 0;
         skipped += row?.skipped ?? 0;
+        scheduled += row?.scheduled ?? 0;
         if (row?.errors && Array.isArray(row.errors) && row.errors.length > 0) {
           errors.push(
             ...row.errors.map((e: string) => `Bulan ${currentBulan ?? "-"}: ${e}`)
@@ -262,6 +272,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
       success: true,
       generated,
       skipped,
+      scheduled,
       total_siswa: kelasSiswaList.length,
       bulan_count: bulanArray.filter((b) => b !== null).length || 1,
       errors: errors.length > 0 ? errors.slice(0, 20) : undefined,

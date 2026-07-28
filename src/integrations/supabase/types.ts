@@ -465,6 +465,7 @@ export type Database = {
           akun_dimuka_id: string | null
           akun_pendapatan_id: string | null
           departemen_id: string | null
+          hari_jatuh_tempo: number | null
           id: string
           keterangan: string | null
           nama: string
@@ -477,6 +478,7 @@ export type Database = {
           akun_dimuka_id?: string | null
           akun_pendapatan_id?: string | null
           departemen_id?: string | null
+          hari_jatuh_tempo?: number | null
           id?: string
           keterangan?: string | null
           nama: string
@@ -489,6 +491,7 @@ export type Database = {
           akun_dimuka_id?: string | null
           akun_pendapatan_id?: string | null
           departemen_id?: string | null
+          hari_jatuh_tempo?: number | null
           id?: string
           keterangan?: string | null
           nama?: string
@@ -3739,6 +3742,7 @@ export type Database = {
           dibatalkan_at: string | null
           dibatalkan_oleh: string | null
           id: string
+          jatuh_tempo: string | null
           jenis_id: string
           jurnal_pembalik_id: string | null
           jurnal_piutang_id: string | null
@@ -3758,6 +3762,7 @@ export type Database = {
           dibatalkan_at?: string | null
           dibatalkan_oleh?: string | null
           id?: string
+          jatuh_tempo?: string | null
           jenis_id: string
           jurnal_pembalik_id?: string | null
           jurnal_piutang_id?: string | null
@@ -3777,6 +3782,7 @@ export type Database = {
           dibatalkan_at?: string | null
           dibatalkan_oleh?: string | null
           id?: string
+          jatuh_tempo?: string | null
           jenis_id?: string
           jurnal_pembalik_id?: string | null
           jurnal_piutang_id?: string | null
@@ -4680,15 +4686,19 @@ export type Database = {
           departemen_kode: string | null
           departemen_nama: string | null
           jenis_id: string | null
+          jatuh_tempo: string | null
           jenis_kelamin: string | null
           jenis_nama: string | null
           kelas_nama: string | null
+          menunggak: boolean | null
           nama_siswa: string | null
           nis: string | null
           nominal: number | null
           pembayaran_id: string | null
           siswa_id: string | null
+          status: string | null
           sudah_bayar: boolean | null
+          tagihan_id: string | null
           tahun_ajaran_id: string | null
           tahun_ajaran_mulai: string | null
           tahun_ajaran_nama: string | null
@@ -4713,6 +4723,18 @@ export type Database = {
       }
     }
     Functions: {
+      akui_pendapatan_dimuka_jatuh_tempo: {
+        Args: {
+          p_limit?: number
+          p_sampai_tanggal?: string
+          p_user_id?: string
+        }
+        Returns: {
+          diakui: number
+          errors: string[]
+          total_nominal: number
+        }[]
+      }
       batalkan_pembayaran_atomik: {
         Args: {
           p_alasan: string
@@ -4814,6 +4836,7 @@ export type Database = {
         Returns: {
           errors: string[]
           generated: number
+          scheduled: number
           skipped: number
         }[]
       }
@@ -4894,6 +4917,10 @@ export type Database = {
         Returns: boolean
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      hitung_jatuh_tempo_tagihan: {
+        Args: { p_bulan: number; p_hari?: number; p_periode_id: string }
+        Returns: string
+      }
       hitung_laba_rugi_komersial: {
         Args: { p_departemen_id: string }
         Returns: Json
@@ -4952,6 +4979,14 @@ export type Database = {
         }[]
       }
       is_admin_or_kepala: { Args: { _user_id: string }; Returns: boolean }
+      jalankan_akrual_jatuh_tempo: {
+        Args: {
+          p_limit?: number
+          p_sampai_tanggal?: string
+          p_user_id?: string
+        }
+        Returns: Json
+      }
       is_ortu_of: {
         Args: { p_siswa_id: string; p_user_id: string }
         Returns: boolean
@@ -4983,6 +5018,18 @@ export type Database = {
         Returns: number
       }
       migrate_jurnal_batch: { Args: { batch: Json }; Returns: Json }
+      posting_piutang_jatuh_tempo: {
+        Args: {
+          p_limit?: number
+          p_sampai_tanggal?: string
+          p_user_id?: string
+        }
+        Returns: {
+          diposting: number
+          errors: string[]
+          total_nominal: number
+        }[]
+      }
       proses_pembayaran_atomik: {
         Args: {
           p_bulan: number
