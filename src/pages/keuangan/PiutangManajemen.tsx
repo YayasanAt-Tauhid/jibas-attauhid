@@ -279,10 +279,17 @@ export default function PiutangManajemen() {
     },
     onError: (e: any) => toast.error(e?.message || "Gagal menjalankan proses akrual"),
   });
-  // hanya tagihan belum_bayar yang boleh dikoreksi/dibatalkan (bukan sebagian/lunas)
+  // Tagihan 'belum_bayar' + 'terjadwal' yang boleh dikoreksi/dibatalkan (bukan
+  // sebagian/lunas). 'terjadwal' disertakan karena baris itu belum pernah
+  // menimbulkan jurnal apa pun -- RPC batalkan_tagihan_atomik sudah menangani
+  // ini otomatis lewat pengecekan jurnal_piutang_id IS NOT NULL, jadi tidak
+  // ada jurnal pembalik yang dibuat untuk tagihan yang memang belum berjurnal.
   const tagihanBelumBayar = useMemo(
-    () => (tagihanList || []).filter((t: any) => t.status === "belum_bayar"),
-    [tagihanList]
+    () => [
+      ...(tagihanList || []).filter((t: any) => t.status === "belum_bayar"),
+      ...(terjadwalList || []),
+    ],
+    [tagihanList, terjadwalList]
   );
   const tagihanKrFiltered = useMemo(() => {
     if (!krSearch.trim()) return tagihanBelumBayar.slice(0, 50);
@@ -773,14 +780,8 @@ export default function PiutangManajemen() {
             <p className="font-medium text-foreground">Panduan: perbaiki kesalahan input tagihan yang BELUM dibayar.</p>
             <p>• <strong>Batalkan tagihan</strong> — jika tagihan tidak seharusnya ada (salah siswa, dobel, salah jenis).</p>
             <p>• <strong>Koreksi nominal</strong> — jika tagihan benar tapi angkanya salah; isi nominal yang benar.</p>
-            <p>Keduanya otomatis membuat <strong>jurnal pembalik (posted)</strong>, wajib isi alasan, dan tercatat di <strong>Audit Perubahan Data</strong>.</p>
+            <p>Keduanya otomatis membuat <strong>jurnal pembalik (posted)</strong> — kecuali untuk tagihan status <em>terjadwal</em> (lihat tab <strong>Akrual Jatuh Tempo</strong>), yang belum pernah berjurnal sama sekali sehingga langsung diproses tanpa jurnal. Wajib isi alasan; tercatat di <strong>Audit Perubahan Data</strong>.</p>
             <p>Tagihan yang <strong>sudah dibayar</strong> tidak muncul di sini — perbaiki lewat <strong>Input Pembayaran → tabel Riwayat → Batalkan</strong>.</p>
-            <p>
-              Tagihan yang <strong>belum jatuh tempo</strong> (status <em>terjadwal</em>, lihat tab{" "}
-              <strong>Akrual Jatuh Tempo</strong>) juga belum muncul di sini. Tagihan tersebut belum
-              punya jurnal piutang, jadi pembatalannya tidak butuh jurnal pembalik — dukungannya
-              menyusul.
-            </p>
           </div>
           <div className="flex justify-end">
             <Button size="sm" className="h-8 text-xs" variant="outline"
@@ -1009,6 +1010,9 @@ export default function PiutangManajemen() {
                         onClick={() => { setKrTagihanId(t.id); setKrSearch(`${t.siswa?.nis} — ${t.siswa?.nama}`); }}>
                         <span className="font-medium">{t.siswa?.nis} — {t.siswa?.nama}</span>
                         <span className="text-muted-foreground ml-2">{t.jenis?.nama}{t.bulan ? ` (${namaBulanTahun(t.bulan, { tahunBukuNama: t.tahun_ajaran?.nama })})` : ""}</span>
+                        {t.status === "terjadwal" && (
+                          <Badge variant="outline" className="ml-2 bg-muted text-muted-foreground text-[10px] py-0">Terjadwal</Badge>
+                        )}
                         <span className="float-right font-semibold">{formatRupiah(Number(t.nominal))}</span>
                       </button>
                     </div>
@@ -1042,15 +1046,23 @@ export default function PiutangManajemen() {
                 <p>Jenis: <span className="font-medium">{selectedKrTagihan.jenis?.nama}</span></p>
                 <p>Nominal saat ini: <span className="font-semibold">{formatRupiah(Number(selectedKrTagihan.nominal))}</span></p>
                 <div className="border-t pt-1 mt-1">
-                  <p className="font-medium text-foreground">Jurnal yang akan dibuat (otomatis, Posted):</p>
-                  {krMode === "batal" ? (
+                  {selectedKrTagihan.status === "terjadwal" ? (
                     <>
+                      <p className="font-medium text-foreground">Tidak ada jurnal yang dibuat/dibalik:</p>
+                      <p className="text-muted-foreground">
+                        Tagihan ini belum jatuh tempo — belum pernah berjurnal, jadi {krMode === "batal" ? "langsung ditandai batal" : "nominalnya langsung diperbarui"} tanpa jurnal.
+                      </p>
+                    </>
+                  ) : krMode === "batal" ? (
+                    <>
+                      <p className="font-medium text-foreground">Jurnal yang akan dibuat (otomatis, Posted):</p>
                       <p>Dr. Pendapatan &nbsp;{formatRupiah(Number(selectedKrTagihan.nominal))}</p>
                       <p>Cr. Piutang Siswa &nbsp;{formatRupiah(Number(selectedKrTagihan.nominal))}</p>
                       <p className="text-muted-foreground">(membalik jurnal piutang asal)</p>
                     </>
                   ) : (
                     <>
+                      <p className="font-medium text-foreground">Jurnal yang akan dibuat (otomatis, Posted):</p>
                       <p>1. Balik jurnal piutang lama {formatRupiah(Number(selectedKrTagihan.nominal))}</p>
                       <p>2. Jurnal piutang baru {krNominalBaru ? formatRupiah(Number(krNominalBaru)) : "(isi nominal baru)"}</p>
                     </>
