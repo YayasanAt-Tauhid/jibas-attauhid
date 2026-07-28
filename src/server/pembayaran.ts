@@ -194,8 +194,15 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
     if (tagihan_id) tagihanQuery = tagihanQuery.eq("id", tagihan_id);
 
     const { data: tagihanRows } = await tagihanQuery.limit(1);
-    const belumJatuhTempo = tagihanRows?.[0]?.status === "terjadwal";
+    const tagihanFound = tagihanRows?.[0];
+    const belumJatuhTempo = tagihanFound?.status === "terjadwal";
     const pakaiDimuka = is_bayar_dimuka || belumJatuhTempo;
+    // Tagihan efektif = yang dikirim caller, atau yang ditemukan lewat
+    // siswa+jenis+bulan+tahun_ajaran di atas (mis. pembayaran massal tunggakan
+    // yang tidak mengirim tagihan_id sama sekali). Tanpa fallback ini,
+    // piutang yang sudah dibukukan saat jatuh tempo tidak pernah dilunasi di
+    // jurnal -- kredit jatuh ke Pendapatan lagi (dobel).
+    const tagihanEfektifId = tagihan_id ?? tagihanFound?.id ?? null;
 
     let kreditAkunId: string | null;
     let kreditLabel: string;
@@ -208,7 +215,7 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
         );
       kreditAkunId = dimukaJenisAkunId;
       kreditLabel = `Pendapatan Diterima di Muka — ${jenis.nama}`;
-    } else if (tagihan_id && piutangAkunId) {
+    } else if (tagihanEfektifId && piutangAkunId) {
       kreditAkunId = piutangAkunId;
       kreditLabel = "Piutang Siswa";
     } else {
@@ -237,7 +244,7 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
         p_departemen_id: departemen_id ?? null,
         p_tahun_ajaran_id: tahun_ajaran_id,
         p_is_bayar_dimuka: pakaiDimuka,
-        p_tagihan_id: tagihan_id ?? null,
+        p_tagihan_id: tagihanEfektifId,
         p_kas_akun_id: kasAkunId,
         p_kredit_akun_id: kreditAkunId,
         p_kredit_label: kreditLabel,
