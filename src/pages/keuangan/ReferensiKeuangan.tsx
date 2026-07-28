@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { toast } from "sonner";
 import TabTarifTagihan from "./TabTarifTagihan";
+import TabSkemaDiskon from "./TabSkemaDiskon";
 
 export default function ReferensiKeuangan() {
   return (
@@ -44,6 +45,7 @@ export default function ReferensiKeuangan() {
           <TabsTrigger value="tahun-buku">Tahun Buku</TabsTrigger>
           <TabsTrigger value="program-dana">Program Dana</TabsTrigger>
           <TabsTrigger value="tarif">Tarif Tagihan</TabsTrigger>
+          <TabsTrigger value="skema-diskon">Skema Diskon</TabsTrigger>
           <TabsTrigger value="template">Template Nomor</TabsTrigger>
         </TabsList>
         <TabsContent value="penerimaan"><TabJenisPembayaran /></TabsContent>
@@ -53,6 +55,7 @@ export default function ReferensiKeuangan() {
         <TabsContent value="tahun-buku"><TabTahunBuku /></TabsContent>
         <TabsContent value="program-dana"><TabProgramDana /></TabsContent>
         <TabsContent value="tarif"><TabTarifTagihan /></TabsContent>
+        <TabsContent value="skema-diskon"><TabSkemaDiskon /></TabsContent>
         <TabsContent value="template"><TabTemplateNomor /></TabsContent>
       </Tabs>
     </div>

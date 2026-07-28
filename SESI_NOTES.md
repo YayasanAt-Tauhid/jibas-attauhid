@@ -116,7 +116,18 @@ Keputusan implementasi yang tidak terlihat dari kode:
 
 Verifikasi: 8 migrasi divalidasi di Postgres 16 lokal throwaway lewat 13 skenario (eksklusivitas, guard kakak-adik untuk anak tunggal DAN untuk keluarga beranggota 1, normalisasi periode, idempotensi, beasiswa 100%, balance semua jurnal, invarian `netto = bruto - diskon`), lalu diterapkan ke V4 via MCP dan diuji end-to-end di sana dalam transaksi yang di-rollback — hasil: adik dapat potongan 150rb → `D Piutang 350rb + D Potongan 150rb / K Pendapatan 500rb`, nol residu, jumlah jurnal tetap 16437. Harness uji throwaway, tidak masuk repo.
 
-**Belum dikerjakan (lanjutan fitur ini):** halaman UI (tab Skema Diskon di Referensi Keuangan + halaman `/keuangan/diskon-siswa` untuk pengajuan/approval/saran kakak-adik) dan hook TanStack Query-nya. `src/server/diskon.ts` sudah ada (ajukan, putuskan, terapkan, saran & konfirmasi keluarga). **Nilai rupiah potongan anak ke-2/ke-3 sengaja di-seed 0** — belum ditentukan yayasan, diisi lewat halaman Skema Diskon nanti.
+**Lapisan UI juga sudah selesai:** tab **Skema Diskon** di Referensi Keuangan, halaman **`/keuangan/diskon-siswa`** (3 tab: Daftar Keringanan, Persetujuan, Kelompok Keluarga), hooks di `src/hooks/useDiskon.ts`, server function di `src/server/diskon.ts`.
+
+Catatan UI yang tidak terlihat dari kode:
+
+- **Rute `/keuangan/diskon-siswa` sengaja TIDAK di bawah guard `_finance`.** Guard itu hanya mengizinkan admin/kepala_sekolah/keuangan; kalau sekretaris yayasan ditambahkan ke sana, dia otomatis dapat akses ke jurnal, buku besar, tutup buku, dan seluruh laporan keuangan — padahal yang dia butuhkan hanya menyetujui keringanan. Jadi rutenya ditaruh di `_protected._app.keuangan.*` (tanpa `_finance`) dan pembatasan rolenya dilakukan di dalam komponen (`useAuth()` + `Unauthorized`). Sidebar juga dibuatkan sub-grup sendiri "Keringanan & Beasiswa" supaya sekretaris yayasan hanya melihat satu menu itu di bawah Keuangan
+- Role `sekretaris_yayasan` didaftarkan di 3 tempat yang harus tahu: `UserRole` (AuthContext), `ROLE_OPTIONS`+`ROLE_COLORS` (ManajemenPengguna), dan `roles` di AppSidebar
+- **Bulan dipilih pakai `<input type="month">`** ("2026-07") lalu dikirim sebagai `2026-07-01`; trigger DB yang merapikan ujung rentangnya ke akhir bulan. Jadi UI tidak perlu tahu berapa hari dalam sebulan
+- `input type="month"` tidak didukung Firefox lama/Safari lama — kalau nanti ada keluhan, itu titik yang perlu diganti date-picker
+
+**Nilai rupiah potongan anak ke-2/ke-3 masih 0** — belum ditentukan yayasan. Bisa diisi lewat Referensi Keuangan → Skema Diskon tanpa migrasi baru. Selama masih 0, form pengajuan memaksa nominalnya diisi manual per siswa (ada validasi yang menjelaskan itu).
+
+**Belum diuji manual di browser** — perlu login akun admin/keuangan/sekretaris_yayasan sungguhan yang tidak tersedia di sandbox sesi ini. Yang sudah dipastikan: tsc 0 error untuk seluruh file fitur ini, eslint bersih, `npm run test` 40/40, `npm run build` sukses. **Belum ada akun ber-role `sekretaris_yayasan`** di V4 — harus dibuat user baru lewat Manajemen Pengguna sebelum alur persetujuan bisa dicoba.
 
 ### Error tsc `context is possibly undefined` — SELESAI (28 Juli, sesi lanjutan)
 

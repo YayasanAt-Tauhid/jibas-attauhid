@@ -93,8 +93,18 @@ const menuItems: MenuItem[] = [
   },
   {
     title: "Keuangan", url: "/keuangan", icon: Wallet,
-    roles: ["admin", "kepala_sekolah", "keuangan", "kasir"],
+    roles: ["admin", "kepala_sekolah", "keuangan", "kasir", "sekretaris_yayasan"],
     subGroups: [
+      {
+        // Sekretaris yayasan hanya punya akses ke sub-grup ini (untuk
+        // menyetujui pengajuan), bukan ke jurnal/laporan keuangan lainnya.
+        title: "Keringanan & Beasiswa",
+        icon: Users,
+        roles: ["admin", "kepala_sekolah", "keuangan", "sekretaris_yayasan"],
+        items: [
+          { title: "Siswa Penerima Keringanan", url: "/keuangan/diskon-siswa", roles: ["admin", "kepala_sekolah", "keuangan", "sekretaris_yayasan"] },
+        ],
+      },
       {
         title: "Transaksi Harian",
         icon: Receipt,

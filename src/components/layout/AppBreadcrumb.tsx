@@ -41,6 +41,7 @@ const routeMap: Record<string, string> = {
   "/keuangan/audit-perubahan": "Audit Perubahan Data",
   "/keuangan/referensi": "Referensi Keuangan",
   "/keuangan/piutang": "Manajemen Piutang",
+  "/keuangan/diskon-siswa": "Siswa Penerima Keringanan",
   // Akademik
   "/akademik": "Akademik",
   "/akademik/siswa": "Data Siswa",
