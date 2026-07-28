@@ -69,23 +69,31 @@ function UserManager() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: u }, { data: d }, { data: p }] = await Promise.all([
-      supabase.from("users_profile").select("id, email, role, aktif, created_at, pegawai_id, departemen_id, pegawai:pegawai_id(nama), departemen:departemen_id(kode, nama)").order("created_at", { ascending: false }),
-      supabase.from("departemen").select("id, kode, nama").eq("aktif", true).order("kode"),
-      supabase.from("pegawai").select("id, nama").order("nama"),
-    ]);
+    try {
+      const [{ data: u, error: uErr }, { data: d, error: dErr }, { data: p, error: pErr }] = await Promise.all([
+        supabase.from("users_profile").select("id, email, role, aktif, created_at, pegawai_id, departemen_id, pegawai:pegawai_id(nama), departemen:departemen_id(kode, nama)").order("created_at", { ascending: false }),
+        supabase.from("departemen").select("id, kode, nama").eq("aktif", true).order("kode"),
+        supabase.from("pegawai").select("id, nama").order("nama"),
+      ]);
 
-    // Flatten joined data for DataTable compatibility
-    const rows: UserRow[] = (u || []).map((row: any) => ({
-      ...row,
-      pegawai_nama: row.pegawai?.nama || null,
-      dept_kode: row.departemen?.kode || null,
-    }));
+      if (uErr || dErr || pErr) {
+        toast.error("Gagal memuat data pengguna: " + (uErr || dErr || pErr)?.message);
+        return;
+      }
 
-    setUsers(rows);
-    setDepartemenList(d || []);
-    setPegawaiList(p || []);
-    setLoading(false);
+      // Flatten joined data for DataTable compatibility
+      const rows: UserRow[] = (u || []).map((row: any) => ({
+        ...row,
+        pegawai_nama: row.pegawai?.nama || null,
+        dept_kode: row.departemen?.kode || null,
+      }));
+
+      setUsers(rows);
+      setDepartemenList(d || []);
+      setPegawaiList(p || []);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchAll(); }, []);
