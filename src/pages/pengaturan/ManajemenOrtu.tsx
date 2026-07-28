@@ -21,13 +21,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, UserPlus, X, Link as LinkIcon, Info } from "lucide-react";
+import { Search, UserPlus, X, Link as LinkIcon, Info, ShieldCheck } from "lucide-react";
 
 export default function ManajemenOrtu() {
   const queryClient = useQueryClient();
   const [selectedOrtu, setSelectedOrtu] = useState<any>(null);
   const [searchSiswa, setSearchSiswa] = useState("");
   const [showManageDialog, setShowManageDialog] = useState(false);
+  const [emailJadikanOrtu, setEmailJadikanOrtu] = useState("");
+  const [hasilPencarianAkun, setHasilPencarianAkun] = useState<
+    { id: string; email: string; role: string } | null | "not_found"
+  >(null);
+  const [mencariAkun, setMencariAkun] = useState(false);
 
   // Tab 1: Fetch ortu users
   const { data: ortuList = [], isLoading: loadingOrtu } = useQuery({
@@ -154,6 +159,37 @@ export default function ManajemenOrtu() {
     },
   });
 
+  const cariAkunUntukDijadikanOrtu = async () => {
+    const email = emailJadikanOrtu.trim().toLowerCase();
+    if (!email) return;
+    setMencariAkun(true);
+    setHasilPencarianAkun(null);
+    const { data } = await supabase
+      .from("users_profile")
+      .select("id, email, role")
+      .eq("email", email)
+      .maybeSingle();
+    setHasilPencarianAkun(data ? (data as any) : "not_found");
+    setMencariAkun(false);
+  };
+
+  const jadikanOrtuMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("users_profile")
+        .update({ role: "ortu" })
+        .eq("id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Akun berhasil dijadikan akun orang tua");
+      setHasilPencarianAkun(null);
+      setEmailJadikanOrtu("");
+      queryClient.invalidateQueries({ queryKey: ["admin-ortu-list"] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const openManage = (ortu: any) => {
     setSelectedOrtu(ortu);
     setShowManageDialog(true);
@@ -193,8 +229,53 @@ export default function ManajemenOrtu() {
                   Supabase Dashboard → Authentication → Users
                 </a>
                 , klik "Add user", masukkan email dan password. Setelah akun
-                terbuat, set role menjadi 'ortu' menggunakan tombol di bawah.
+                terbuat, cari akunnya di bawah untuk mengubah role menjadi 'ortu'.
               </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5" /> Jadikan Akun Orang Tua
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Email akun yang sudah dibuat di Supabase..."
+                  value={emailJadikanOrtu}
+                  onChange={(e) => { setEmailJadikanOrtu(e.target.value); setHasilPencarianAkun(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && cariAkunUntukDijadikanOrtu()}
+                />
+                <Button variant="outline" onClick={cariAkunUntukDijadikanOrtu} disabled={mencariAkun}>
+                  <Search className="h-4 w-4 mr-1" /> Cari
+                </Button>
+              </div>
+              {hasilPencarianAkun === "not_found" && (
+                <p className="text-sm text-muted-foreground">
+                  Akun dengan email ini belum ada. Buat dulu lewat Supabase Dashboard.
+                </p>
+              )}
+              {hasilPencarianAkun && hasilPencarianAkun !== "not_found" && (
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">{hasilPencarianAkun.email}</p>
+                    <p className="text-xs text-muted-foreground">Role saat ini: {hasilPencarianAkun.role}</p>
+                  </div>
+                  {hasilPencarianAkun.role === "ortu" ? (
+                    <Badge className="bg-emerald-100 text-emerald-800">Sudah Ortu</Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => jadikanOrtuMutation.mutate(hasilPencarianAkun.id)}
+                      disabled={jadikanOrtuMutation.isPending}
+                    >
+                      Jadikan Orang Tua
+                    </Button>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

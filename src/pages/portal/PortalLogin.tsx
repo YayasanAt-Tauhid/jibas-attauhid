@@ -5,9 +5,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { portalOrtuSignUp } from "@/server/portalOrtu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Form,
   FormControl,
@@ -16,7 +19,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { LogIn, Eye, EyeOff } from "lucide-react";
+import { LogIn, Eye, EyeOff, UserPlus } from "lucide-react";
+import { toast } from "sonner";
 
 const loginSchema = z.object({
   email: z.string().email("Format email tidak valid"),
@@ -25,12 +29,43 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+const signUpSchema = z
+  .object({
+    email: z.string().email("Format email tidak valid"),
+    password: z.string().min(8, "Password minimal 8 karakter"),
+    konfirmasi: z.string(),
+    hubungan: z.enum(["ayah", "ibu", "wali"]),
+    nis: z.string().min(1, "NIS anak wajib diisi"),
+    nama_siswa: z.string().min(1, "Nama lengkap anak wajib diisi"),
+    tanggal_lahir_siswa: z.string().min(1, "Tanggal lahir anak wajib diisi"),
+  })
+  .refine((data) => data.password === data.konfirmasi, {
+    message: "Konfirmasi password tidak cocok",
+    path: ["konfirmasi"],
+  });
+
+type SignUpForm = z.infer<typeof signUpSchema>;
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.54-5.17 3.54-8.65z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.15-4.05 1.15-3.11 0-5.75-2.1-6.69-4.93H1.3v3.09C3.26 21.3 7.31 24 12 24z" />
+      <path fill="#FBBC05" d="M5.31 14.31A7.2 7.2 0 0 1 4.9 12c0-.8.14-1.58.4-2.31V6.6H1.3A11.98 11.98 0 0 0 0 12c0 1.93.46 3.76 1.3 5.4l4.01-3.09z" />
+      <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.6 4.59 1.79l3.44-3.44C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.3 6.6l4.01 3.09C6.25 6.86 8.89 4.75 12 4.75z" />
+    </svg>
+  );
+}
+
 export default function PortalLogin() {
   const navigate = useNavigate();
-  const { signIn, signOut, user, role } = useAuth();
+  const { signIn, signInWithGoogle, signOut, user, role } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [signUpError, setSignUpError] = useState<string | null>(null);
+  const [signingUp, setSigningUp] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (user && role === "ortu") {
@@ -41,6 +76,14 @@ export default function PortalLogin() {
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
+  });
+
+  const signUpForm = useForm<SignUpForm>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      email: "", password: "", konfirmasi: "", hubungan: "wali",
+      nis: "", nama_siswa: "", tanggal_lahir_siswa: "",
+    },
   });
 
   const onSubmit = async (data: LoginForm) => {
@@ -83,6 +126,47 @@ export default function PortalLogin() {
     navigate("/portal", { replace: true });
   };
 
+  const onSignUp = async (data: SignUpForm) => {
+    setSigningUp(true);
+    setSignUpError(null);
+    try {
+      await portalOrtuSignUp({
+        data: {
+          email: data.email,
+          password: data.password,
+          hubungan: data.hubungan,
+          nis: data.nis,
+          nama_siswa: data.nama_siswa,
+          tanggal_lahir_siswa: data.tanggal_lahir_siswa,
+        },
+      });
+      toast.success("Akun berhasil dibuat. Silakan masuk.");
+      const { error: signInError } = await signIn(data.email, data.password);
+      if (signInError) {
+        setSignUpError("Akun dibuat, tapi gagal masuk otomatis: " + signInError);
+        setSigningUp(false);
+        return;
+      }
+      navigate("/portal", { replace: true });
+    } catch (err: any) {
+      setSignUpError(err?.message || "Gagal mendaftar. Coba lagi.");
+    } finally {
+      setSigningUp(false);
+    }
+  };
+
+  const onGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    const redirectTo = `${window.location.origin}/portal/oauth-callback`;
+    const { error: oauthError } = await signInWithGoogle(redirectTo);
+    if (oauthError) {
+      toast.error(oauthError);
+      setGoogleLoading(false);
+    }
+    // Kalau sukses, browser akan redirect ke Google lalu kembali ke
+    // /portal/oauth-callback -- tidak perlu apa-apa lagi di sini.
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
       <div className="w-full max-w-md">
@@ -101,93 +185,231 @@ export default function PortalLogin() {
         <Card className="shadow-lg border-emerald-200">
           <CardHeader className="pb-4 text-center">
             <h2 className="text-lg font-semibold text-foreground">
-              Masuk ke Portal
+              Portal Orang Tua
             </h2>
-            <p className="text-xs text-muted-foreground">
-              Gunakan akun orang tua yang terdaftar
-            </p>
           </CardHeader>
           <CardContent>
-            {error && (
-              <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="email@contoh.com"
-                          type="email"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            placeholder="Masukkan password"
-                            type={showPassword ? "text" : "password"}
-                            {...field}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            onClick={() => setShowPassword(!showPassword)}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <Tabs defaultValue="masuk">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="masuk">Masuk</TabsTrigger>
+                <TabsTrigger value="daftar">Daftar Akun</TabsTrigger>
+              </TabsList>
+
+              {/* ── TAB MASUK ── */}
+              <TabsContent value="masuk" className="space-y-4 mt-4">
+                {error && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="email@contoh.com" type="email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                placeholder="Masukkan password"
+                                type={showPassword ? "text" : "password"}
+                                {...field}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                onClick={() => setShowPassword(!showPassword)}
+                              >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+                      {loading ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      ) : (
+                        <>
+                          <LogIn className="h-4 w-4" />
+                          Masuk
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">atau</span>
+                  </div>
+                </div>
+
                 <Button
-                  type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  disabled={loading}
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={googleLoading}
+                  onClick={onGoogleSignIn}
                 >
-                  {loading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  {googleLoading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   ) : (
                     <>
-                      <LogIn className="h-4 w-4" />
-                      Masuk
+                      <GoogleIcon />
+                      Masuk dengan Google
                     </>
                   )}
                 </Button>
-              </form>
-            </Form>
+              </TabsContent>
+
+              {/* ── TAB DAFTAR ── */}
+              <TabsContent value="daftar" className="space-y-4 mt-4">
+                {signUpError && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    {signUpError}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Untuk verifikasi, isi data anak sesuai data yang tercatat di sekolah.
+                </p>
+                <Form {...signUpForm}>
+                  <form onSubmit={signUpForm.handleSubmit(onSignUp)} className="space-y-4">
+                    <FormField
+                      control={signUpForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl><Input type="email" placeholder="email@contoh.com" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        control={signUpForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl><Input type="password" placeholder="Min. 8 karakter" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={signUpForm.control}
+                        name="konfirmasi"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Konfirmasi</FormLabel>
+                            <FormControl><Input type="password" placeholder="Ulangi password" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={signUpForm.control}
+                      name="hubungan"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Anda sebagai</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="ayah">Ayah</SelectItem>
+                              <SelectItem value="ibu">Ibu</SelectItem>
+                              <SelectItem value="wali">Wali</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="border-t pt-3 space-y-3">
+                      <p className="text-xs font-medium text-muted-foreground">Data Anak (untuk verifikasi)</p>
+                      <FormField
+                        control={signUpForm.control}
+                        name="nis"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>NIS Anak</FormLabel>
+                            <FormControl><Input placeholder="Nomor Induk Siswa" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={signUpForm.control}
+                        name="nama_siswa"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nama Lengkap Anak</FormLabel>
+                            <FormControl><Input placeholder="Sesuai data sekolah" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={signUpForm.control}
+                        name="tanggal_lahir_siswa"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tanggal Lahir Anak</FormLabel>
+                            <FormControl><Input type="date" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={signingUp}>
+                      {signingUp ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4" />
+                          Daftar & Masuk
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Belum terdaftar?{" "}
+          Anak belum terdaftar sebagai siswa?{" "}
           <Link to="/psb" className="text-emerald-700 underline font-medium">
             Daftarkan anak Anda
           </Link>
