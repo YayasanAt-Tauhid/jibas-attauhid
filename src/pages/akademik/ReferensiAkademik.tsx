@@ -597,6 +597,7 @@ function TabDepartemen() {
     { key: "nama", label: "Nama", sortable: true },
     { key: "keterangan", label: "Keterangan", render: (v) => (v as string) || "-" },
     { key: "aktif", label: "Status", render: (v) => <Badge variant={v ? "default" : "secondary"}>{v ? "Aktif" : "Nonaktif"}</Badge> },
+    { key: "psb_dibuka", label: "PSB", render: (v) => <Badge variant={v ? "default" : "secondary"}>{v ? "Dibuka" : "Ditutup"}</Badge> },
   ];
 
   return (
