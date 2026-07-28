@@ -91,7 +91,32 @@ Fokus pekerjaan Juni–Juli: penguatan modul **Keuangan** dan **Portal ortu**.
 - **App mobile Portal Ortu — sisa fase 2 (butuh aset/akun dari user, tidak bisa dari sesi):** (1) ikon & splash resmi pengganti aset template; (2) rilis iOS (akun Apple Developer + build EAS); (3) `eas init` untuk mendapat EAS projectId — **prasyarat push notification jalan** (`getExpoPushTokenAsync` butuh projectId; tanpa itu registrasi token dilewati diam-diam); remote push tidak bisa diuji di Expo Go SDK 53+, harus development build/APK
 - **Uji end-to-end checkout in-app dengan Midtrans sandbox** — smoke test baru sampai lapisan auth/CORS; perilaku deep link callback `portalortu://` di halaman Snap perlu diverifikasi di perangkat nyata (kalau bermasalah, fallback: arahkan finish ke halaman web yang menampilkan tombol "kembali ke aplikasi")
 
-- **Rencana diskon/keringanan SPP (beasiswa, kakak-adik, bantuan, kurang mampu)** — belum diimplementasi, rencana lengkap (skema tabel, RPC, deteksi kakak-adik semi-otomatis, halaman UI, urutan migrasi) ada di `RENCANA_DISKON_KERINGANAN.md`. Rekomendasi kerjakan dengan `claude-opus-4-8`. Ada 3 keputusan desain yang perlu diambil dulu sebelum coding (lihat bagian akhir file tsb: kombinasi diskon ganda, approval workflow, nilai default berjenjang kakak-adik)
+### Diskon/keringanan SPP — lapisan DB SELESAI (28 Juli, sesi lanjutan)
+
+Rencana asli ada di `RENCANA_DISKON_KERINGANAN.md`. **3 keputusan desain yang dulu menggantung sudah dijawab user**, dan jawabannya mengubah rencana:
+
+| Pertanyaan | Keputusan user |
+|---|---|
+| Kombinasi diskon ganda | **Eksklusif** — tidak boleh menumpuk (kakak-adik + kurang mampu sekaligus dilarang). Ruang lingkupnya: satu diskon aktif per (siswa, jenis pembayaran, rentang yang tumpang tindih) |
+| Cakupan/masa berlaku | Per **rentang bulan** yang dipilih (mis. Jul 2026–Jun 2027, atau Jul–Des 2026 saja) — bukan per baris tagihan yang dicentang |
+| Approval | Role baru **`sekretaris_yayasan`** |
+| Nilai kakak-adik | **Nominal rupiah tetap**, bukan persen. Syarat: **minimal 2 bersaudara terdaftar** |
+
+Keputusan implementasi yang tidak terlihat dari kode:
+
+- **Kode akun 4102 di rencana TIDAK DIPAKAI — sudah ditempati "PENDAPATAN SPP ASRAMA" di DB live.** Potongan ditaruh di grup `4600` yang masih kosong (`4600` induk, `4601` POTONGAN/KERINGANAN SPP). Ini contoh lagi kenapa file migrasi tidak boleh dipercaya sebagai sumber kebenaran — selalu query DB live dulu
+- **`saldo_normal` di DB live memakai `'D'`/`'K'`**, bukan `'debit'`/`'kredit'` yang muncul di sebagian dropdown UI. Dua konvensi hidup berdampingan; yang benar untuk INSERT adalah `'D'`/`'K'`
+- **Akun potongan tidak perlu perubahan RPC laporan apa pun**: `hitung_laba_rugi_komersial` menghitung pendapatan sebagai `SUM(kredit - debit)` untuk semua akun ber-`jenis='pendapatan'`, jadi akun kontra bersaldo debit otomatis mengurangi pendapatan
+- **`jenis_id` di `siswa_diskon` sengaja NOT NULL** (tidak ada opsi "berlaku semua jenis"). Bukan demi kesederhanaan: di EXCLUDE constraint, NULL tidak pernah dianggap konflik, jadi baris "semua jenis" tidak akan memblokir baris spesifik — aturan eksklusivitas jadi bolong diam-diam
+- **Rentang diskon dinormalisasi ke batas bulan penuh lewat trigger** (`2026-07-15` → `2026-07-01`, `2027-06-10` → `2027-06-30`). Tanpa itu, dua rentang yang sama-sama mencakup Desember bisa lolos exclusion constraint karena tanggalnya tidak beririsan
+- **`terapkan_diskon_siswa` ada karena tagihan hampir selalu SUDAH ter-generate** saat keringanan diberikan (SPP di-input bertahun-tahun di muka). Tagihan `terjadwal` cukup di-UPDATE (belum punya jurnal); tagihan `belum_bayar` dikoreksi lewat jurnal BARU `D Potongan / K Piutang` (jurnal lama tidak pernah diedit); tagihan `lunas`/`sebagian` sengaja **dilewati & dilaporkan** — itu menyangkut uang yang sudah diterima, jadi keputusan refund, bukan sesuatu yang boleh diputuskan job secara diam-diam
+- **Beasiswa 100% tetap dibuatkan tagihan** (netto 0) dan tetap muncul di jurnal sebagai potongan. Ambang "layak ditagih" di `generate_tagihan_batch` dipindah dari netto ke bruto justru karena ini — kalau ambangnya netto, penerima beasiswa penuh hilang sama sekali dari pembukuan seolah tak pernah ditagih, padahal nilainya wajib dilaporkan ke yayasan/donor. Baris piutang bernilai 0 tidak ditulis, jadi jurnalnya 2 baris (potongan + pendapatan)
+- **`generate_tagihan_batch` & `posting_piutang_jatuh_tempo` diubah TANPA mengubah signature/tipe kembalian** — supaya `src/server/tagihan.ts` & entri `types.ts` lama tetap valid. Perubahannya murni angka & jurnal, bukan kontrak RPC
+- **Lubang keamanan yang ditemukan saat audit sendiri:** `hitung_diskon_tagihan` semula di-grant ke `authenticated`. Fungsi itu menerima `siswa_id` sembarang dan mengembalikan besar keringanannya → akun ortu mana pun bisa menyisir UUID untuk tahu siapa dapat beasiswa berapa. Sudah dikunci ke `service_role` saja (aman: dipanggil dari dalam fungsi SECURITY DEFINER lain yang berjalan dengan hak pemilik)
+
+Verifikasi: 8 migrasi divalidasi di Postgres 16 lokal throwaway lewat 13 skenario (eksklusivitas, guard kakak-adik untuk anak tunggal DAN untuk keluarga beranggota 1, normalisasi periode, idempotensi, beasiswa 100%, balance semua jurnal, invarian `netto = bruto - diskon`), lalu diterapkan ke V4 via MCP dan diuji end-to-end di sana dalam transaksi yang di-rollback — hasil: adik dapat potongan 150rb → `D Piutang 350rb + D Potongan 150rb / K Pendapatan 500rb`, nol residu, jumlah jurnal tetap 16437. Harness uji throwaway, tidak masuk repo.
+
+**Belum dikerjakan (lanjutan fitur ini):** halaman UI (tab Skema Diskon di Referensi Keuangan + halaman `/keuangan/diskon-siswa` untuk pengajuan/approval/saran kakak-adik) dan hook TanStack Query-nya. `src/server/diskon.ts` sudah ada (ajukan, putuskan, terapkan, saran & konfirmasi keluarga). **Nilai rupiah potongan anak ke-2/ke-3 sengaja di-seed 0** — belum ditentukan yayasan, diisi lewat halaman Skema Diskon nanti.
 
 ### Error tsc `context is possibly undefined` — SELESAI (28 Juli, sesi lanjutan)
 

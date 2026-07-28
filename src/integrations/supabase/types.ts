@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       _keep_alive_log: {
@@ -464,6 +439,7 @@ export type Database = {
           aktif: boolean | null
           akun_dimuka_id: string | null
           akun_pendapatan_id: string | null
+          akun_potongan_id: string | null
           departemen_id: string | null
           hari_jatuh_tempo: number | null
           id: string
@@ -471,12 +447,15 @@ export type Database = {
           nama: string
           nominal: number | null
           perlu_dimuka: boolean
+          tahun_masuk_dari: number | null
+          tahun_masuk_sampai: number | null
           tipe: string
         }
         Insert: {
           aktif?: boolean | null
           akun_dimuka_id?: string | null
           akun_pendapatan_id?: string | null
+          akun_potongan_id?: string | null
           departemen_id?: string | null
           hari_jatuh_tempo?: number | null
           id?: string
@@ -484,12 +463,15 @@ export type Database = {
           nama: string
           nominal?: number | null
           perlu_dimuka?: boolean
+          tahun_masuk_dari?: number | null
+          tahun_masuk_sampai?: number | null
           tipe?: string
         }
         Update: {
           aktif?: boolean | null
           akun_dimuka_id?: string | null
           akun_pendapatan_id?: string | null
+          akun_potongan_id?: string | null
           departemen_id?: string | null
           hari_jatuh_tempo?: number | null
           id?: string
@@ -497,6 +479,8 @@ export type Database = {
           nama?: string
           nominal?: number | null
           perlu_dimuka?: boolean
+          tahun_masuk_dari?: number | null
+          tahun_masuk_sampai?: number | null
           tipe?: string
         }
         Relationships: [
@@ -524,6 +508,20 @@ export type Database = {
           {
             foreignKeyName: "jenis_pembayaran_akun_pendapatan_id_fkey"
             columns: ["akun_pendapatan_id"]
+            isOneToOne: false
+            referencedRelation: "v_saldo_akun_konsolidasi"
+            referencedColumns: ["akun_id"]
+          },
+          {
+            foreignKeyName: "jenis_pembayaran_akun_potongan_id_fkey"
+            columns: ["akun_potongan_id"]
+            isOneToOne: false
+            referencedRelation: "akun_rekening"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jenis_pembayaran_akun_potongan_id_fkey"
+            columns: ["akun_potongan_id"]
             isOneToOne: false
             referencedRelation: "v_saldo_akun_konsolidasi"
             referencedColumns: ["akun_id"]
@@ -1050,6 +1048,30 @@ export type Database = {
             referencedColumns: ["tahun_ajaran_id"]
           },
         ]
+      }
+      keluarga: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          keterangan: string | null
+          nama: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          keterangan?: string | null
+          nama: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          keterangan?: string | null
+          nama?: string
+        }
+        Relationships: []
       }
       keluarga_pegawai: {
         Row: {
@@ -3540,6 +3562,7 @@ export type Database = {
           foto_url: string | null
           id: string
           jenis_kelamin: string | null
+          keluarga_id: string | null
           nama: string
           nis: string | null
           status: string | null
@@ -3558,6 +3581,7 @@ export type Database = {
           foto_url?: string | null
           id?: string
           jenis_kelamin?: string | null
+          keluarga_id?: string | null
           nama: string
           nis?: string | null
           status?: string | null
@@ -3576,6 +3600,7 @@ export type Database = {
           foto_url?: string | null
           id?: string
           jenis_kelamin?: string | null
+          keluarga_id?: string | null
           nama?: string
           nis?: string | null
           status?: string | null
@@ -3619,6 +3644,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_tagihan_belum_bayar"
             referencedColumns: ["departemen_id"]
+          },
+          {
+            foreignKeyName: "siswa_keluarga_id_fkey"
+            columns: ["keluarga_id"]
+            isOneToOne: false
+            referencedRelation: "keluarga"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3674,6 +3706,128 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      siswa_diskon: {
+        Row: {
+          alasan_penolakan: string | null
+          catatan: string | null
+          diajukan_at: string
+          diajukan_oleh: string | null
+          diputuskan_at: string | null
+          diputuskan_oleh: string | null
+          diterapkan_at: string | null
+          dokumen_url: string | null
+          id: string
+          jenis_id: string
+          nilai: number | null
+          periode_mulai: string
+          periode_selesai: string
+          siswa_id: string
+          skema_diskon_id: string
+          status: string
+        }
+        Insert: {
+          alasan_penolakan?: string | null
+          catatan?: string | null
+          diajukan_at?: string
+          diajukan_oleh?: string | null
+          diputuskan_at?: string | null
+          diputuskan_oleh?: string | null
+          diterapkan_at?: string | null
+          dokumen_url?: string | null
+          id?: string
+          jenis_id: string
+          nilai?: number | null
+          periode_mulai: string
+          periode_selesai: string
+          siswa_id: string
+          skema_diskon_id: string
+          status?: string
+        }
+        Update: {
+          alasan_penolakan?: string | null
+          catatan?: string | null
+          diajukan_at?: string
+          diajukan_oleh?: string | null
+          diputuskan_at?: string | null
+          diputuskan_oleh?: string | null
+          diterapkan_at?: string | null
+          dokumen_url?: string | null
+          id?: string
+          jenis_id?: string
+          nilai?: number | null
+          periode_mulai?: string
+          periode_selesai?: string
+          siswa_id?: string
+          skema_diskon_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "siswa_diskon_jenis_id_fkey"
+            columns: ["jenis_id"]
+            isOneToOne: false
+            referencedRelation: "jenis_pembayaran"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siswa_diskon_jenis_id_fkey"
+            columns: ["jenis_id"]
+            isOneToOne: false
+            referencedRelation: "v_tagihan_belum_bayar"
+            referencedColumns: ["jenis_id"]
+          },
+          {
+            foreignKeyName: "siswa_diskon_siswa_id_fkey"
+            columns: ["siswa_id"]
+            isOneToOne: false
+            referencedRelation: "siswa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siswa_diskon_skema_diskon_id_fkey"
+            columns: ["skema_diskon_id"]
+            isOneToOne: false
+            referencedRelation: "skema_diskon"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      skema_diskon: {
+        Row: {
+          aktif: boolean
+          created_at: string
+          id: string
+          kategori: string
+          keterangan: string | null
+          nama: string
+          nilai_default: number
+          perlu_approval: boolean
+          tipe: string
+        }
+        Insert: {
+          aktif?: boolean
+          created_at?: string
+          id?: string
+          kategori: string
+          keterangan?: string | null
+          nama: string
+          nilai_default?: number
+          perlu_approval?: boolean
+          tipe: string
+        }
+        Update: {
+          aktif?: boolean
+          created_at?: string
+          id?: string
+          kategori?: string
+          keterangan?: string | null
+          nama?: string
+          nilai_default?: number
+          perlu_approval?: boolean
+          tipe?: string
+        }
+        Relationships: []
       }
       tabungan_pegawai: {
         Row: {
@@ -3748,7 +3902,10 @@ export type Database = {
           jurnal_piutang_id: string | null
           kelas_id: string | null
           nominal: number
+          nominal_bruto: number | null
+          nominal_diskon: number
           pembayaran_id: string | null
+          siswa_diskon_id: string | null
           siswa_id: string
           status: string
           tahun_ajaran_id: string
@@ -3768,7 +3925,10 @@ export type Database = {
           jurnal_piutang_id?: string | null
           kelas_id?: string | null
           nominal?: number
+          nominal_bruto?: number | null
+          nominal_diskon?: number
           pembayaran_id?: string | null
+          siswa_diskon_id?: string | null
           siswa_id: string
           status?: string
           tahun_ajaran_id: string
@@ -3788,7 +3948,10 @@ export type Database = {
           jurnal_piutang_id?: string | null
           kelas_id?: string | null
           nominal?: number
+          nominal_bruto?: number | null
+          nominal_diskon?: number
           pembayaran_id?: string | null
+          siswa_diskon_id?: string | null
           siswa_id?: string
           status?: string
           tahun_ajaran_id?: string
@@ -3835,6 +3998,13 @@ export type Database = {
             columns: ["pembayaran_id"]
             isOneToOne: false
             referencedRelation: "pembayaran"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tagihan_siswa_diskon_id_fkey"
+            columns: ["siswa_diskon_id"]
+            isOneToOne: false
+            referencedRelation: "siswa_diskon"
             referencedColumns: ["id"]
           },
           {
@@ -4599,6 +4769,13 @@ export type Database = {
             referencedRelation: "tagihan"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "write_off_piutang_tagihan_id_fkey"
+            columns: ["tagihan_id"]
+            isOneToOne: false
+            referencedRelation: "v_tagihan_belum_bayar"
+            referencedColumns: ["tagihan_id"]
+          },
         ]
       }
     }
@@ -4685,8 +4862,8 @@ export type Database = {
           departemen_id: string | null
           departemen_kode: string | null
           departemen_nama: string | null
-          jenis_id: string | null
           jatuh_tempo: string | null
+          jenis_id: string | null
           jenis_kelamin: string | null
           jenis_nama: string | null
           kelas_nama: string | null
@@ -4772,6 +4949,7 @@ export type Database = {
         Args: {
           p_akun_id: string
           p_departemen_ids?: string[]
+          p_exclude_koreksi?: boolean
           p_include_penutup?: boolean
           p_tgl_akhir: string
           p_tgl_awal: string
@@ -4790,16 +4968,13 @@ export type Database = {
         Args: {
           p_akun_id: string
           p_departemen_ids?: string[]
+          p_exclude_koreksi?: boolean
           p_tgl_awal: string
         }
         Returns: number
       }
       daftarkan_push_token: {
-        Args: {
-          p_token: string
-          p_platform?: string
-          p_device_name?: string
-        }
+        Args: { p_device_name?: string; p_platform?: string; p_token: string }
         Returns: undefined
       }
       fn_cari_kandidat_pasangan: {
@@ -4897,6 +5072,7 @@ export type Database = {
       }
       get_my_pegawai_id: { Args: { _user_id: string }; Returns: string }
       get_my_siswa_id: { Args: { _user_id: string }; Returns: string }
+      get_siswa_tahun_masuk: { Args: { p_siswa_id: string }; Returns: number }
       get_tarif_siswa: {
         Args: {
           p_angkatan_id?: string
@@ -4917,6 +5093,23 @@ export type Database = {
         Returns: boolean
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      hitung_bulan_periode_tagihan: {
+        Args: { p_bulan: number; p_periode_id: string }
+        Returns: string
+      }
+      hitung_diskon_tagihan: {
+        Args: {
+          p_bulan: number
+          p_jenis_id: string
+          p_nominal_bruto: number
+          p_periode_id: string
+          p_siswa_id: string
+        }
+        Returns: {
+          nominal_diskon: number
+          siswa_diskon_id: string
+        }[]
+      }
       hitung_jatuh_tempo_tagihan: {
         Args: { p_bulan: number; p_hari?: number; p_periode_id: string }
         Returns: string
@@ -4979,14 +5172,6 @@ export type Database = {
         }[]
       }
       is_admin_or_kepala: { Args: { _user_id: string }; Returns: boolean }
-      jalankan_akrual_jatuh_tempo: {
-        Args: {
-          p_limit?: number
-          p_sampai_tanggal?: string
-          p_user_id?: string
-        }
-        Returns: Json
-      }
       is_ortu_of: {
         Args: { p_siswa_id: string; p_user_id: string }
         Returns: boolean
@@ -4999,6 +5184,7 @@ export type Database = {
         Args: { _siswa_id: string; _user_id: string }
         Returns: boolean
       }
+      is_penyetuju_diskon: { Args: { _user_id: string }; Returns: boolean }
       is_periode_ditutup: { Args: { p_tanggal: string }; Returns: boolean }
       is_unit_locked_for_transaksi: {
         Args: { p_departemen_id?: string; p_tanggal: string }
@@ -5016,6 +5202,23 @@ export type Database = {
           p_tgl_selesai: string
         }
         Returns: number
+      }
+      jalankan_akrual_jatuh_tempo: {
+        Args: {
+          p_limit?: number
+          p_sampai_tanggal?: string
+          p_user_id?: string
+        }
+        Returns: Json
+      }
+      konfirmasi_kelompok_keluarga: {
+        Args: {
+          p_keterangan?: string
+          p_nama: string
+          p_siswa_ids: string[]
+          p_user_id?: string
+        }
+        Returns: string
       }
       migrate_jurnal_batch: { Args: { batch: Json }; Returns: Json }
       posting_piutang_jatuh_tempo: {
@@ -5067,6 +5270,29 @@ export type Database = {
           p_tanggal_bayar: string
           p_transaksi_item_id: string
         }
+        Returns: Json
+      }
+      putuskan_diskon_siswa: {
+        Args: {
+          p_alasan?: string
+          p_setujui: boolean
+          p_siswa_diskon_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      saran_kelompok_keluarga: {
+        Args: { p_limit?: number }
+        Returns: {
+          jumlah_siswa: number
+          kunci: string
+          siswa: Json
+          skor: number
+          sumber: string
+        }[]
+      }
+      terapkan_diskon_siswa: {
+        Args: { p_siswa_diskon_id: string; p_user_id?: string }
         Returns: Json
       }
     }
@@ -5197,9 +5423,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
