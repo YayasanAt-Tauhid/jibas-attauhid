@@ -62,16 +62,21 @@ export const adminCreateUser = createServerFn({ method: "POST" })
 
       const newId = created.user.id;
 
-      // Baris users_profile dibuat otomatis oleh trigger handle_new_user (role default 'siswa')
+      // Baris users_profile biasanya sudah dibuat trigger handle_new_user
+      // (role default 'siswa'), tapi upsert di sini jaga-jaga trigger itu
+      // tidak jalan -- update pada baris yang belum ada tidak menghasilkan
+      // error di Supabase JS (0 rows affected), jadi bisa lolos tanpa profil
+      // sama sekali kalau hanya pakai .update().
       const { error: updErr } = await admin
         .from("users_profile")
-        .update({
+        .upsert({
+          id: newId,
+          email,
           role,
           departemen_id: data.departemen_id || null,
           pegawai_id: data.pegawai_id || null,
           aktif: data.aktif ?? true,
-        })
-        .eq("id", newId);
+        });
 
       if (updErr) {
         // Rollback: hapus auth user agar tidak ada akun setengah-jadi
