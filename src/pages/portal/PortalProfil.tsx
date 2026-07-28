@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Form,
   FormControl,
@@ -19,7 +20,17 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Save, Eye, EyeOff } from "lucide-react";
+import { Save, Eye, EyeOff, UserPlus } from "lucide-react";
+import { portalOrtuTambahAnak } from "@/server/portalOrtu";
+
+const tambahAnakSchema = z.object({
+  hubungan: z.enum(["ayah", "ibu", "wali"]),
+  nis: z.string().min(1, "NIS anak wajib diisi"),
+  nama_siswa: z.string().min(1, "Nama lengkap anak wajib diisi"),
+  tanggal_lahir_siswa: z.string().min(1, "Tanggal lahir anak wajib diisi"),
+});
+
+type TambahAnakForm = z.infer<typeof tambahAnakSchema>;
 
 const passwordSchema = z
   .object({
@@ -80,6 +91,26 @@ export default function PortalProfil() {
       return data || [];
     },
     enabled: !!user,
+  });
+
+  // Tambah anak form
+  const tambahAnakForm = useForm<TambahAnakForm>({
+    resolver: zodResolver(tambahAnakSchema),
+    defaultValues: { hubungan: "wali", nis: "", nama_siswa: "", tanggal_lahir_siswa: "" },
+  });
+  const [tambahAnakError, setTambahAnakError] = useState<string | null>(null);
+
+  const tambahAnakMutation = useMutation({
+    mutationFn: (data: TambahAnakForm) => portalOrtuTambahAnak({ data }),
+    onSuccess: (res) => {
+      toast.success(`${res.nama} berhasil dihubungkan ke akun Anda`);
+      tambahAnakForm.reset({ hubungan: "wali", nis: "", nama_siswa: "", tanggal_lahir_siswa: "" });
+      setTambahAnakError(null);
+      queryClient.invalidateQueries({ queryKey: ["portal-anak-profil", user?.id] });
+    },
+    onError: (err: any) => {
+      setTambahAnakError(err?.message || "Gagal menghubungkan anak. Coba lagi.");
+    },
   });
 
   // Password form
@@ -193,6 +224,95 @@ export default function PortalProfil() {
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Hubungkan Anak Lain</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Untuk verifikasi, isi data anak sesuai data yang tercatat di sekolah.
+              </p>
+              {tambahAnakError && (
+                <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  {tambahAnakError}
+                </div>
+              )}
+              <Form {...tambahAnakForm}>
+                <form
+                  onSubmit={tambahAnakForm.handleSubmit((data) => {
+                    setTambahAnakError(null);
+                    tambahAnakMutation.mutate(data);
+                  })}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={tambahAnakForm.control}
+                    name="hubungan"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Anda sebagai</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ayah">Ayah</SelectItem>
+                            <SelectItem value="ibu">Ibu</SelectItem>
+                            <SelectItem value="wali">Wali</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tambahAnakForm.control}
+                    name="nis"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>NIS Anak</FormLabel>
+                        <FormControl><Input placeholder="Nomor Induk Siswa" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tambahAnakForm.control}
+                    name="nama_siswa"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nama Lengkap Anak</FormLabel>
+                        <FormControl><Input placeholder="Sesuai data sekolah" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tambahAnakForm.control}
+                    name="tanggal_lahir_siswa"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tanggal Lahir Anak</FormLabel>
+                        <FormControl><Input type="date" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" disabled={tambahAnakMutation.isPending}>
+                    {tambahAnakMutation.isPending ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Hubungkan Anak
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </TabsContent>
