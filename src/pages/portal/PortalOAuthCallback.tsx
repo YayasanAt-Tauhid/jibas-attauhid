@@ -117,6 +117,9 @@ export default function PortalOAuthCallback() {
                 <p className="text-sm text-muted-foreground">
                   Akun orang tua berhasil dibuat dan terhubung. Mengarahkan ke portal...
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  Punya anak lain? Hubungkan lewat menu Profil setelah masuk ke portal.
+                </p>
               </div>
             )}
 

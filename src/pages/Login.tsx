@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { LogIn, Eye, EyeOff } from "lucide-react";
+import { GoogleIcon } from "@/components/shared/GoogleIcon";
+import { toast } from "sonner";
 
 const loginSchema = z.object({
   email: z.string().email("Format email tidak valid"),
@@ -18,11 +20,12 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
-  const { signIn, user } = useAuth();
+  const { signIn, signInWithGoogle, user } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -34,6 +37,16 @@ export default function Login() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+
+  const onGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    const redirectTo = `${window.location.origin}/oauth-callback`;
+    const { error: oauthError } = await signInWithGoogle(redirectTo);
+    if (oauthError) {
+      toast.error(oauthError);
+      setGoogleLoading(false);
+    }
+  };
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
@@ -126,6 +139,32 @@ export default function Login() {
                 </Button>
               </form>
             </Form>
+
+            <div className="relative py-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">atau</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={googleLoading}
+              onClick={onGoogleSignIn}
+            >
+              {googleLoading ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <>
+                  <GoogleIcon />
+                  Masuk dengan Google
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 
