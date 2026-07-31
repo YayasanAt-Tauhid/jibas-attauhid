@@ -22,8 +22,6 @@ async function sha512(str: string): Promise<string> {
 }
 
 async function handleNotification(request: Request): Promise<Response> {
-  const admin = createAdminClient();
-
   try {
     const notification = await request.json();
 
@@ -58,13 +56,37 @@ async function handleNotification(request: Request): Promise<Response> {
       return new Response("Invalid signature", { status: 403 });
     }
 
-    // 2. Ambil transaksi
+    // Client service-role dibuat SETELAH notifikasi terbukti sah dan memang
+    // milik kita. Dulu dibuat di baris pertama handler, DI LUAR blok try:
+    // kalau env belum lengkap, `createAdminClient()` melempar tanpa tertangkap
+    // sehingga worker membalas 5xx mentah — dan notifikasi milik aplikasi lain
+    // pun ikut gagal, padahal seharusnya cukup dibalas "Ignored" di atas.
+    const admin = createAdminClient();
+
+    // 2. Ambil transaksi.
+    //    `maybeSingle()` (bukan `single()`) supaya "tidak ada baris" pulang
+    //    sebagai data null, bukan error — dengan begitu `txFetchError` benar-
+    //    benar hanya berisi kegagalan nyata (koneksi, key salah, permission,
+    //    relasi embed), yang wajib dibedakan dari order milik aplikasi lain.
     const { data: transaksi, error: txFetchError } = await admin
       .from("transaksi_midtrans")
       .select("*, transaksi_midtrans_item(*)")
       .eq("order_id", order_id)
-      .single();
-    if (txFetchError || !transaksi) {
+      .maybeSingle();
+    // Dulu `txFetchError || !transaksi` sama-sama dibalas 404 "Order not
+    // found", sehingga salah konfigurasi tidak bisa dibedakan dari order yang
+    // memang bukan milik kita — persis yang bikin diagnosis webhook berputar.
+    if (txFetchError) {
+      return new Response(
+        JSON.stringify({
+          message: "Gagal mengambil transaksi",
+          order_id,
+          error: txFetchError.message,
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    if (!transaksi) {
       return new Response("Order not found", { status: 404 });
     }
 
