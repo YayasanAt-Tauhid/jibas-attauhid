@@ -24,6 +24,9 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
+    if (role === "ortu") {
+      return <Navigate to="/portal" replace />;
+    }
     return <Navigate to="/unauthorized" replace />;
   }
 
