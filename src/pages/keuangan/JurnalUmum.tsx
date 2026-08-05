@@ -256,6 +256,7 @@ export default function JurnalUmum() {
       <p class="meta"><b>Tanggal:</b> ${format(new Date(j.tanggal), "d MMMM yyyy", { locale: idLocale })}</p>
       <p class="meta"><b>Status:</b> ${j.status === "posted" ? "Posted" : "Draft"}</p>
       <p class="meta"><b>Lembaga:</b> ${esc(j.departemen?.kode || "-")}</p>
+      <p class="meta"><b>Diinput Oleh:</b> ${esc(j.penginput?.nama || "-")}</p>
       <p class="meta"><b>Keterangan:</b> ${esc(j.keterangan)}</p>
       <table>
         <thead><tr><th>Akun</th><th>Keterangan</th><th class="num">Debit</th><th class="num">Kredit</th></tr></thead>
@@ -343,6 +344,7 @@ export default function JurnalUmum() {
     },
     { key: "keterangan", label: "Keterangan" },
     { key: "departemen", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "-" },
+    { key: "penginput", label: "Diinput Oleh", render: (_, r) => (r as any).penginput?.nama || "-" },
     { key: "total_debit", label: "Total Debit", render: (v) => formatRupiah(Number(v) || 0) },
     { key: "total_kredit", label: "Total Kredit", render: (v) => formatRupiah(Number(v) || 0) },
     {
@@ -670,6 +672,7 @@ export default function JurnalUmum() {
                 <div><span className="text-muted-foreground">Tanggal:</span> <span className="font-medium">{format(new Date(viewData.tanggal), "d MMMM yyyy", { locale: idLocale })}</span></div>
                 <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline" className={viewData.status === "posted" ? "bg-success/15 text-success border-success/30" : "bg-warning/15 text-warning border-warning/30"}>{viewData.status === "posted" ? "Posted" : "Draft"}</Badge></div>
                 <div><span className="text-muted-foreground">Lembaga:</span> <span className="font-medium">{viewData.departemen?.kode || "-"}</span></div>
+                <div><span className="text-muted-foreground">Diinput Oleh:</span> <span className="font-medium">{(viewData as any).penginput?.nama || "-"}</span></div>
               </div>
               <div><span className="text-muted-foreground text-sm">Keterangan:</span> <p className="font-medium">{viewData.keterangan}</p></div>
               <div className="border rounded-md overflow-x-auto">
