@@ -8,6 +8,7 @@ import { useNavigate } from "@/lib/router-compat";
 import { Users, FileText, CreditCard, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { getNamaOrtuDariAnak } from "@/lib/ortu";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -32,6 +33,7 @@ export default function PortalDashboard() {
           hubungan,
           siswa:siswa_id (
             id, nama, nis, jenis_kelamin,
+            siswa_detail (nama_ayah, nama_ibu),
             kelas_siswa (
               aktif,
               kelas:kelas_id (
@@ -54,6 +56,10 @@ export default function PortalDashboard() {
     () => anakList.map((a: any) => a.siswa_id),
     [anakList]
   );
+
+  // Nama orang tua tidak tersimpan di akun login — turunkan dari data anak
+  // (lihat komentar di src/lib/ortu.ts). Fallback ke prefix email jika kosong.
+  const namaOrtu = useMemo(() => getNamaOrtuDariAnak(anakList as any[]), [anakList]);
 
   const { data: tagihanCount = 0 } = useQuery({
     queryKey: ["portal-tagihan-count", siswaIds],
@@ -91,7 +97,7 @@ export default function PortalDashboard() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          Selamat Datang, {user?.email?.split("@")[0]}
+          Selamat Datang, {namaOrtu || user?.email?.split("@")[0]}
         </h1>
         <p className="text-sm text-muted-foreground">
           Portal Orang Tua Hijrah At-Tauhid
