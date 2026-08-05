@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Save, Eye, EyeOff, UserPlus } from "lucide-react";
+import { getNamaOrtuDariAnak } from "@/lib/ortu";
 import { portalOrtuTambahAnak } from "@/server/portalOrtu";
 
 const tambahAnakSchema = z.object({
@@ -77,6 +78,7 @@ export default function PortalProfil() {
           hubungan,
           siswa:siswa_id (
             nama, nis,
+            siswa_detail (nama_ayah, nama_ibu),
             kelas_siswa (
               aktif,
               kelas:kelas_id (
@@ -92,6 +94,10 @@ export default function PortalProfil() {
     },
     enabled: !!user,
   });
+
+  // Nama orang tua tidak tersimpan di akun login — turunkan dari data anak
+  // (lihat komentar di src/lib/ortu.ts)
+  const namaOrtu = getNamaOrtuDariAnak(anakList as any[]);
 
   // Tambah anak form
   const tambahAnakForm = useForm<TambahAnakForm>({
@@ -172,6 +178,18 @@ export default function PortalProfil() {
               <CardTitle className="text-lg">Informasi Akun</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Nama
+                </label>
+                <p className="text-sm mt-1">
+                  {namaOrtu || (
+                    <span className="text-muted-foreground italic">
+                      Belum ada data nama — lengkapi data orang tua/wali di formulir siswa
+                    </span>
+                  )}
+                </p>
+              </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Email

@@ -8,7 +8,7 @@ import {
 
 const subModules = [
   { title: "Data Siswa", desc: "Kelola data siswa dan orang tua", icon: GraduationCap, url: "/akademik/siswa" },
-  { title: "Penerimaan Siswa Baru", desc: "Proses pendaftaran siswa baru (PSB)", icon: UserPlus, url: "/akademik/psb" },
+  { title: "Penerimaan Murid Baru", desc: "Proses pendaftaran siswa baru (PMB)", icon: UserPlus, url: "/akademik/pmb" },
   { title: "Mutasi Siswa", desc: "Pindah masuk/keluar dan status siswa", icon: ArrowRightLeft, url: "/akademik/mutasi" },
   { title: "Jadwal Pelajaran", desc: "Atur jadwal kelas dan guru", icon: Calendar, url: "/akademik/jadwal" },
   { title: "Presensi Siswa", desc: "Input dan rekap kehadiran harian", icon: Clock, url: "/akademik/presensi" },

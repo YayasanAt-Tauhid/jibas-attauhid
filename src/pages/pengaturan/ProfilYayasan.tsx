@@ -320,10 +320,10 @@ function DialogLembaga({ open, onOpenChange, initial, onSaved }: {
           <div>
             <div className="flex items-center gap-3">
               <Switch checked={psbDibuka} onCheckedChange={setPsbDibuka} />
-              <Label>PSB Dibuka</Label>
+              <Label>PMB Dibuka</Label>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Jika aktif, lembaga ini muncul sebagai pilihan di form pendaftaran siswa baru publik (/psb)
+              Jika aktif, lembaga ini muncul sebagai pilihan di form pendaftaran murid baru publik (/pmb)
             </p>
           </div>
         </div>

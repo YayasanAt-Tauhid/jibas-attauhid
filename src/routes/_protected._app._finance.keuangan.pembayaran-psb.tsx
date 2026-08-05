@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import PembayaranPSB from "@/pages/keuangan/PembayaranPSB";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Legacy: rute "PSB" berganti nama jadi "PMB". Redirect supaya link lama tidak putus.
 export const Route = createFileRoute("/_protected/_app/_finance/keuangan/pembayaran-psb")({
-  component: PembayaranPSB,
+  beforeLoad: () => {
+    throw redirect({ to: "/keuangan/pembayaran-pmb" });
+  },
 });

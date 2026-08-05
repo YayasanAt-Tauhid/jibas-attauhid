@@ -29,7 +29,7 @@ const links = [
   { label: "Online Payment", url: "/keuangan/online-payment" },
   { label: "Audit Trail", url: "/keuangan/audit-trail" },
   { label: "Audit Perubahan Data", url: "/keuangan/audit-perubahan" },
-  { label: "Pembayaran PSB", url: "/keuangan/pembayaran-psb" },
+  { label: "Pembayaran PMB", url: "/keuangan/pembayaran-pmb" },
   { label: "Referensi", url: "/keuangan/referensi" },
   { label: "Tutup Buku", url: "/keuangan/tutup-buku" },
   { label: "Rekon Antar Lembaga", url: "/keuangan/rekon-antar-lembaga" },
