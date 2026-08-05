@@ -14,7 +14,7 @@ import { Search } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
-export default function PembayaranPSB() {
+export default function PembayaranPMB() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSiswa, setSelectedSiswa] = useState<any>(null);
   const [departemenId, setDepartemenId] = useState("");
@@ -48,10 +48,10 @@ export default function PembayaranPSB() {
     await createMutation.mutateAsync({
       siswa_id: selectedSiswa.id,
       jenis_id: jenisId,
-      bulan: 0, // PSB tidak terikat bulan
+      bulan: 0, // PMB tidak terikat bulan
       jumlah: Number(jumlah),
       tanggal_bayar: tanggalBayar,
-      keterangan: keterangan || "Pembayaran PSB",
+      keterangan: keterangan || "Pembayaran PMB",
       departemen_id: departemenId || undefined,
     });
     setJenisId("");
@@ -71,7 +71,7 @@ export default function PembayaranPSB() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Pembayaran Calon Siswa (PSB)</h1>
+        <h1 className="text-2xl font-bold text-foreground">Pembayaran Calon Siswa (PMB)</h1>
         <p className="text-sm text-muted-foreground">Input pembayaran untuk siswa berstatus calon (pendaftaran, uang pangkal, dll)</p>
       </div>
 
@@ -130,7 +130,7 @@ export default function PembayaranPSB() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle>Input Pembayaran PSB</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Input Pembayaran PMB</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <Label>Jenis Pembayaran</Label>
@@ -157,7 +157,7 @@ export default function PembayaranPSB() {
                 </div>
                 <div>
                   <Label>Keterangan</Label>
-                  <Textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Pembayaran PSB" />
+                  <Textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Pembayaran PMB" />
                 </div>
                 <Button onClick={handleSubmit} disabled={!jenisId || !jumlah || createMutation.isPending} className="w-full">
                   {createMutation.isPending ? "Menyimpan..." : "Simpan Pembayaran"}
@@ -166,7 +166,7 @@ export default function PembayaranPSB() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle>Riwayat Pembayaran PSB</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Riwayat Pembayaran PMB</CardTitle></CardHeader>
               <CardContent>
                 <DataTable columns={riwayatColumns} data={(riwayat as any[]) || []} loading={loadRiwayat} searchable={false} pageSize={10} emptyMessage="Belum ada pembayaran" />
               </CardContent>

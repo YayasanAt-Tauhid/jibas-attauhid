@@ -24,7 +24,7 @@ function diagnosaNIS(row: Record<string, unknown>): { alasan?: "no_dept_angkatan
   return {};
 }
 
-export default function PSB() {
+export default function PMB() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: angkatanList = [] } = useAngkatan();
@@ -360,7 +360,7 @@ export default function PSB() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Penerimaan Siswa Baru (PSB)</h1>
+          <h1 className="text-2xl font-bold text-foreground">Penerimaan Murid Baru (PMB)</h1>
           <p className="text-sm text-muted-foreground">Kelola pendaftaran dan penerimaan siswa baru</p>
         </div>
 
@@ -469,7 +469,7 @@ export default function PSB() {
               {modePendaftaran === "cepat" && (
                 <p className="text-xs text-muted-foreground bg-muted/40 rounded-md px-3 py-2 leading-relaxed">
                   NIS akan dibuat setelah kelas dan angkatan dilengkapi di halaman Data Siswa,
-                  kemudian klik tombol <strong>Buat NIS</strong> di tabel PSB.
+                  kemudian klik tombol <strong>Buat NIS</strong> di tabel PMB.
                 </p>
               )}
 

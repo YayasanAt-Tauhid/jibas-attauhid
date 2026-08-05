@@ -12,7 +12,7 @@ const routeMap: Record<string, string> = {
   // Keuangan
   "/keuangan": "Keuangan",
   "/keuangan/pembayaran": "Pembayaran SPP",
-  "/keuangan/pembayaran-psb": "Pembayaran PSB",
+  "/keuangan/pembayaran-pmb": "Pembayaran PMB",
   "/keuangan/penerimaan-lain": "Penerimaan Lain",
   "/keuangan/pengeluaran": "Pengeluaran",
   "/keuangan/online-payment": "Online Payment",
@@ -51,7 +51,7 @@ const routeMap: Record<string, string> = {
   "/akademik/jadwal": "Jadwal",
   "/akademik/kalender": "Kalender",
   "/akademik/rpp": "RPP",
-  "/akademik/psb": "PSB",
+  "/akademik/pmb": "PMB",
   "/akademik/mutasi": "Mutasi",
   "/akademik/presensi": "Presensi",
   "/akademik/presensi-kbm": "Presensi KBM",

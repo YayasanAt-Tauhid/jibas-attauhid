@@ -1,19 +1,19 @@
 /**
- * Server functions: psbOptions, psbDaftar
- * Migrasi dari supabase/functions/psb-daftar (GET list + POST register).
+ * Server functions: pmbOptions, pmbDaftar
+ * Migrasi dari supabase/functions/pmb-daftar (GET list + POST register).
  * PUBLIK — tidak butuh login (form pendaftaran siswa baru).
  */
 import { createServerFn } from "@tanstack/react-start";
 import { createAdminClient } from "./supabase";
 
-export interface PsbOptionsResult {
+export interface PmbOptionsResult {
   departemen: { id: string; nama: string; kode: string | null }[];
   angkatan: { id: string; nama: string; departemen_id: string | null }[];
 }
 
 // GET: daftar departemen + angkatan aktif.
-export const psbOptions = createServerFn({ method: "GET" }).handler(
-  async (): Promise<PsbOptionsResult> => {
+export const pmbOptions = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PmbOptionsResult> => {
     const admin = createAdminClient();
     const [deptRes, angkatanRes] = await Promise.all([
       admin
@@ -37,7 +37,7 @@ export const psbOptions = createServerFn({ method: "GET" }).handler(
   }
 );
 
-export interface PsbDaftarInput {
+export interface PmbDaftarInput {
   nama: string;
   departemen_id: string;
   angkatan_id?: string;
@@ -59,8 +59,8 @@ export interface PsbDaftarInput {
 }
 
 // POST: daftarkan calon siswa baru.
-export const psbDaftar = createServerFn({ method: "POST" })
-  .inputValidator((d: PsbDaftarInput) => d)
+export const pmbDaftar = createServerFn({ method: "POST" })
+  .inputValidator((d: PmbDaftarInput) => d)
   .handler(async ({ data }): Promise<{ success: true; siswa_id: string }> => {
     const admin = createAdminClient();
 

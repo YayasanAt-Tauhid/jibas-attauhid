@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "@/lib/router-compat";
-import { psbOptions, psbDaftar } from "@/server/psb";
+import { pmbOptions, pmbDaftar } from "@/server/pmb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -29,7 +29,7 @@ const initialForm = {
   telepon_ortu: "", alamat_ortu: "",
 };
 
-export default function PSBDaftar() {
+export default function PMBDaftar() {
   const [departemenList, setDepartemenList] = useState<Departemen[]>([]);
   const [allAngkatan, setAllAngkatan] = useState<Angkatan[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function PSBDaftar() {
   const [form, setForm] = useState({ ...initialForm });
 
   useEffect(() => {
-    psbOptions()
+    pmbOptions()
       .then((data) => {
         if (data?.departemen) setDepartemenList(data.departemen);
         if (data?.angkatan) setAllAngkatan(data.angkatan);
@@ -66,7 +66,7 @@ export default function PSBDaftar() {
 
     setLoading(true);
     try {
-      await psbDaftar({ data: form });
+      await pmbDaftar({ data: form });
       setSuccess(true);
     } catch (err: any) {
       toast.error(err?.message || "Gagal mendaftar. Coba lagi.");

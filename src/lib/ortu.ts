@@ -1,5 +1,5 @@
 // Nama akun orang tua/wali tidak tersimpan di users_profile — akun ortu
-// cuma punya email/role, sedangkan nama orang tua yang diisi saat PSB
+// cuma punya email/role, sedangkan nama orang tua yang diisi saat PMB
 // justru tersimpan di siswa_detail (nama_ayah/nama_ibu), terikat ke data
 // anak, bukan ke akun login. Fungsi ini menurunkan nama tampilan terbaik
 // yang tersedia dari anak-anak yang terhubung ke akun ortu tsb.

@@ -188,7 +188,7 @@ export default function PortalLogin() {
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Belum terdaftar?{" "}
-          <Link to="/psb" className="text-emerald-700 underline font-medium">
+          <Link to="/pmb" className="text-emerald-700 underline font-medium">
             Daftarkan anak Anda
           </Link>
         </p>
