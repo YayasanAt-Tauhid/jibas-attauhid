@@ -21,6 +21,7 @@ export const pmbOptions = createServerFn({ method: "GET" }).handler(
         .select("id, nama, kode")
         .eq("aktif", true)
         .eq("kategori", "unit_pendidikan")
+        .eq("psb_dibuka", true)
         .order("nama"),
       admin
         .from("angkatan")
@@ -86,8 +87,9 @@ export const pmbDaftar = createServerFn({ method: "POST" })
       .eq("id", departemen_id)
       .eq("aktif", true)
       .eq("kategori", "unit_pendidikan")
+      .eq("psb_dibuka", true)
       .single();
-    if (!dept) throw new Error("Departemen tidak valid");
+    if (!dept) throw new Error("Departemen tidak valid atau PMB belum dibuka untuk lembaga ini");
 
     const jk = data.jenis_kelamin === "P" ? "P" : "L";
 

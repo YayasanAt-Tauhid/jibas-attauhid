@@ -26,6 +26,13 @@ name: Deploy to Cloudflare Workers
 #                                       runtime secret in the deploy step below. Protect
 #                                       this environment with required reviewers since
 #                                       this secret grants full DB access.
+#   - MIDTRANS_SERVER_KEY             [secret] server key Midtrans, dipakai server route
+#                                       /api/midtrans-notification untuk memverifikasi
+#                                       signature webhook. Harus cocok dengan environment
+#                                       Midtrans yang dipakai (Sandbox vs Production).
+#                                       Sebelumnya tidak ikut disinkronkan sehingga hanya
+#                                       ada bila di-`wrangler secret put` manual — kalau
+#                                       hilang, SEMUA notifikasi ditolak 403.
 #   - WORKER_NAME                     [variable] name of the Cloudflare Worker to deploy to
 
 on:
@@ -84,7 +91,17 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WORKER_NAME: ${{ vars.WORKER_NAME }}
+          MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
         run: |
           echo -n "${{ vars.VITE_SUPABASE_URL }}" | npx --yes wrangler@4 secret put SUPABASE_URL --name "$WORKER_NAME"
           echo -n "${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}" | npx --yes wrangler@4 secret put SUPABASE_ANON_KEY --name "$WORKER_NAME"
           echo -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" | npx --yes wrangler@4 secret put SUPABASE_SERVICE_ROLE_KEY --name "$WORKER_NAME"
+          # MIDTRANS_SERVER_KEY sengaja dijaga: kalau secret ini belum diisi di
+          # GitHub Environment, JANGAN dikirim — `secret put` dengan nilai kosong
+          # akan menimpa key yang sudah dipasang manual lewat wrangler dan
+          # membuat semua notifikasi Midtrans ditolak 403.
+          if [ -n "$MIDTRANS_SERVER_KEY" ]; then
+            echo -n "$MIDTRANS_SERVER_KEY" | npx --yes wrangler@4 secret put MIDTRANS_SERVER_KEY --name "$WORKER_NAME"
+          else
+            echo "MIDTRANS_SERVER_KEY belum diset di GitHub Environment — dilewati (nilai yang sudah ada di Worker dipertahankan)."
+          fi
