@@ -623,12 +623,12 @@ export default function JurnalUmum() {
             </div>
 
             <div className="border rounded-md overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="p-2 text-left w-10">No</th>
-                    <th className="p-2 text-left min-w-[200px]">Akun</th>
-                    <th className="p-2 text-left min-w-[150px]">Keterangan</th>
+                    <th className="p-2 text-left w-[200px]">Akun</th>
+                    <th className="p-2 text-left w-[150px]">Keterangan</th>
                     <th className="p-2 text-right w-36">Debit (Rp)</th>
                     <th className="p-2 text-right w-36">Kredit (Rp)</th>
                     <th className="p-2 w-10"></th>
@@ -871,12 +871,12 @@ export default function JurnalUmum() {
                   </div>
                 </div>
                 <div className="border rounded-md overflow-x-auto bg-background">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-fixed">
                     <thead className="bg-muted/50">
                       <tr>
                         <th className="p-2 text-left w-10">No</th>
-                        <th className="p-2 text-left min-w-[200px]">Akun</th>
-                        <th className="p-2 text-left min-w-[150px]">Keterangan</th>
+                        <th className="p-2 text-left w-[200px]">Akun</th>
+                        <th className="p-2 text-left w-[150px]">Keterangan</th>
                         <th className="p-2 text-right w-32">Debit (Rp)</th>
                         <th className="p-2 text-right w-32">Kredit (Rp)</th>
                         <th className="p-2 w-10"></th>
