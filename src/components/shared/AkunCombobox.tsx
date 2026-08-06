@@ -60,7 +60,7 @@ export function AkunCombobox({
             !selected && "text-muted-foreground"
           )}
         >
-          <span className="truncate">
+          <span className="truncate min-w-0">
             {selected ? `${selected.kode} - ${selected.nama}` : placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
