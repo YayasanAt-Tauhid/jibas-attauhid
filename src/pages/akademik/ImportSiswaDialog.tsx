@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPages } from "@/lib/fetchAll";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -142,6 +143,7 @@ export function ImportSiswaDialog({
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ success: number; error: number; updated: number } | null>(null);
   const [updateExisting, setUpdateExisting] = useState(false);
+  const [exportingCurrent, setExportingCurrent] = useState(false);
 
   const findByNama = <T extends { nama: string }>(list: T[], nama?: string): T | undefined => {
     if (!nama) return undefined;
@@ -315,6 +317,74 @@ export function ImportSiswaDialog({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
     XLSX.writeFile(wb, "template_import_siswa.xlsx");
+  };
+
+  const downloadDataSiswaSaatIni = async () => {
+    setExportingCurrent(true);
+    try {
+      const siswaData = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("siswa")
+          .select(`
+            id, nis, nama, jenis_kelamin, tempat_lahir, tanggal_lahir, agama, alamat,
+            telepon, email, status,
+            angkatan:angkatan_id(id, nama),
+            kelas_siswa(
+              id, aktif,
+              kelas:kelas_id(id, nama, tingkat:tingkat_id(id, nama), departemen:departemen_id(id, nama)),
+              tahun_ajaran:tahun_ajaran_id(id, nama)
+            )
+          `)
+          .order("nama")
+          .order("id")
+          .range(from, to)
+      );
+
+      const siswaDetailList = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("siswa_detail")
+          .select("siswa_id, nama_ayah, nama_ibu, telepon_ortu")
+          .range(from, to)
+      );
+      const detailBySiswaId = new Map<string, any>(
+        siswaDetailList.map((d) => [d.siswa_id as string, d])
+      );
+
+      const template = siswaData.map((s: any) => {
+        const activeKs = (s.kelas_siswa || []).find((ks: any) => ks.aktif) || s.kelas_siswa?.[0];
+        const detail = detailBySiswaId.get(s.id as string);
+        return {
+          nis: s.nis || "",
+          nama: s.nama || "",
+          jenis_kelamin: s.jenis_kelamin || "",
+          tempat_lahir: s.tempat_lahir || "",
+          tanggal_lahir: s.tanggal_lahir || "",
+          agama: s.agama || "",
+          alamat: s.alamat || "",
+          telepon: s.telepon || "",
+          email: s.email || "",
+          status: s.status || "",
+          departemen: activeKs?.kelas?.departemen?.nama || "",
+          tingkat: activeKs?.kelas?.tingkat?.nama || "",
+          kelas: activeKs?.kelas?.nama || "",
+          tahun_ajaran: activeKs?.tahun_ajaran?.nama || "",
+          angkatan: s.angkatan?.nama || "",
+          nama_ayah: detail?.nama_ayah || "",
+          nama_ibu: detail?.nama_ibu || "",
+          telepon_ortu: detail?.telepon_ortu || "",
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(template);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Data Siswa");
+      XLSX.writeFile(wb, "data_siswa_untuk_update.xlsx");
+      toast.success("Data siswa berhasil diunduh. Edit lalu upload kembali dengan opsi \"Update data siswa\" dicentang.");
+    } catch (err) {
+      toast.error("Gagal mengunduh data siswa.");
+    } finally {
+      setExportingCurrent(false);
+    }
   };
 
   const handleImport = async () => {
@@ -508,13 +578,26 @@ export function ImportSiswaDialog({
             <span className="font-medium">kelas</span>,{" "}
             <span className="font-medium">tahun_ajaran</span>, dan{" "}
             <span className="font-medium">angkatan</span> diisi dengan nama persis
-            seperti yang ada di sistem (opsional, boleh dikosongkan).
+            seperti yang ada di sistem (opsional, boleh dikosongkan). Untuk update data
+            siswa yang sudah ada, gunakan{" "}
+            <span className="font-medium">Download Data Siswa (untuk Update)</span>{" "}
+            agar file berisi data terkini beserta NIS-nya, edit kolom yang perlu diubah,
+            lalu upload kembali dengan centang{" "}
+            <span className="font-medium">Update data siswa</span> di bawah.
           </p>
 
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" onClick={downloadTemplate}>
               <Download className="mr-2 h-4 w-4" />
               Download Template
+            </Button>
+            <Button variant="outline" onClick={downloadDataSiswaSaatIni} disabled={exportingCurrent}>
+              {exportingCurrent ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Download Data Siswa (untuk Update)
             </Button>
             <Label htmlFor="upload-siswa" className="cursor-pointer">
               <Button variant="outline" asChild>
