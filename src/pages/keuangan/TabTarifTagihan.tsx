@@ -20,19 +20,25 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
 import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useDeleteTarifTagihan } from "@/hooks/useTarifTagihan";
 import { useTagihanList, useGenerateTagihan } from "@/hooks/useTagihan";
-import { useKelas, useAngkatan } from "@/hooks/useAkademikData";
+import { useKelas, useAngkatan, useTahunAjaran } from "@/hooks/useAkademikData";
+import {
+  BULAN_ORDER_AKADEMIK,
+  bulanKalenderTahunAjaran,
+  kelompokkanBulanKeTahunBuku,
+  labelBulanKalender,
+  targetTahunBukuTarif,
+} from "@/lib/periodeTagihan";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 
-// Skema field Tambah/Edit Tarif. Field scope (jenis/siswa/kelas/dst) hanya
-// wajib & divalidasi saat mode tambah -- di mode edit field-field itu terkunci
-// (lihat superRefine di buildTarifSchema, dan render read-only summary di JSX).
 const tarifFormSchema = z.object({
   deptId: z.string(),
   jenisId: z.string(),
   siswa: z.custom<SiswaRingkas | null>(),
   kelasId: z.string(),
   angkatanId: z.string(),
+  // Tahun Ajaran akademik untuk mode tambah. Pada tabel DB, tarif tetap
+  // disimpan per Tahun Buku melalui pemetaan Juli-Juni -> Jan-Des.
   tahunAjaranId: z.string(),
   nominal: z.string(),
   keterangan: z.string(),
@@ -47,10 +53,7 @@ const tarifFormDefaults: TarifFormValues = {
   nominal: "", keterangan: "", autoGenerate: true, genBulanList: [], genDeptId: "",
 };
 
-// Validasi bertingkat: field wajib (create-only) + deteksi tarif duplikat —
-// keduanya butuh data live (jenisList, tarifList) makanya schema dibangun
-// lewat factory, bukan objek statis.
-function buildTarifSchema(opts: { isEditMode: boolean; jenisById: Map<string, any>; tarifList: any[] | undefined }) {
+function buildTarifSchema(opts: { isEditMode: boolean; jenisById: Map<string, any> }) {
   return tarifFormSchema.superRefine((data, ctx) => {
     if (!data.nominal) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nominal"], message: "Nominal belum diisi" });
@@ -64,25 +67,11 @@ function buildTarifSchema(opts: { isEditMode: boolean; jenisById: Map<string, an
     }
     if (data.autoGenerate) {
       if (!data.tahunAjaranId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["tahunAjaranId"], message: "Tahun Buku wajib dipilih saat opsi generate tagihan aktif" });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["tahunAjaranId"], message: "Tahun Ajaran wajib dipilih saat opsi generate tagihan aktif" });
       }
       const isSekali = data.jenisId ? opts.jenisById.get(data.jenisId)?.tipe === "sekali" : false;
       if (data.jenisId && !isSekali && data.genBulanList.length === 0) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["genBulanList"], message: "Pilih minimal satu bulan untuk generate tagihan" });
-      }
-    }
-
-    if (data.jenisId) {
-      const norm = (x: string) => x || null;
-      const duplicate = opts.tarifList?.find((t: any) =>
-        t.jenis_id === data.jenisId &&
-        norm(t.siswa_id) === norm(data.siswa?.id ?? "") &&
-        norm(t.kelas_id) === norm(data.kelasId) &&
-        norm(t.angkatan_id) === norm(data.angkatanId) &&
-        norm(t.tahun_ajaran_id) === norm(data.tahunAjaranId)
-      );
-      if (duplicate) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jenisId"], message: "Tarif dengan jenis & scope persis sama sudah ada — edit tarif yang lama, jangan buat duplikat" });
       }
     }
   });
@@ -93,6 +82,7 @@ export default function TabTarifTagihan() {
   const { data: jenisList } = useAllJenisPembayaran();
   const { data: kelasList } = useKelas();
   const { data: tahunList } = useTahunBuku();
+  const { data: tahunAjaranList } = useTahunAjaran();
   const { data: lembagaList } = useLembaga();
   const { data: angkatanList } = useAngkatan();
 
@@ -101,7 +91,6 @@ export default function TabTarifTagihan() {
   const deleteMut = useDeleteTarifTagihan();
   const generateMut = useGenerateTagihan();
 
-  // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -111,9 +100,8 @@ export default function TabTarifTagihan() {
 
   const jenisById = useMemo(() => new Map((jenisList ?? []).map((j: any) => [j.id, j])), [jenisList]);
 
-  // Form fields — urutan mengikuti ketergantungan: Lembaga → Jenis → target → nominal
   const form = useForm<TarifFormValues>({
-    resolver: zodResolver(buildTarifSchema({ isEditMode: !!editItem, jenisById, tarifList })),
+    resolver: zodResolver(buildTarifSchema({ isEditMode: !!editItem, jenisById })),
     mode: "onChange",
     defaultValues: tarifFormDefaults,
   });
@@ -123,17 +111,10 @@ export default function TabTarifTagihan() {
   const kelasId = form.watch("kelasId");
   const angkatanId = form.watch("angkatanId");
   const tahunAjaranId = form.watch("tahunAjaranId");
-  const nominal = form.watch("nominal");
 
   const selectedJenisForm = jenisById.get(jenisId);
-  // Lembaga efektif: eksplisit dipilih user, atau diturunkan dari jenis
-  // pembayaran terpilih kalau jenis itu scoped ke satu lembaga. Dipakai untuk
-  // membatasi pilihan Kelas/Angkatan (target scope tarif). Siswa TIDAK
-  // dibatasi ke lembaga ini -- kasus sah: tarif SPP/Uang Pangkal SMP untuk
-  // siswa yang masih kelas 6 SD (lihat validationWarnings di bawah).
   const effectiveDeptId = deptId || selectedJenisForm?.departemen_id || "";
 
-  // Filter kelas & angkatan by lembaga efektif
   const filteredKelasList = useMemo(() => {
     if (!kelasList) return [];
     if (!effectiveDeptId) return kelasList;
@@ -146,12 +127,6 @@ export default function TabTarifTagihan() {
     return angkatanList.filter((a: any) => !a.departemen_id || a.departemen_id === effectiveDeptId);
   }, [angkatanList, effectiveDeptId]);
 
-  // Filter jenis pembayaran by selected lembaga -- KHUSUS untuk dropdown di
-  // form Tambah/Edit Tarif. Jenis dengan departemen_id NULL (berlaku umum
-  // lintas lembaga) tetap ditampilkan terlepas dari lembaga yang dipilih.
-  // TIDAK dipakai untuk dropdown filter tabel (Filter Jenis Pembayaran /
-  // filter Daftar Tagihan) yang sengaja menampilkan semua jenis untuk
-  // keperluan pencarian data yang sudah ada.
   const jenisListForForm = useMemo(() => {
     if (!jenisList) return [];
     if (!deptId) return jenisList;
@@ -162,8 +137,6 @@ export default function TabTarifTagihan() {
     const newDept = v === "__none__" ? "" : v;
     form.setValue("deptId", newDept, { shouldValidate: true });
     form.setValue("kelasId", "", { shouldValidate: true });
-    // Kalau jenis/angkatan/siswa yang sudah dipilih tidak berlaku untuk
-    // lembaga baru, reset — dan BERI TAHU user, jangan diam-diam.
     const jenisTerpilih = jenisById.get(jenisId);
     if (newDept && jenisTerpilih?.departemen_id && jenisTerpilih.departemen_id !== newDept) {
       form.setValue("jenisId", "", { shouldValidate: true });
@@ -174,23 +147,17 @@ export default function TabTarifTagihan() {
       form.setValue("angkatanId", "", { shouldValidate: true });
       toast.info("Pilihan Angkatan direset karena tidak berlaku untuk lembaga yang dipilih.");
     }
-    // Siswa SENGAJA tidak direset/dibatasi ke lembaga ini — kasus umum:
-    // siswa kelas 6 SD yang mau diinputkan tarif SPP/Uang Pangkal SMP untuk
-    // jenjang berikutnya. Mismatch cukup ditandai sebagai peringatan (lihat
-    // validationWarnings), bukan diblokir.
   };
 
   const autoGenerate = form.watch("autoGenerate");
   const genBulanList = form.watch("genBulanList");
   const genDeptId = form.watch("genDeptId");
 
-  // Filter tarif
   const [filterJenis, setFilterJenis] = useState("");
   const [filterTarifKelas, setFilterTarifKelas] = useState("");
   const [filterTarifTahun, setFilterTarifTahun] = useState("");
   const [filterTarifSiswa, setFilterTarifSiswa] = useState<SiswaRingkas | null>(null);
 
-  // Tagihan list filters
   const [filterTahunId, setFilterTahunId] = useState("");
   const [filterJenisId, setFilterJenisId] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -203,10 +170,6 @@ export default function TabTarifTagihan() {
     status: filterStatus || undefined,
     siswa_id: filterSiswa?.id || undefined,
   });
-  // Default (filter "Semua"): sembunyikan tagihan yang sudah dibatalkan, supaya
-  // tidak tercampur dengan tagihan aktif. Pilih eksplisit "Dibatalkan" di filter
-  // Status untuk melihatnya. Filter Kelas diterapkan di client karena
-  // useTagihanList tidak punya parameter kelas_id.
   const tagihanData = useMemo(() => {
     if (!tagihanDataRaw) return tagihanDataRaw;
     let result = tagihanDataRaw;
@@ -227,11 +190,33 @@ export default function TabTarifTagihan() {
 
   const selectedJenis = jenisById.get(jenisId);
   const isSekali = selectedJenis?.tipe === "sekali";
-  const allMonths = Array.from({ length: 12 }, (_, i) => i + 1);
-  const allSelected = genBulanList.length === 12;
+  const selectedTahunAjaran = tahunAjaranList?.find((t: any) => t.id === tahunAjaranId) || null;
+  const kalenderAkademik = useMemo(
+    () => bulanKalenderTahunAjaran(selectedTahunAjaran as any),
+    [selectedTahunAjaran],
+  );
+  const allMonths = kalenderAkademik.length ? kalenderAkademik.map((x) => x.bulan) : BULAN_ORDER_AKADEMIK;
+  const allSelected = allMonths.length > 0 && allMonths.every((b) => genBulanList.includes(b));
+
+  const tarifPeriods = useMemo(
+    () => targetTahunBukuTarif({
+      tahunAjaran: selectedTahunAjaran as any,
+      tahunBukuList: tahunList as any,
+      tipeSekali: isSekali,
+    }),
+    [selectedTahunAjaran, tahunList, isSekali],
+  );
+  const generatePeriods = useMemo(
+    () => kelompokkanBulanKeTahunBuku({
+      tahunAjaran: selectedTahunAjaran as any,
+      tahunBukuList: tahunList as any,
+      bulanList: genBulanList,
+    }),
+    [selectedTahunAjaran, tahunList, genBulanList],
+  );
 
   const toggleBulan = (b: number) => {
-    const next = genBulanList.includes(b) ? genBulanList.filter((x) => x !== b) : [...genBulanList, b].sort((a, c) => a - c);
+    const next = genBulanList.includes(b) ? genBulanList.filter((x) => x !== b) : [...genBulanList, b];
     form.setValue("genBulanList", next, { shouldValidate: true });
   };
 
@@ -247,33 +232,63 @@ export default function TabTarifTagihan() {
     setDialogOpen(true);
   };
 
-  // Pastikan checklist validasi & tombol Simpan langsung akurat saat dialog
-  // dibuka -- mode "onChange" baru menghitung ulang isValid/errors setelah
-  // field pertama disentuh, dan resolver-nya sendiri butuh render berikutnya
-  // supaya bergantung ke editItem/tarifList yang terbaru.
   useEffect(() => {
     if (dialogOpen) void form.trigger();
   }, [dialogOpen, editItem, form]);
 
-  // Peringatan (tidak memblokir simpan) — mis. siswa masih tercatat di
-  // lembaga lain dari Lembaga/Jenis Pembayaran terpilih. Ini SAH untuk kasus
-  // seperti tarif SPP/Uang Pangkal SMP bagi siswa yang masih kelas 6 SD
-  // (belum resmi naik jenjang), jadi cukup diingatkan, bukan diblokir.
+  const matchingTarifPeriods = useMemo(() => {
+    const ids = new Set<string>();
+    if (!tarifList || !jenisId || editItem) return ids;
+    const norm = (x: string | null | undefined) => x || null;
+    for (const t of tarifList as any[]) {
+      if (
+        t.jenis_id === jenisId &&
+        norm(t.siswa_id) === norm(siswa?.id) &&
+        norm(t.kelas_id) === norm(kelasId) &&
+        norm(t.angkatan_id) === norm(angkatanId)
+      ) {
+        if (t.tahun_ajaran_id) ids.add(t.tahun_ajaran_id);
+        else ids.add("__none__");
+      }
+    }
+    return ids;
+  }, [tarifList, jenisId, siswa, kelasId, angkatanId, editItem]);
+
+  const duplicateFull = !editItem && !!jenisId && (
+    tahunAjaranId
+      ? tarifPeriods.ids.length > 0 && tarifPeriods.ids.every((id) => matchingTarifPeriods.has(id))
+      : matchingTarifPeriods.has("__none__")
+  );
+
+  const missingTahunBukuLabels = useMemo(() => {
+    const years = new Map<number, string>();
+    for (const item of tarifPeriods.missing) years.set(item.tahun, labelBulanKalender(item));
+    return Array.from(years.values());
+  }, [tarifPeriods.missing]);
+
   const validationWarnings = useMemo(() => {
     const warns: string[] = [];
     if (!editItem && siswa && effectiveDeptId && siswa.departemen_id && siswa.departemen_id !== effectiveDeptId) {
       warns.push("Siswa terpilih tercatat di lembaga lain dari Lembaga/Jenis Pembayaran ini — pastikan ini memang disengaja (mis. tarif jenjang berikutnya).");
     }
+    if (!editItem && tahunAjaranId && !duplicateFull && tarifPeriods.ids.some((id) => matchingTarifPeriods.has(id))) {
+      warns.push("Sebagian Tahun Buku dalam Tahun Ajaran ini sudah mempunyai tarif. Sistem hanya akan menambahkan periode yang belum ada.");
+    }
     return warns;
-  }, [editItem, siswa, effectiveDeptId]);
+  }, [editItem, siswa, effectiveDeptId, tahunAjaranId, duplicateFull, tarifPeriods.ids, matchingTarifPeriods]);
 
-  // Checklist kekurangan ditampilkan ke user (bukan cuma tombol disabled tanpa
-  // penjelasan) — sumbernya sekarang error zod dari buildTarifSchema di atas.
-  const validationErrors = useMemo(
-    () => Object.values(form.formState.errors).map((e) => e?.message).filter((m): m is string => !!m),
-    [form.formState.errors]
-  );
-  const canSave = form.formState.isValid;
+  const validationErrors = useMemo(() => {
+    const errors = Object.values(form.formState.errors).map((e) => e?.message).filter((m): m is string => !!m);
+    if (!editItem && tahunAjaranId && missingTahunBukuLabels.length > 0) {
+      errors.push(`Tahun Buku untuk ${missingTahunBukuLabels.join(", ")} belum tersedia — buat dulu di tab Tahun Buku`);
+    }
+    if (!editItem && duplicateFull) {
+      errors.push("Tarif dengan jenis & scope ini sudah lengkap untuk Tahun Ajaran yang dipilih — edit tarif yang ada, jangan buat duplikat");
+    }
+    return [...new Set(errors)];
+  }, [form.formState.errors, editItem, tahunAjaranId, missingTahunBukuLabels, duplicateFull]);
+
+  const canSave = form.formState.isValid && validationErrors.length === 0;
   const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;
 
   const performSave = async (data: TarifFormValues) => {
@@ -283,36 +298,54 @@ export default function TabTarifTagihan() {
       if (editItem) {
         await updateMut.mutateAsync({ id: editItem.id, nominal: nominalNum, keterangan: data.keterangan || undefined });
       } else {
-        await createMut.mutateAsync({ jenis_id: data.jenisId, siswa_id: data.siswa?.id || null, kelas_id: data.kelasId || null, angkatan_id: data.angkatanId || null, tahun_ajaran_id: data.tahunAjaranId || null, nominal: nominalNum, keterangan: data.keterangan || undefined });
+        let tahunIds: string[] | undefined;
+        if (data.tahunAjaranId) {
+          tahunIds = tarifPeriods.ids.filter((id) => !matchingTarifPeriods.has(id));
+          if (tahunIds.length === 0) return;
+        }
 
-        // Auto-generate tagihan if checked
+        await createMut.mutateAsync({
+          jenis_id: data.jenisId,
+          siswa_id: data.siswa?.id || null,
+          kelas_id: data.kelasId || null,
+          angkatan_id: data.angkatanId || null,
+          tahun_ajaran_id: data.tahunAjaranId ? undefined : null,
+          tahun_ajaran_ids: tahunIds,
+          nominal: nominalNum,
+          keterangan: data.keterangan || undefined,
+        });
+
         if (data.autoGenerate && data.tahunAjaranId && data.jenisId) {
           try {
-            const params: any = {
-              tahun_ajaran_id: data.tahunAjaranId,
+            const baseParams: any = {
+              tahun_akademik_id: data.tahunAjaranId,
               jenis_id: data.jenisId,
             };
-            if (data.siswa) params.siswa_id = data.siswa.id;
-            if (data.kelasId) params.kelas_id = data.kelasId;
+            if (data.siswa) baseParams.siswa_id = data.siswa.id;
+            if (data.kelasId) baseParams.kelas_id = data.kelasId;
             const effectiveGenDeptId = data.genDeptId || data.deptId;
-            if (effectiveGenDeptId) params.departemen_id = effectiveGenDeptId;
-            if (!isSekaliData && data.genBulanList.length > 0) {
-              params.bulan_list = data.genBulanList;
-            }
-            const genResult = await generateMut.mutateAsync(params);
-            // Lapis pengaman tambahan: server function selalu resolve
-            // (tidak reject) walau semua bulan gagal digenerate, jadi catch
-            // di bawah ini tidak akan menangkap kasus "sukses API tapi 0
-            // tagihan berhasil". Toast detail sudah ditampilkan oleh hook
-            // useGenerateTagihan; di sini cukup pastikan dialog TIDAK
-            // tertutup otomatis kalau generate gagal total, supaya user
-            // sadar & bisa coba lagi tanpa harus buka ulang form dari nol.
-            if (genResult.generated === 0 && genResult.errors && genResult.errors.length > 0) {
-              return; // jangan setDialogOpen(false) -- biarkan user lihat & retry
+            if (effectiveGenDeptId) baseParams.departemen_id = effectiveGenDeptId;
+            if (data.angkatanId) baseParams.angkatan_id = data.angkatanId;
+
+            if (isSekaliData) {
+              const genResult = await generateMut.mutateAsync({
+                ...baseParams,
+                tahun_ajaran_id: tarifPeriods.ids[0],
+              } as any);
+              if (genResult.generated === 0 && genResult.errors?.length) return;
+            } else {
+              for (const group of generatePeriods.groups) {
+                const genResult = await generateMut.mutateAsync({
+                  ...baseParams,
+                  tahun_ajaran_id: group.tahunBukuId,
+                  bulan_list: group.bulanList,
+                } as any);
+                if (genResult.generated === 0 && genResult.errors?.length) return;
+              }
             }
           } catch (genErr: any) {
             toast.error(`Tarif tersimpan, tapi generate tagihan gagal: ${genErr.message}`);
-            return; // sama -- jangan tutup dialog otomatis saat generate gagal
+            return;
           }
         }
       }
@@ -323,11 +356,10 @@ export default function TabTarifTagihan() {
   };
 
   const onSubmit = (data: TarifFormValues) => {
-    // Generate tanpa siswa/kelas/lembaga = SEMUA siswa aktif → wajib konfirmasi
     const isBroadGenerate = !editItem && data.autoGenerate && !data.siswa && !data.kelasId && !(data.genDeptId || data.deptId);
     if (isBroadGenerate) {
       setPendingSaveData(data);
-      setBroadConfirmOpen(true); // konfirmasi dulu — dampaknya semua siswa aktif
+      setBroadConfirmOpen(true);
       return;
     }
     void performSave(data);
@@ -369,7 +401,7 @@ export default function TabTarifTagihan() {
     { key: "jenis", label: "Jenis", className: "min-w-[130px]", render: (_, r) => (r as any).jenis?.nama || "-" },
     { key: "kelas", label: "Kelas", className: "min-w-[100px]", render: (_, r) => (r as any).kelas?.nama || "-" },
     { key: "tahun_ajaran", label: "Tahun Buku", className: "min-w-[140px]", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
-    { key: "bulan", label: "Bulan", className: "min-w-[130px]", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali — TA {(r as any).tahun_ajaran?.nama || "-"}</Badge> },
+    { key: "bulan", label: "Bulan", className: "min-w-[130px]", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali — {(r as any).tahun_ajaran?.nama || "-"}</Badge> },
     { key: "nominal", label: "Nominal", className: "min-w-[120px]", render: (v) => <span className="font-semibold">{formatRupiah(Number(v))}</span> },
     {
       key: "status", label: "Status", className: "min-w-[110px]",
@@ -385,14 +417,13 @@ export default function TabTarifTagihan() {
 
   return (
     <>
-      {/* ─── Pengaturan Tarif ─── */}
       <Card className="mt-4">
         <CardContent className="space-y-4 px-3 pt-4 sm:px-6 sm:pt-6">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs leading-relaxed sm:text-sm">
-              Tarif dapat dioverride per <strong>siswa</strong>, <strong>kelas</strong>, <strong>angkatan</strong>, dan/atau <strong>tahun buku</strong>.
-              Prioritas: Siswa+Kelas+Tahun → Siswa+Tahun → Siswa → Kelas+Tahun → Kelas → Angkatan+Tahun → Angkatan → Tahun → Default.
+              Tarif dapat dioverride per <strong>siswa</strong>, <strong>kelas</strong>, <strong>angkatan</strong>, dan/atau periode.
+              Saat input berdasarkan Tahun Ajaran Juli–Juni, sistem menyimpan tarif ke Tahun Buku Jan–Des yang sesuai agar jurnal dan laporan ISAK 35 tetap benar.
             </AlertDescription>
           </Alert>
           <div className="flex flex-wrap gap-2 items-end">
@@ -446,7 +477,6 @@ export default function TabTarifTagihan() {
         </CardContent>
       </Card>
 
-      {/* ─── Daftar Tagihan ─── */}
       <Card className="mt-4">
         <CardContent className="space-y-4 px-3 pt-4 sm:px-6 sm:pt-6">
           <div className="flex items-center gap-2">
@@ -521,15 +551,11 @@ export default function TabTarifTagihan() {
         </CardContent>
       </Card>
 
-      {/* ─── Dialog Tambah/Edit Tarif ─── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Tambah"} Tarif Tagihan</DialogTitle></DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {editItem ? (
-              /* Mode edit: jenis & scope terkunci — tampilkan sebagai ringkasan
-                 read-only, bukan deretan dropdown disabled dengan peringatan
-                 berulang. Hanya Nominal & Keterangan yang bisa diubah. */
               <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-1.5">
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Jenis Pembayaran</span><span className="font-medium text-right">{editItem.jenis?.nama || "-"}</span></div>
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Siswa</span><span className="text-right">{editItem.siswa ? `${editItem.siswa.nama} (${editItem.siswa.nis || "-"})` : "Semua siswa"}</span></div>
@@ -569,10 +595,6 @@ export default function TabTarifTagihan() {
                       value={field.value}
                       onChange={(s) => {
                         field.onChange(s);
-                        // Auto-isi Lembaga dari data siswa sebagai default yang nyaman
-                        // untuk kasus umum (tarif untuk lembaga siswa saat ini). Tetap
-                        // bisa diganti manual -- mis. siswa kelas 6 SD yang mau
-                        // diinputkan tarif SPP/Uang Pangkal untuk SMP (jenjang berikutnya).
                         if (s && !deptId && s.departemen_id) {
                           form.setValue("deptId", s.departemen_id, { shouldValidate: true });
                           form.setValue("kelasId", "", { shouldValidate: true });
@@ -603,28 +625,37 @@ export default function TabTarifTagihan() {
                       <SelectContent>
                         <SelectItem value="__none__">— Semua Angkatan —</SelectItem>
                         {filteredAngkatanList.map((a: any) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.nama}{a.departemen ? ` — ${a.departemen.nama}` : ""}
-                          </SelectItem>
+                          <SelectItem key={a.id} value={a.id}>{a.nama}{a.departemen ? ` — ${a.departemen.nama}` : ""}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   )} />
                 </div>
                 <div>
-                  <Label>Tahun Buku {autoGenerate ? "*" : "(opsional)"}</Label>
+                  <Label>Tahun Ajaran {autoGenerate ? "*" : "(opsional)"}</Label>
                   <Controller control={form.control} name="tahunAjaranId" render={({ field }) => (
-                    <Select value={field.value || "__none__"} onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}>
-                      <SelectTrigger><SelectValue placeholder="Semua tahun buku" /></SelectTrigger>
+                    <Select value={field.value || "__none__"} onValueChange={(v) => { field.onChange(v === "__none__" ? "" : v); form.setValue("genBulanList", [], { shouldValidate: true }); }}>
+                      <SelectTrigger><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">— Semua Tahun Buku —</SelectItem>
-                        {tahunList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
+                        <SelectItem value="__none__">— Tanpa Tahun Ajaran (berlaku semua periode) —</SelectItem>
+                        {tahunAjaranList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )} />
+                  <p className="text-xs text-muted-foreground mt-1">Tahun Ajaran mengikuti Juli–Juni; penyimpanan keuangan otomatis dibagi ke Tahun Buku Jan–Des.</p>
                 </div>
+
+                {tahunAjaranId && tarifPeriods.ids.length > 0 && (
+                  <Alert className="py-2">
+                    <Info className="h-3 w-3" />
+                    <AlertDescription className="text-xs">
+                      <strong>{selectedTahunAjaran?.nama}</strong> → {tarifPeriods.ids.map((id) => (tahunList as any[])?.find((tb: any) => tb.id === id)?.nama).filter(Boolean).join(" + ")}.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </>
             )}
+
             <div>
               <Label>Nominal Override *</Label>
               <Controller control={form.control} name="nominal" render={({ field }) => (
@@ -640,70 +671,68 @@ export default function TabTarifTagihan() {
               <Textarea {...form.register("keterangan")} placeholder="Misal: Beasiswa prestasi, potongan 50%" />
             </div>
 
-            {/* Auto-generate section - only for new tarif */}
             {!editItem && (
               <>
                 <Separator />
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <Controller control={form.control} name="autoGenerate" render={({ field }) => (
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={(v) => field.onChange(!!v)}
-                      />
+                      <Checkbox checked={field.value} onCheckedChange={(v) => field.onChange(!!v)} />
                     )} />
-                    <span className="text-sm font-medium">Generate tagihan & jurnal piutang otomatis</span>
+                    <span className="text-sm font-medium">Generate tagihan otomatis</span>
                   </label>
 
                   {autoGenerate && (
-                    <div className="space-y-3 pl-6 border-l-2 border-primary/20">
+                    <div className="space-y-3 pl-4 sm:pl-6 border-l-2 border-primary/20">
                       <Alert className="py-2">
                         <Info className="h-3 w-3" />
                         <AlertDescription className="text-xs">
-                          Akan membuat tagihan + jurnal piutang untuk{" "}
+                          Akan membuat tagihan untuk{" "}
                           {siswa
                             ? <strong>siswa {siswa.nama}</strong>
                             : kelasId
                               ? <strong>siswa di kelas {filteredKelasList.find((k: any) => k.id === kelasId)?.nama}</strong>
                               : (deptId || genDeptId)
                                 ? <strong>siswa di lembaga {lembagaList?.find((l: any) => l.id === (deptId || genDeptId))?.kode}</strong>
-                                : <strong>semua siswa aktif di tahun buku terpilih</strong>
-                          }. Siswa yang sudah punya tagihan akan di-skip.
+                                : <strong>semua siswa aktif di Tahun Ajaran terpilih</strong>
+                          }. Periode mendatang disimpan sebagai terjadwal dan jurnal piutang baru dibuat saat jatuh tempo.
                         </AlertDescription>
                       </Alert>
 
                       {jenisId && isSekali && (
                         <p className="text-xs text-muted-foreground">
-                          Tipe <Badge variant="outline" className="text-xs">1x Bayar</Badge> — tagihan di-generate tanpa bulan
+                          Tipe <Badge variant="outline" className="text-xs">1x Bayar</Badge> — tagihan ditempatkan pada Tahun Buku yang memuat awal Tahun Ajaran.
                         </p>
                       )}
 
                       {jenisId && !isSekali && (
                         <div>
-                          <Label className="text-xs">Bulan *</Label>
+                          <Label className="text-xs">Bulan Tahun Ajaran *</Label>
                           <div className="flex items-center gap-2 mb-2 mt-1">
                             <Checkbox
                               id="select-all-months"
                               checked={allSelected}
                               onCheckedChange={(checked) => form.setValue("genBulanList", checked ? [...allMonths] : [], { shouldValidate: true })}
                             />
-                            <label htmlFor="select-all-months" className="text-sm cursor-pointer">Pilih semua (12 bulan)</label>
+                            <label htmlFor="select-all-months" className="text-sm cursor-pointer">Pilih semua (Juli–Juni)</label>
                           </div>
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            {allMonths.map((b) => (
-                              <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                                <Checkbox
-                                  checked={genBulanList.includes(b)}
-                                  onCheckedChange={() => toggleBulan(b)}
-                                />
-                                {namaBulan(b)}
-                              </label>
-                            ))}
+                            {allMonths.map((b) => {
+                              const kal = kalenderAkademik.find((x) => x.bulan === b);
+                              return (
+                                <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                                  <Checkbox checked={genBulanList.includes(b)} onCheckedChange={() => toggleBulan(b)} />
+                                  <span>{namaBulan(b)}{kal ? <span className="text-muted-foreground text-xs"> {kal.tahun}</span> : null}</span>
+                                </label>
+                              );
+                            })}
                           </div>
-                          {genBulanList.length > 0 && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {genBulanList.length} bulan dipilih
-                            </p>
+                          {generatePeriods.groups.length > 1 && (
+                            <div className="mt-3 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground space-y-1">
+                              {generatePeriods.groups.map((g) => (
+                                <p key={g.tahunBukuId}>{g.bulanList.map(namaBulan).join(", ")} → <strong className="text-foreground">{g.tahunBukuNama}</strong></p>
+                              ))}
+                            </div>
                           )}
                         </div>
                       )}
@@ -728,7 +757,6 @@ export default function TabTarifTagihan() {
               </>
             )}
 
-            {/* Peringatan non-blocking — tidak mematikan tombol Simpan */}
             {validationWarnings.length > 0 && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
                 {validationWarnings.map((w) => (
@@ -740,7 +768,6 @@ export default function TabTarifTagihan() {
               </div>
             )}
 
-            {/* Checklist kekurangan — user tahu persis kenapa tombol Simpan mati */}
             {validationErrors.length > 0 && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1">
                 {validationErrors.map((err) => (
@@ -763,12 +790,11 @@ export default function TabTarifTagihan() {
 
       <TarifMassalDialog open={massalOpen} onOpenChange={setMassalOpen} />
 
-      {/* Konfirmasi generate skala luas — tanpa siswa/kelas/lembaga terpilih */}
       <ConfirmDialog
         open={broadConfirmOpen}
         onOpenChange={setBroadConfirmOpen}
         title="Generate untuk Semua Siswa Aktif?"
-        description="Tidak ada siswa, kelas, atau lembaga yang dipilih — tagihan & jurnal piutang akan dibuat untuk SEMUA siswa aktif pada tahun buku terpilih. Siswa yang sudah punya tagihan akan di-skip. Lanjutkan?"
+        description="Tidak ada siswa, kelas, atau lembaga yang dipilih — tagihan akan dibuat untuk SEMUA siswa aktif pada Tahun Ajaran terpilih. Periode mendatang baru dijurnal saat jatuh tempo. Lanjutkan?"
         onConfirm={() => { setBroadConfirmOpen(false); if (pendingSaveData) void performSave(pendingSaveData); }}
       />
 
