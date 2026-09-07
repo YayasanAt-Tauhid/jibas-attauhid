@@ -22,7 +22,14 @@ import { authMiddleware, requireContext, requireRole } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface GenerateTagihanInput {
+  /** Tahun Buku (keuangan) tempat tagihan bulan yang sedang diproses disimpan. */
   tahun_ajaran_id: string;
+  /**
+   * Tahun Ajaran (akademik) untuk mengambil penempatan kelas siswa. Jika tidak
+   * diisi, fallback ke tahun_ajaran_id untuk kompatibilitas alur lama. Ini
+   * penting ketika TA Juli–Juni dipecah ke dua Tahun Buku Jan–Des.
+   */
+  tahun_akademik_id?: string;
   jenis_id: string;
   bulan?: number | null;
   bulan_list?: number[];
@@ -69,6 +76,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
 
     const {
       tahun_ajaran_id,
+      tahun_akademik_id,
       jenis_id,
       bulan,
       bulan_list,
@@ -89,6 +97,10 @@ export const generateTagihan = createServerFn({ method: "POST" })
     if (!tahun_ajaran_id || !jenis_id) {
       throw new Error("tahun_ajaran_id dan jenis_id wajib diisi");
     }
+
+    // `tahun_ajaran_id` pada tabel keuangan tetap menunjuk Tahun Buku. Untuk
+    // mencari kelas_siswa, gunakan Tahun Ajaran akademik bila UI mengirimkannya.
+    const tahunKelasId = tahun_akademik_id || tahun_ajaran_id;
 
     const { data: jenis, error: jenisErr } = await admin
       .from("jenis_pembayaran")
@@ -122,7 +134,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
         .from("kelas_siswa")
         .select("siswa_id, kelas_id")
         .in("siswa_id", siswa_ids)
-        .eq("tahun_ajaran_id", tahun_ajaran_id)
+        .eq("tahun_ajaran_id", tahunKelasId)
         .eq("aktif", true);
       if (error)
         throw new Error("Gagal mengambil data kelas siswa: " + error.message);
@@ -140,7 +152,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
         .from("kelas_siswa")
         .select("siswa_id, kelas_id")
         .eq("siswa_id", siswa_id)
-        .eq("tahun_ajaran_id", tahun_ajaran_id)
+        .eq("tahun_ajaran_id", tahunKelasId)
         .eq("aktif", true);
       if (error)
         throw new Error("Gagal mengambil data kelas siswa: " + error.message);
@@ -153,7 +165,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
         .from("kelas_siswa")
         .select("siswa_id, kelas_id")
         .eq("kelas_id", kelas_id)
-        .eq("tahun_ajaran_id", tahun_ajaran_id)
+        .eq("tahun_ajaran_id", tahunKelasId)
         .eq("aktif", true);
       if (error)
         throw new Error("Gagal mengambil data kelas siswa: " + error.message);
@@ -163,7 +175,7 @@ export const generateTagihan = createServerFn({ method: "POST" })
         .from("kelas_siswa")
         .select("siswa_id, kelas_id")
         .eq("aktif", true)
-        .eq("tahun_ajaran_id", tahun_ajaran_id);
+        .eq("tahun_ajaran_id", tahunKelasId);
       if (error)
         throw new Error("Gagal mengambil data kelas siswa: " + error.message);
       kelasSiswaList = rows || [];
