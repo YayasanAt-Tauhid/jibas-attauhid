@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import JurnalUmum from "@/pages/keuangan/JurnalUmum";
+import JurnalUmumDesktopLayout from "@/pages/keuangan/JurnalUmumDesktopLayout";
 
 export const Route = createFileRoute("/_protected/_app/_finance/keuangan/jurnal")({
-  component: JurnalUmum,
+  component: JurnalUmumDesktopLayout,
 });
