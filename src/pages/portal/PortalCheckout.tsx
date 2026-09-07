@@ -3,11 +3,9 @@ import { useMidtrans } from "@/hooks/useMidtrans";
 import { useNavigate } from "@/lib/router-compat";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { createPayment, type PaymentCategory } from "@/server/payment";
+import { createPayment } from "@/server/payment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Table,
   TableBody,
@@ -19,16 +17,6 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { ArrowLeft, CreditCard, Loader2, ShieldCheck } from "lucide-react";
-
-const QRIS_GOPAY_FEE_RATE = 0.007; // 0.7%
-const FLAT_ADMIN_FEE = 4400;
-
-function hitungBiayaAdmin(category: PaymentCategory, totalAmount: number): number {
-  if (category === "qris_gopay") {
-    return Math.round(totalAmount * QRIS_GOPAY_FEE_RATE);
-  }
-  return FLAT_ADMIN_FEE;
-}
 
 const NAMA_BULAN = [
   "",
@@ -72,8 +60,12 @@ export default function PortalCheckout() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [keranjang, setKeranjang] = useState<KeranjangItem[]>([]);
-  const [paymentCategory, setPaymentCategory] = useState<PaymentCategory>("lainnya");
-  const { isReady: isMidtransReady, isLoading: isMidtransLoading, error: midtransError, loadMidtrans } = useMidtrans();
+  const {
+    isReady: isMidtransReady,
+    isLoading: isMidtransLoading,
+    error: midtransError,
+    loadMidtrans,
+  } = useMidtrans();
 
   // Load Midtrans script when component mounts
   useEffect(() => {
@@ -110,8 +102,6 @@ export default function PortalCheckout() {
   }, [keranjang]);
 
   const totalAmount = keranjang.reduce((sum, i) => sum + i.jumlah, 0);
-  const biayaAdmin = hitungBiayaAdmin(paymentCategory, totalAmount);
-  const totalBayar = totalAmount + biayaAdmin;
 
   const handleBayar = async () => {
     setIsLoading(true);
@@ -135,7 +125,6 @@ export default function PortalCheckout() {
               email: user!.email || "",
               nama: user!.email?.split("@")[0] || "User",
             },
-            payment_category: paymentCategory,
           },
         });
       } catch (err: any) {
@@ -157,7 +146,7 @@ export default function PortalCheckout() {
         return;
       }
 
-      // Open Midtrans Snap
+      // Open Midtrans Snap. Pilihan channel + fee customer ditangani Midtrans.
       window.snap.pay(result.snap_token, {
         onSuccess: () => {
           toast.success("Pembayaran berhasil!");
@@ -202,7 +191,7 @@ export default function PortalCheckout() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Checkout</h1>
           <p className="text-sm text-muted-foreground">
-            Review dan bayar tagihan
+            Periksa tagihan sebelum melanjutkan ke Midtrans
           </p>
         </div>
       </div>
@@ -271,86 +260,27 @@ export default function PortalCheckout() {
         </CardContent>
       </Card>
 
-      {/* Metode Pembayaran */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Metode Pembayaran</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup
-            value={paymentCategory}
-            onValueChange={(v) => setPaymentCategory(v as PaymentCategory)}
-            className="space-y-3"
-          >
-            <label
-              htmlFor="cat-qris-gopay"
-              className="flex items-center justify-between gap-4 rounded-lg border p-4 cursor-pointer hover:bg-muted/50"
-            >
-              <div className="flex items-center gap-3">
-                <RadioGroupItem value="qris_gopay" id="cat-qris-gopay" />
-                <div>
-                  <Label htmlFor="cat-qris-gopay" className="cursor-pointer font-medium">
-                    QRIS / GoPay
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Biaya admin 0,7% dari total tagihan</p>
-                </div>
-              </div>
-              <span className="text-sm text-muted-foreground shrink-0">
-                {formatRupiah(hitungBiayaAdmin("qris_gopay", totalAmount))}
-              </span>
-            </label>
-            <label
-              htmlFor="cat-lainnya"
-              className="flex items-center justify-between gap-4 rounded-lg border p-4 cursor-pointer hover:bg-muted/50"
-            >
-              <div className="flex items-center gap-3">
-                <RadioGroupItem value="lainnya" id="cat-lainnya" />
-                <div>
-                  <Label htmlFor="cat-lainnya" className="cursor-pointer font-medium">
-                    Transfer Bank / Kartu Kredit / Lainnya
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Biaya admin flat</p>
-                </div>
-              </div>
-              <span className="text-sm text-muted-foreground shrink-0">
-                {formatRupiah(hitungBiayaAdmin("lainnya", totalAmount))}
-              </span>
-            </label>
-          </RadioGroup>
-
-          <div className="border-t mt-4 pt-4 space-y-1.5">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Total Tagihan</span>
-              <span>{formatRupiah(totalAmount)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Biaya Admin</span>
-              <span>{formatRupiah(biayaAdmin)}</span>
-            </div>
-            <div className="flex justify-between items-center pt-1.5">
-              <span className="text-lg font-bold">TOTAL BAYAR</span>
-              <span className="text-xl font-bold text-emerald-700">
-                {formatRupiah(totalBayar)}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Info Pembayaran */}
       <Card>
         <CardContent className="flex items-start gap-4 p-5">
           <ShieldCheck className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
           <div className="text-sm text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">Info Pembayaran</p>
+            <p className="font-medium text-foreground">Pembayaran via Midtrans</p>
             <p>
-              Pembayaran ini akan diproses oleh Midtrans. Channel yang tersedia
-              di halaman pembayaran mengikuti metode yang Anda pilih di atas.
-              Biaya admin sudah termasuk dalam Total Bayar.
+              Pilih metode pembayaran langsung di halaman Midtrans setelah menekan
+              tombol di bawah. Biaya layanan, bila berlaku, dihitung dan ditampilkan
+              oleh Midtrans sesuai metode yang dipilih. Aplikasi tidak menambahkan
+              biaya admin ke total tagihan.
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {midtransError ? (
+        <p className="text-sm text-destructive text-center">
+          Layanan pembayaran belum siap: {midtransError}
+        </p>
+      ) : null}
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -373,7 +303,7 @@ export default function PortalCheckout() {
           ) : (
             <CreditCard className="h-5 w-5 mr-2" />
           )}
-          {isMidtransLoading ? "Memuat..." : `Bayar ${formatRupiah(totalBayar)} Sekarang`}
+          {isMidtransLoading ? "Memuat..." : "Lanjut ke Pembayaran"}
         </Button>
       </div>
     </div>
