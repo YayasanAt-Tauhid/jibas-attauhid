@@ -6,7 +6,7 @@
  * karena server function TanStack Start tidak bisa dipanggil lintas aplikasi.
  *
  * Auth: header `Authorization: Bearer <access_token Supabase>` milik akun ortu.
- * Body: { items: TagihanItem[], payment_category: "qris_gopay" | "lainnya" }
+ * Body: { items: TagihanItem[] }
  * Respons: CreatePaymentResult (snap_token, order_id, redirect_url, dst.)
  *
  * Callback Snap diarahkan ke deep link `portalortu://riwayat?order=<order_id>`
@@ -18,7 +18,6 @@ import { getUserFromToken } from "@/server/supabase";
 import {
   buatTransaksiSnap,
   type CreatePaymentInput,
-  type PaymentCategory,
 } from "@/server/payment";
 
 // Scheme deep link app mobile — samakan dengan "scheme" di apps/portal-ortu/app.json.
@@ -56,7 +55,9 @@ async function handleCheckout(request: Request): Promise<Response> {
 
   let body: {
     items?: CreatePaymentInput["items"];
-    payment_category?: PaymentCategory;
+    // Klien versi lama boleh masih mengirim payment_category; field tambahan
+    // diabaikan karena pilihan metode dan fee sekarang ditangani Midtrans.
+    payment_category?: unknown;
   };
   try {
     body = await request.json();
@@ -73,7 +74,6 @@ async function handleCheckout(request: Request): Promise<Response> {
       userId: user.id,
       input: {
         items: body.items,
-        payment_category: body.payment_category as PaymentCategory,
         // Identitas customer diambil dari token — tidak percaya input client.
         customer: {
           user_id: user.id,
