@@ -23,6 +23,11 @@ interface TagihanItem {
   departemen_nama?: string;
 }
 
+/**
+ * Legacy compatibility only. Klien lama masih boleh mengirim field ini,
+ * tetapi pilihan channel dan biaya pembayaran sekarang sepenuhnya ditangani
+ * Midtrans Snap.
+ */
 export type PaymentCategory = "qris_gopay" | "lainnya";
 
 export interface CreatePaymentInput {
@@ -33,7 +38,7 @@ export interface CreatePaymentInput {
     nama: string;
     telepon?: string;
   };
-  payment_category: PaymentCategory;
+  payment_category?: PaymentCategory;
 }
 
 export interface CreatePaymentResult {
@@ -42,6 +47,10 @@ export interface CreatePaymentResult {
   order_id: string;
   transaksi_id: string;
   total_amount: number;
+  /**
+   * Dipertahankan untuk kompatibilitas klien lama. Selalu 0 untuk transaksi
+   * baru karena fee customer dihitung oleh fitur Split Midtrans fee with customers.
+   */
   biaya_admin: number;
   /** URL halaman Snap (vtweb) — dipakai app mobile untuk membuka pembayaran di browser/WebView. */
   redirect_url: string;
@@ -59,38 +68,16 @@ const DEFAULT_ENABLED_PAYMENTS = [
   "indomaret", "alfamart",
 ];
 
-// MIDTRANS_ENABLED_PAYMENTS: daftar channel dipisah koma (mis. "credit_card,gopay,other_qris").
-// Dipakai untuk menonaktifkan channel yang belum didukung Midtrans untuk fitur
-// split fee, tanpa perlu redeploy. Kosongkan/hapus env var untuk pakai default.
+// MIDTRANS_ENABLED_PAYMENTS: allowlist channel dipisah koma
+// (mis. "credit_card,gopay,other_qris"). Jika kosong, gunakan daftar default.
+// Pilihan metode dan fee customer tetap ditangani di Midtrans Snap; env ini hanya
+// berguna bila sekolah ingin membatasi channel yang memang tersedia di akun.
 // Catatan: channel key QRIS generik di Snap adalah "other_qris", BUKAN "qris".
 function getEnabledPayments(): string[] {
   const raw = readEnv("MIDTRANS_ENABLED_PAYMENTS");
   if (!raw) return DEFAULT_ENABLED_PAYMENTS;
   const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
   return list.length > 0 ? list : DEFAULT_ENABLED_PAYMENTS;
-}
-
-// Midtrans belum bisa split fee ke customer di akun ini (channel VA & lain-lain
-// dinonaktifkan Midtrans saat opsi itu diaktifkan). Sebagai gantinya, biaya admin
-// dibebankan manual ke customer via item tambahan di Snap, dipisah per kategori
-// channel — nilainya menutup potongan fee Midtrans saat payout, jadi TIDAK dijurnal
-// sebagai pendapatan (lihat migrasi kolom biaya_admin).
-const QRIS_GOPAY_FEE_RATE = 0.007; // 0.7%
-const FLAT_ADMIN_FEE = 4400; // Rp 4.400, untuk channel selain QRIS/GoPay
-
-function hitungBiayaAdmin(category: PaymentCategory, totalAmount: number): number {
-  if (category === "qris_gopay") {
-    return Math.round(totalAmount * QRIS_GOPAY_FEE_RATE);
-  }
-  return FLAT_ADMIN_FEE;
-}
-
-function getEnabledPaymentsForCategory(category: PaymentCategory): string[] {
-  const all = getEnabledPayments();
-  if (category === "qris_gopay") {
-    return all.filter((p) => p === "gopay" || p === "other_qris");
-  }
-  return all.filter((p) => p !== "gopay" && p !== "other_qris");
 }
 
 export interface SnapCallbacks {
@@ -115,12 +102,9 @@ export async function buatTransaksiSnap(params: {
   const admin = createAdminClient();
   const { userId, callbacks } = params;
 
-  const { items, customer, payment_category } = params.input;
+  const { items, customer } = params.input;
   if (!items || items.length === 0) {
     throw new Error("Tidak ada tagihan yang dipilih");
-  }
-  if (payment_category !== "qris_gopay" && payment_category !== "lainnya") {
-    throw new Error("Kategori pembayaran tidak valid");
   }
 
   // Validasi: semua siswa_id memang anak dari user ini
@@ -203,7 +187,9 @@ export async function buatTransaksiSnap(params: {
   }
 
   const totalAmount = validatedItems.reduce((sum, i) => sum + i.jumlah, 0);
-  const biayaAdmin = hitungBiayaAdmin(payment_category, totalAmount);
+  // Fee customer tidak lagi dihitung aplikasi. Midtrans yang menambahkan dan
+  // menampilkan fee sesuai metode berdasarkan konfigurasi dashboard.
+  const biayaAdmin = 0;
 
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
@@ -257,19 +243,12 @@ export async function buatTransaksiSnap(params: {
       50
     ),
   }));
-  if (biayaAdmin > 0) {
-    itemDetails.push({
-      id: "BIAYA-ADMIN",
-      price: biayaAdmin,
-      quantity: 1,
-      name: "Biaya Admin",
-    });
-  }
 
+  const enabledPayments = getEnabledPayments();
   const midtransPayload: Record<string, unknown> = {
     transaction_details: {
       order_id: orderId,
-      gross_amount: Math.round(totalAmount + biayaAdmin),
+      gross_amount: Math.round(totalAmount),
     },
     customer_details: {
       first_name: customer.nama,
@@ -279,9 +258,10 @@ export async function buatTransaksiSnap(params: {
     item_details: itemDetails,
     callbacks: callbacks(orderId),
     expiry: { unit: "hours", duration: 24 },
-    enabled_payments: getEnabledPaymentsForCategory(payment_category),
+    enabled_payments: enabledPayments,
   };
-  if (payment_category === "qris_gopay") {
+
+  if (enabledPayments.includes("other_qris")) {
     // "other_qris" (channel QRIS generik) wajib disertai acquirer di Snap.
     midtransPayload.qris = { acquirer: "gopay" };
   }
