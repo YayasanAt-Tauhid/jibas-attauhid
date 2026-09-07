@@ -30,9 +30,10 @@ name: Deploy to Cloudflare Workers
 #                                       /api/midtrans-notification untuk memverifikasi
 #                                       signature webhook. Harus cocok dengan environment
 #                                       Midtrans yang dipakai (Sandbox vs Production).
-#   - MIDTRANS_CLIENT_KEY             [secret] client key Midtrans untuk memuat Snap.js
-#                                       di halaman checkout. Disinkronkan ke Worker karena
-#                                       getMidtransConfig() membacanya dari runtime env.
+#   - MIDTRANS_CLIENT_KEY             [secret atau variable] client key Midtrans untuk
+#                                       memuat Snap.js di halaman checkout. Workflow
+#                                       memprioritaskan secret lalu fallback ke variable,
+#                                       kemudian menyinkronkannya ke runtime Worker.
 #   - WORKER_NAME                     [variable] name of the Cloudflare Worker to deploy to
 
 on:
@@ -92,7 +93,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WORKER_NAME: ${{ vars.WORKER_NAME }}
           MIDTRANS_SERVER_KEY: ${{ secrets.MIDTRANS_SERVER_KEY }}
-          MIDTRANS_CLIENT_KEY: ${{ secrets.MIDTRANS_CLIENT_KEY }}
+          MIDTRANS_CLIENT_KEY: ${{ secrets.MIDTRANS_CLIENT_KEY || vars.MIDTRANS_CLIENT_KEY }}
         run: |
           echo -n "${{ vars.VITE_SUPABASE_URL }}" | npx --yes wrangler@4 secret put SUPABASE_URL --name "$WORKER_NAME"
           echo -n "${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}" | npx --yes wrangler@4 secret put SUPABASE_ANON_KEY --name "$WORKER_NAME"
