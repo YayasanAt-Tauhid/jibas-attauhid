@@ -580,7 +580,12 @@ const JENIS_OPTIONS = [
 ];
 
 const SALDO_NORMAL_MAP: Record<string, string> = {
-  aset: "debit", liabilitas: "kredit", ekuitas: "kredit", pendapatan: "kredit", beban: "debit",
+  aset: "D", liabilitas: "K", ekuitas: "K", pendapatan: "K", beban: "D",
+};
+
+const normalizeSaldoNormal = (value: unknown) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "k" || normalized === "kredit" || normalized === "credit" ? "K" : "D";
 };
 
 function TabAkunRekening() {
@@ -595,28 +600,28 @@ function TabAkunRekening() {
   const [kode, setKode] = useState("");
   const [nama, setNama] = useState("");
   const [jenis, setJenis] = useState("aset");
-  const [saldoNormal, setSaldoNormal] = useState("debit");
+  const [saldoNormal, setSaldoNormal] = useState("D");
   const [saldoAwal, setSaldoAwal] = useState("");
   const [keterangan, setKeterangan] = useState("");
   const [aktif, setAktif] = useState(true);
   const [formDepartemenId, setFormDepartemenId] = useState("");
 
   const openAdd = () => {
-    setEditItem(null); setKode(""); setNama(""); setJenis("aset"); setSaldoNormal("debit"); setSaldoAwal(""); setKeterangan(""); setAktif(true); setFormDepartemenId(""); setDialogOpen(true);
+    setEditItem(null); setKode(""); setNama(""); setJenis("aset"); setSaldoNormal("D"); setSaldoAwal(""); setKeterangan(""); setAktif(true); setFormDepartemenId(""); setDialogOpen(true);
   };
   const openEdit = (item: any) => {
-    setEditItem(item); setKode(item.kode); setNama(item.nama); setJenis(item.jenis); setSaldoNormal(item.saldo_normal); setSaldoAwal(String(item.saldo_awal || "")); setKeterangan(item.keterangan || ""); setAktif(item.aktif !== false); setFormDepartemenId(item.departemen_id || ""); setDialogOpen(true);
+    setEditItem(item); setKode(item.kode); setNama(item.nama); setJenis(item.jenis); setSaldoNormal(normalizeSaldoNormal(item.saldo_normal)); setSaldoAwal(String(item.saldo_awal || "")); setKeterangan(item.keterangan || ""); setAktif(item.aktif !== false); setFormDepartemenId(item.departemen_id || ""); setDialogOpen(true);
   };
 
   const handleJenisChange = (v: string) => {
     setJenis(v);
-    setSaldoNormal(SALDO_NORMAL_MAP[v] || "debit");
+    setSaldoNormal(SALDO_NORMAL_MAP[v] || "D");
   };
 
   const handleSave = async () => {
     // Bug K4 fix: wrap try/catch agar unhandled rejection tidak terjadi di React 18
     try {
-      const values = { kode, nama, jenis, saldo_normal: saldoNormal, saldo_awal: saldoAwal ? Number(saldoAwal) : 0, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined };
+      const values = { kode, nama, jenis, saldo_normal: normalizeSaldoNormal(saldoNormal), saldo_awal: saldoAwal ? Number(saldoAwal) : 0, keterangan: keterangan || undefined, aktif, departemen_id: formDepartemenId || undefined };
       if (editItem) await updateMut.mutateAsync({ id: editItem.id, ...values });
       else await createMut.mutateAsync(values);
       setDialogOpen(false);
@@ -685,8 +690,8 @@ function TabAkunRekening() {
               <Select value={saldoNormal} onValueChange={setSaldoNormal}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="debit">Debit</SelectItem>
-                  <SelectItem value="kredit">Kredit</SelectItem>
+                  <SelectItem value="D">Debit</SelectItem>
+                  <SelectItem value="K">Kredit</SelectItem>
                 </SelectContent>
               </Select>
             </div>

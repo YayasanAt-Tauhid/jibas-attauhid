@@ -90,7 +90,7 @@ export function useJurnalList(tanggalDari?: string, tanggalSampai?: string, depa
     queryFn: async () => {
       let q = supabase
         .from("jurnal")
-        .select("*, departemen:departemen_id(nama, kode)")
+        .select("*, departemen:departemen_id(nama, kode), penginput:dibuat_oleh(nama)")
         .order("tanggal", { ascending: false });
       if (tanggalDari) q = q.gte("tanggal", tanggalDari);
       if (tanggalSampai) q = q.lte("tanggal", tanggalSampai);
@@ -127,7 +127,7 @@ export function useJurnalDetail(jurnalId?: string) {
     queryFn: async () => {
       const { data: jurnal, error: jErr } = await supabase
         .from("jurnal")
-        .select("*, departemen:departemen_id(nama, kode)")
+        .select("*, departemen:departemen_id(nama, kode), penginput:dibuat_oleh(nama)")
         .eq("id", jurnalId!)
         .single();
       if (jErr) throw jErr;
@@ -193,6 +193,18 @@ async function generateNomorJurnal(tahun: number): Promise<string> {
   return data;
 }
 
+// Cari pegawai_id milik user yang sedang login (untuk mencatat siapa penginput jurnal)
+async function getPegawaiIdSaatIni(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("users_profile")
+    .select("pegawai_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  return (data as any)?.pegawai_id || null;
+}
+
 export function useCreateJurnal() {
   const qc = useQueryClient();
   return useMutation({
@@ -212,6 +224,7 @@ export function useCreateJurnal() {
 
       const tahun = new Date(values.tanggal).getFullYear();
       const nomor = await generateNomorJurnal(tahun);
+      const dibuatOleh = await getPegawaiIdSaatIni();
 
       const { data: jurnal, error: jErr } = await supabase
         .from("jurnal")
@@ -223,6 +236,7 @@ export function useCreateJurnal() {
           departemen_id: values.departemen_id,
           total_debit: totalDebit,
           total_kredit: totalKredit,
+          dibuat_oleh: dibuatOleh,
         })
         .select()
         .single();
@@ -499,6 +513,7 @@ export function useKoreksiJurnal() {
       const tahun = new Date(values.tanggal_koreksi).getFullYear();
       const nomorPembalik = await generateNomorJurnal(tahun);
       const totalAsal = Number((jurnalAsal as any).total_debit) || 0;
+      const dibuatOleh = await getPegawaiIdSaatIni();
 
       const { data: jurnalPembalik, error: e3 } = await supabase
         .from("jurnal")
@@ -514,6 +529,7 @@ export function useKoreksiJurnal() {
           status: "posted",
           tipe: "pembalik",
           jurnal_asal_id: values.jurnal_asal_id,
+          dibuat_oleh: dibuatOleh,
         } as any)
         .select()
         .single();
@@ -566,6 +582,7 @@ export function useKoreksiJurnal() {
             status: "draft",
             tipe: "pengganti",
             jurnal_asal_id: values.jurnal_asal_id,
+            dibuat_oleh: dibuatOleh,
           } as any)
           .select()
           .single();

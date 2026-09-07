@@ -15,6 +15,7 @@ import { FilterToolbar, ActiveFilter } from "@/components/shared/FilterToolbar";
 import { Badge } from "@/components/ui/badge";
 import { useJurnalList, useJurnalDetail, useCreateJurnal, useUpdateJurnal, useDeleteJurnal, usePostJurnal, useAkunRekening, useKoreksiJurnal, useJurnalDikoreksiIds } from "@/hooks/useJurnal";
 import { AkunCombobox } from "@/components/shared/AkunCombobox";
+import { RupiahInput } from "@/components/shared/RupiahInput";
 import { formatRupiah, useLembaga } from "@/hooks/useKeuangan";
 import { StatsCard } from "@/components/shared/StatsCard";
 import { Plus, Eye, Pencil, Trash2, Lock, Send, Search, BookOpen, CheckCircle, FileEdit, RotateCcw, Printer } from "lucide-react";
@@ -31,6 +32,22 @@ interface DetailRow {
 
 const defaultDari = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
 const defaultSampai = format(new Date(), "yyyy-MM-dd");
+
+// Jurnal online payment (webhook Midtrans) tidak punya penginput manusia —
+// dikenali dari referensi berupa order_id dengan prefix "HAT-"
+const isJurnalOtomatis = (referensi?: string | null) => !!referensi?.startsWith("HAT-");
+
+const PenginputCell = ({ nama, referensi }: { nama?: string | null; referensi?: string | null }) => {
+  if (nama) return <>{nama}</>;
+  if (isJurnalOtomatis(referensi)) {
+    return (
+      <Badge variant="outline" className="bg-info/15 text-info border-info/30">
+        Otomatis (Online Payment)
+      </Badge>
+    );
+  }
+  return <>-</>;
+};
 
 export default function JurnalUmum() {
   const [departemenId, setDepartemenId] = useState("");
@@ -256,6 +273,7 @@ export default function JurnalUmum() {
       <p class="meta"><b>Tanggal:</b> ${format(new Date(j.tanggal), "d MMMM yyyy", { locale: idLocale })}</p>
       <p class="meta"><b>Status:</b> ${j.status === "posted" ? "Posted" : "Draft"}</p>
       <p class="meta"><b>Lembaga:</b> ${esc(j.departemen?.kode || "-")}</p>
+      <p class="meta"><b>Diinput Oleh:</b> ${esc(j.penginput?.nama || (isJurnalOtomatis(j.referensi) ? "Otomatis (Online Payment)" : "-"))}</p>
       <p class="meta"><b>Keterangan:</b> ${esc(j.keterangan)}</p>
       <table>
         <thead><tr><th>Akun</th><th>Keterangan</th><th class="num">Debit</th><th class="num">Kredit</th></tr></thead>
@@ -343,6 +361,10 @@ export default function JurnalUmum() {
     },
     { key: "keterangan", label: "Keterangan" },
     { key: "departemen", label: "Lembaga", render: (_, r) => (r as any).departemen?.kode || "-" },
+    {
+      key: "penginput", label: "Diinput Oleh",
+      render: (_, r: any) => <PenginputCell nama={r.penginput?.nama} referensi={r.referensi} />,
+    },
     { key: "total_debit", label: "Total Debit", render: (v) => formatRupiah(Number(v) || 0) },
     { key: "total_kredit", label: "Total Kredit", render: (v) => formatRupiah(Number(v) || 0) },
     {
@@ -602,14 +624,14 @@ export default function JurnalUmum() {
             </div>
 
             <div className="border rounded-md overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="p-2 text-left w-10">No</th>
-                    <th className="p-2 text-left min-w-[200px]">Akun</th>
-                    <th className="p-2 text-left min-w-[150px]">Keterangan</th>
-                    <th className="p-2 text-right w-36">Debit (Rp)</th>
-                    <th className="p-2 text-right w-36">Kredit (Rp)</th>
+                    <th className="p-2 text-left w-[200px]">Akun</th>
+                    <th className="p-2 text-left w-[150px]">Keterangan</th>
+                    <th className="p-2 text-right w-40">Debit (Rp)</th>
+                    <th className="p-2 text-right w-40">Kredit (Rp)</th>
                     <th className="p-2 w-10"></th>
                   </tr>
                 </thead>
@@ -625,8 +647,8 @@ export default function JurnalUmum() {
                         />
                       </td>
                       <td className="p-2"><Input value={row.keterangan} onChange={e => updateRow(i, "keterangan", e.target.value)} placeholder="Ket. baris" /></td>
-                      <td className="p-2"><Input type="number" className="text-right" value={row.debit || ""} onChange={e => updateRow(i, "debit", Number(e.target.value) || 0)} /></td>
-                      <td className="p-2"><Input type="number" className="text-right" value={row.kredit || ""} onChange={e => updateRow(i, "kredit", Number(e.target.value) || 0)} /></td>
+                      <td className="p-2"><RupiahInput value={row.debit ? String(row.debit) : ""} onChange={(raw) => updateRow(i, "debit", Number(raw) || 0)} /></td>
+                      <td className="p-2"><RupiahInput value={row.kredit ? String(row.kredit) : ""} onChange={(raw) => updateRow(i, "kredit", Number(raw) || 0)} /></td>
                       <td className="p-2">
                         {details.length > 2 && (
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeRow(i)}>
@@ -670,6 +692,7 @@ export default function JurnalUmum() {
                 <div><span className="text-muted-foreground">Tanggal:</span> <span className="font-medium">{format(new Date(viewData.tanggal), "d MMMM yyyy", { locale: idLocale })}</span></div>
                 <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline" className={viewData.status === "posted" ? "bg-success/15 text-success border-success/30" : "bg-warning/15 text-warning border-warning/30"}>{viewData.status === "posted" ? "Posted" : "Draft"}</Badge></div>
                 <div><span className="text-muted-foreground">Lembaga:</span> <span className="font-medium">{viewData.departemen?.kode || "-"}</span></div>
+                <div><span className="text-muted-foreground">Diinput Oleh:</span> <span className="font-medium"><PenginputCell nama={(viewData as any).penginput?.nama} referensi={(viewData as any).referensi} /></span></div>
               </div>
               <div><span className="text-muted-foreground text-sm">Keterangan:</span> <p className="font-medium">{viewData.keterangan}</p></div>
               <div className="border rounded-md overflow-x-auto">
@@ -849,14 +872,14 @@ export default function JurnalUmum() {
                   </div>
                 </div>
                 <div className="border rounded-md overflow-x-auto bg-background">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-fixed">
                     <thead className="bg-muted/50">
                       <tr>
                         <th className="p-2 text-left w-10">No</th>
-                        <th className="p-2 text-left min-w-[200px]">Akun</th>
-                        <th className="p-2 text-left min-w-[150px]">Keterangan</th>
-                        <th className="p-2 text-right w-32">Debit (Rp)</th>
-                        <th className="p-2 text-right w-32">Kredit (Rp)</th>
+                        <th className="p-2 text-left w-[200px]">Akun</th>
+                        <th className="p-2 text-left w-[150px]">Keterangan</th>
+                        <th className="p-2 text-right w-36">Debit (Rp)</th>
+                        <th className="p-2 text-right w-36">Kredit (Rp)</th>
                         <th className="p-2 w-10"></th>
                       </tr>
                     </thead>
@@ -875,10 +898,10 @@ export default function JurnalUmum() {
                             <Input value={row.keterangan} onChange={(e) => updatePenggantiRow(i, "keterangan", e.target.value)} placeholder="Ket. baris" />
                           </td>
                           <td className="p-2">
-                            <Input type="number" className="text-right" value={row.debit || ""} onChange={(e) => updatePenggantiRow(i, "debit", Number(e.target.value) || 0)} />
+                            <RupiahInput value={row.debit ? String(row.debit) : ""} onChange={(raw) => updatePenggantiRow(i, "debit", Number(raw) || 0)} />
                           </td>
                           <td className="p-2">
-                            <Input type="number" className="text-right" value={row.kredit || ""} onChange={(e) => updatePenggantiRow(i, "kredit", Number(e.target.value) || 0)} />
+                            <RupiahInput value={row.kredit ? String(row.kredit) : ""} onChange={(raw) => updatePenggantiRow(i, "kredit", Number(raw) || 0)} />
                           </td>
                           <td className="p-2">
                             {penggantiDetails.length > 2 && (

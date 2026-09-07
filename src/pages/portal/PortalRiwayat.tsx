@@ -85,6 +85,21 @@ export default function PortalRiwayat() {
           : Promise.resolve({ data: [] }),
       ]);
 
+      // Pembayaran online yang sudah sukses juga tercatat di tabel `pembayaran`
+      // (proses_pembayaran_midtrans_atomik ikut insert ke sana supaya jurnal &
+      // status tagihan konsisten dengan jalur kasir). Tanpa filter ini, satu
+      // transaksi online yang sama muncul DUA KALI di riwayat: sekali dari
+      // transaksi_midtrans (metode aslinya, mis. QRIS), sekali lagi dari
+      // `pembayaran` -- dan yang kedua salah dilabeli "Kasir" karena baris ini
+      // tidak tahu bahwa asalnya online.
+      const pembayaranIdOnline = new Set<string>(
+        (online || []).flatMap((tx: any) =>
+          (tx.transaksi_midtrans_item || [])
+            .map((i: any) => i.pembayaran_id)
+            .filter(Boolean)
+        )
+      );
+
       const onlineItems: RiwayatItem[] = (online || []).map((tx: any) => {
         const biayaAdmin = Number(tx.biaya_admin) || 0;
         const items = (tx.transaksi_midtrans_item || []).map((i: any) => ({
@@ -107,17 +122,21 @@ export default function PortalRiwayat() {
         };
       });
 
-      // Pembayaran yang dicatat manual oleh kasir/keuangan (bayar tunai/transfer di kantor)
-      const manualItems: RiwayatItem[] = (manual || []).map((p: any) => ({
-        key: p.id,
-        order_id: null,
-        tanggal: p.tanggal_bayar,
-        payment_type: "Kasir",
-        status: "paid",
-        total_amount: Number(p.jumlah),
-        biaya_admin: 0,
-        items: [{ id: p.id, nama_item: p.keterangan || "Pembayaran", jumlah: Number(p.jumlah) }],
-      }));
+      // Pembayaran yang dicatat manual oleh kasir/keuangan (bayar tunai/transfer
+      // di kantor) -- exclude yang sebenarnya berasal dari pembayaran online
+      // (sudah direpresentasikan oleh onlineItems di atas).
+      const manualItems: RiwayatItem[] = (manual || [])
+        .filter((p: any) => !pembayaranIdOnline.has(p.id))
+        .map((p: any) => ({
+          key: p.id,
+          order_id: null,
+          tanggal: p.tanggal_bayar,
+          payment_type: "Kasir",
+          status: "paid",
+          total_amount: Number(p.jumlah),
+          biaya_admin: 0,
+          items: [{ id: p.id, nama_item: p.keterangan || "Pembayaran", jumlah: Number(p.jumlah) }],
+        }));
 
       return [...onlineItems, ...manualItems].sort((a, b) => {
         const ta = a.tanggal ? new Date(a.tanggal).getTime() : 0;

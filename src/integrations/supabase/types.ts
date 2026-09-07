@@ -316,6 +316,7 @@ export type Database = {
           logo_url: string | null
           nama: string
           npsn: string | null
+          psb_dibuka: boolean
           telepon: string | null
         }
         Insert: {
@@ -332,6 +333,7 @@ export type Database = {
           logo_url?: string | null
           nama: string
           npsn?: string | null
+          psb_dibuka?: boolean
           telepon?: string | null
         }
         Update: {
@@ -348,6 +350,7 @@ export type Database = {
           logo_url?: string | null
           nama?: string
           npsn?: string | null
+          psb_dibuka?: boolean
           telepon?: string | null
         }
         Relationships: []

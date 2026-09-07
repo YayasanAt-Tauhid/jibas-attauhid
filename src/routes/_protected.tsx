@@ -1,6 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
+const STAFF_ROLES = [
+  "admin",
+  "kepala_sekolah",
+  "guru",
+  "keuangan",
+  "siswa",
+  "pustakawan",
+  "kasir",
+  "sekretaris_yayasan",
+] as const;
+
 export const Route = createFileRoute("/_protected")({
-  component: ProtectedRoute,
+  component: () => <ProtectedRoute allowedRoles={[...STAFF_ROLES]} />,
 });

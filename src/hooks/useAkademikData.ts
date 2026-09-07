@@ -30,7 +30,7 @@ export function useDepartemen() {
   });
 }
 
-// Bug A1/A2 fix: Referensi Akademik & PSB hanya butuh unit pendidikan
+// Bug A1/A2 fix: Referensi Akademik & PMB hanya butuh unit pendidikan
 export function useDepartemenPendidikan() {
   return useQuery({
     queryKey: ["departemen", "unit_pendidikan"],

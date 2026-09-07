@@ -19,7 +19,7 @@ type DeptRow = Record<string, unknown> & {
   id: string; kode: string | null; nama: string; keterangan: string | null; aktif: boolean | null;
   alamat: string | null; kota: string | null; telepon: string | null; email: string | null;
   kepala_sekolah: string | null; npsn: string | null; akreditasi: string | null; logo_url: string | null;
-  kategori: string | null;
+  kategori: string | null; psb_dibuka: boolean | null;
 };
 
 export default function ProfilYayasan() {
@@ -183,6 +183,14 @@ function TabLembaga({ isAdmin }: { isAdmin: boolean }) {
         <Badge variant={row.aktif ? "default" : "secondary"}>{row.aktif ? "Aktif" : "Nonaktif"}</Badge>
       ),
     },
+    {
+      key: "psb_dibuka", label: "PSB",
+      render: (_val: unknown, row: DeptRow) => (
+        <Badge variant={row.psb_dibuka ? "default" : "secondary"} className={row.psb_dibuka ? "bg-emerald-100 text-emerald-800" : ""}>
+          {row.psb_dibuka ? "Dibuka" : "Ditutup"}
+        </Badge>
+      ),
+    },
     ...(isAdmin ? [{
       key: "_aksi", label: "Aksi",
       render: (_val: unknown, row: DeptRow) => (
@@ -233,6 +241,7 @@ function DialogLembaga({ open, onOpenChange, initial, onSaved }: {
   const [akreditasi, setAkreditasi] = useState(initial?.akreditasi || "");
   const [logoUrl, setLogoUrl] = useState(initial?.logo_url || "");
   const [kategori, setKategori] = useState(initial?.kategori || "");
+  const [psbDibuka, setPsbDibuka] = useState(initial?.psb_dibuka ?? true);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -243,7 +252,7 @@ function DialogLembaga({ open, onOpenChange, initial, onSaved }: {
       alamat: alamat || null, kota: kota || null, telepon: telepon || null,
       email: email || null, kepala_sekolah: kepalaSekolah || null,
       npsn: npsn || null, akreditasi: akreditasi || null, logo_url: logoUrl || null,
-      kategori: kategori || null,
+      kategori: kategori || null, psb_dibuka: psbDibuka,
     };
     let error;
     if (initial) {
@@ -307,6 +316,15 @@ function DialogLembaga({ open, onOpenChange, initial, onSaved }: {
           <div className="flex items-center gap-3">
             <Switch checked={aktif} onCheckedChange={setAktif} />
             <Label>Aktif</Label>
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <Switch checked={psbDibuka} onCheckedChange={setPsbDibuka} />
+              <Label>PMB Dibuka</Label>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Jika aktif, lembaga ini muncul sebagai pilihan di form pendaftaran murid baru publik (/pmb)
+            </p>
           </div>
         </div>
         <DialogFooter>

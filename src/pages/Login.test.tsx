@@ -3,10 +3,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Login from "./Login";
 
 const mockSignIn = vi.fn();
+const mockSignInWithGoogle = vi.fn();
 const mockNavigate = vi.fn();
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ signIn: mockSignIn }),
+  useAuth: () => ({ signIn: mockSignIn, signInWithGoogle: mockSignInWithGoogle, user: null }),
 }));
 
 vi.mock("@/lib/router-compat", () => ({
@@ -28,12 +29,12 @@ describe("Login", () => {
     expect(screen.getByText("Masuk ke Akun")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /masuk/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Masuk" })).toBeInTheDocument();
   });
 
   it("shows validation errors for empty fields", async () => {
     renderLogin();
-    fireEvent.click(screen.getByRole("button", { name: /masuk/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Masuk" }));
     await waitFor(() => {
       expect(screen.getByText("Format email tidak valid")).toBeInTheDocument();
     });
@@ -49,7 +50,7 @@ describe("Login", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "password123" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /masuk/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Masuk" }));
 
     await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalledWith("test@sekolah.sch.id", "password123");
@@ -67,7 +68,7 @@ describe("Login", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrongpass" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /masuk/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Masuk" }));
 
     await waitFor(() => {
       expect(screen.getByText("Email atau password salah")).toBeInTheDocument();

@@ -1,6 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import PSBDaftar from "@/pages/portal/PSBDaftar";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Legacy: rute "PSB" berganti nama jadi "PMB". Redirect supaya link lama
+// (mis. sudah dibagikan ke calon wali murid) tidak putus.
 export const Route = createFileRoute("/psb")({
-  component: PSBDaftar,
+  beforeLoad: () => {
+    throw redirect({ to: "/pmb" });
+  },
 });
