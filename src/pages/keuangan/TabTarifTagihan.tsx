@@ -344,17 +344,17 @@ export default function TabTarifTagihan() {
   };
 
   const tarifColumns: DataTableColumn<any>[] = [
-    { key: "jenis", label: "Jenis Pembayaran", render: (_, r) => (r as any).jenis?.nama || "-", sortable: true },
-    { key: "level", label: "Level Override", render: (_, r) => getLevelBadge(r) },
-    { key: "siswa", label: "Siswa", render: (_, r) => { const s = (r as any).siswa; return s ? <span>{s.nama} <span className="text-muted-foreground text-xs">({s.nis || '-'})</span></span> : <span className="text-muted-foreground">—</span>; } },
-    { key: "kelas", label: "Kelas", render: (_, r) => (r as any).kelas?.nama || <span className="text-muted-foreground">—</span> },
-    { key: "angkatan", label: "Angkatan", render: (_, r) => (r as any).angkatan?.nama || <span className="text-muted-foreground">—</span> },
-    { key: "tahun_ajaran", label: "Tahun Buku", render: (_, r) => (r as any).tahun_ajaran?.nama || <span className="text-muted-foreground">—</span> },
-    { key: "nominal_default", label: "Nominal Default", render: (_, r) => { const def = (r as any).jenis?.nominal; return def ? <span className="text-muted-foreground">{formatRupiah(Number(def))}</span> : "-"; } },
-    { key: "nominal", label: "Nominal Override", render: (v) => <span className="font-semibold text-primary">{formatRupiah(Number(v))}</span> },
-    { key: "keterangan", label: "Keterangan", render: (v) => (v as string) || "-" },
+    { key: "jenis", label: "Jenis Pembayaran", className: "min-w-[150px]", render: (_, r) => (r as any).jenis?.nama || "-", sortable: true },
+    { key: "level", label: "Level Override", className: "min-w-[120px]", render: (_, r) => getLevelBadge(r) },
+    { key: "siswa", label: "Siswa", className: "min-w-[180px]", render: (_, r) => { const s = (r as any).siswa; return s ? <span>{s.nama} <span className="text-muted-foreground text-xs">({s.nis || '-'})</span></span> : <span className="text-muted-foreground">—</span>; } },
+    { key: "kelas", label: "Kelas", className: "min-w-[100px]", render: (_, r) => (r as any).kelas?.nama || <span className="text-muted-foreground">—</span> },
+    { key: "angkatan", label: "Angkatan", className: "min-w-[110px]", render: (_, r) => (r as any).angkatan?.nama || <span className="text-muted-foreground">—</span> },
+    { key: "tahun_ajaran", label: "Tahun Buku", className: "min-w-[140px]", render: (_, r) => (r as any).tahun_ajaran?.nama || <span className="text-muted-foreground">—</span> },
+    { key: "nominal_default", label: "Nominal Default", className: "min-w-[130px]", render: (_, r) => { const def = (r as any).jenis?.nominal; return def ? <span className="text-muted-foreground">{formatRupiah(Number(def))}</span> : "-"; } },
+    { key: "nominal", label: "Nominal Override", className: "min-w-[140px]", render: (v) => <span className="font-semibold text-primary">{formatRupiah(Number(v))}</span> },
+    { key: "keterangan", label: "Keterangan", className: "min-w-[160px]", render: (v) => (v as string) || "-" },
     {
-      key: "aksi", label: "Aksi",
+      key: "aksi", label: "Aksi", className: "min-w-[90px]",
       render: (_, r) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
@@ -365,19 +365,21 @@ export default function TabTarifTagihan() {
   ];
 
   const tagihanColumns: DataTableColumn<any>[] = [
-    { key: "siswa", label: "Siswa", render: (_, r) => { const s = (r as any).siswa; return s ? <span>{s.nama} <span className="text-muted-foreground text-xs">({s.nis || '-'})</span></span> : "-"; }, sortable: true },
-    { key: "jenis", label: "Jenis", render: (_, r) => (r as any).jenis?.nama || "-" },
-    { key: "kelas", label: "Kelas", render: (_, r) => (r as any).kelas?.nama || "-" },
-    { key: "tahun_ajaran", label: "Tahun Buku", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
-    { key: "bulan", label: "Bulan", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali — TA {(r as any).tahun_ajaran?.nama || "-"}</Badge> },
-    { key: "nominal", label: "Nominal", render: (v) => <span className="font-semibold">{formatRupiah(Number(v))}</span> },
+    { key: "siswa", label: "Siswa", className: "min-w-[180px]", render: (_, r) => { const s = (r as any).siswa; return s ? <span>{s.nama} <span className="text-muted-foreground text-xs">({s.nis || '-'})</span></span> : "-"; }, sortable: true },
+    { key: "jenis", label: "Jenis", className: "min-w-[130px]", render: (_, r) => (r as any).jenis?.nama || "-" },
+    { key: "kelas", label: "Kelas", className: "min-w-[100px]", render: (_, r) => (r as any).kelas?.nama || "-" },
+    { key: "tahun_ajaran", label: "Tahun Buku", className: "min-w-[140px]", render: (_, r) => (r as any).tahun_ajaran?.nama || "-" },
+    { key: "bulan", label: "Bulan", className: "min-w-[130px]", render: (v, r) => v ? namaBulanTahun(v as number, { tahunBukuNama: (r as any).tahun_ajaran?.nama }) : <Badge variant="outline">Sekali — TA {(r as any).tahun_ajaran?.nama || "-"}</Badge> },
+    { key: "nominal", label: "Nominal", className: "min-w-[120px]", render: (v) => <span className="font-semibold">{formatRupiah(Number(v))}</span> },
     {
-      key: "status", label: "Status",
+      key: "status", label: "Status", className: "min-w-[110px]",
       render: (v) => v === "lunas"
         ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">Lunas</Badge>
-        : v === "dibatalkan"
-          ? <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30">Dibatalkan</Badge>
-          : <Badge variant="destructive">Belum Bayar</Badge>,
+        : v === "terjadwal"
+          ? <Badge variant="secondary">Terjadwal</Badge>
+          : v === "dibatalkan"
+            ? <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30">Dibatalkan</Badge>
+            : <Badge variant="destructive">Belum Bayar</Badge>,
     },
   ];
 
@@ -385,16 +387,16 @@ export default function TabTarifTagihan() {
     <>
       {/* ─── Pengaturan Tarif ─── */}
       <Card className="mt-4">
-        <CardContent className="pt-6 space-y-4">
+        <CardContent className="space-y-4 px-3 pt-4 sm:px-6 sm:pt-6">
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertDescription>
-              Tarif tagihan memungkinkan pengaturan nominal berbeda per <strong>siswa</strong>, <strong>kelas</strong>, dan/atau <strong>tahun buku</strong>.
-              Prioritas: Siswa+Kelas+Tahun → Siswa+Tahun → Siswa → Kelas+Tahun → Kelas → Tahun → Default.
+            <AlertDescription className="text-xs leading-relaxed sm:text-sm">
+              Tarif dapat dioverride per <strong>siswa</strong>, <strong>kelas</strong>, <strong>angkatan</strong>, dan/atau <strong>tahun buku</strong>.
+              Prioritas: Siswa+Kelas+Tahun → Siswa+Tahun → Siswa → Kelas+Tahun → Kelas → Angkatan+Tahun → Angkatan → Tahun → Default.
             </AlertDescription>
           </Alert>
           <div className="flex flex-wrap gap-2 items-end">
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <Label className="text-xs">Filter Jenis Pembayaran</Label>
               <Select value={filterJenis || "__all__"} onValueChange={(v) => setFilterJenis(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Semua jenis" /></SelectTrigger>
@@ -404,7 +406,7 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Label className="text-xs">Filter Kelas</Label>
               <Select value={filterTarifKelas || "__all__"} onValueChange={(v) => setFilterTarifKelas(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Semua kelas" /></SelectTrigger>
@@ -414,7 +416,7 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Label className="text-xs">Filter Tahun Buku</Label>
               <Select value={filterTarifTahun || "__all__"} onValueChange={(v) => setFilterTarifTahun(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Semua tahun buku" /></SelectTrigger>
@@ -424,7 +426,7 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-56">
+            <div className="w-full sm:w-56">
               <Label className="text-xs">Filter Siswa</Label>
               <SiswaCombobox value={filterTarifSiswa} onChange={setFilterTarifSiswa} placeholder="Semua siswa" />
             </div>
@@ -436,9 +438,9 @@ export default function TabTarifTagihan() {
             )}
           </div>
           <DataTable columns={tarifColumns} data={filteredData} loading={isLoading} pageSize={20} actions={
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setMassalOpen(true)}><Users className="h-4 w-4 mr-2" />Tambah Massal</Button>
-              <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Tambah Tarif</Button>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={() => setMassalOpen(true)}><Users className="h-4 w-4 mr-2" />Tambah Massal</Button>
+              <Button size="sm" className="flex-1 sm:flex-none" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Tambah Tarif</Button>
             </div>
           } />
         </CardContent>
@@ -446,21 +448,21 @@ export default function TabTarifTagihan() {
 
       {/* ─── Daftar Tagihan ─── */}
       <Card className="mt-4">
-        <CardContent className="pt-6 space-y-4">
+        <CardContent className="space-y-4 px-3 pt-4 sm:px-6 sm:pt-6">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
             <h3 className="font-semibold text-lg">Daftar Tagihan</h3>
           </div>
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertDescription>
-              Tagihan & <strong>jurnal piutang otomatis</strong> (Debit Piutang | Credit Pendapatan) dibuat saat menyimpan tarif baru dengan opsi generate dicentang.
-              Saat pembayaran diterima, jurnal akan otomatis menjadi Debit Kas | Credit Piutang.
+            <AlertDescription className="text-xs leading-relaxed sm:text-sm">
+              Tagihan dibuat saat opsi generate dijalankan. Tagihan yang sudah jatuh tempo otomatis membuat jurnal <strong>Debit Piutang | Kredit Pendapatan</strong>.
+              Periode mendatang berstatus <strong>Terjadwal</strong> dan baru dijurnal saat jatuh tempo. Saat pembayaran diterima, jurnal pembayaran adalah <strong>Debit Kas | Kredit Piutang</strong>.
             </AlertDescription>
           </Alert>
 
           <div className="flex flex-wrap gap-2 items-end">
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Label className="text-xs">Tahun Buku</Label>
               <Select value={filterTahunId || "__all__"} onValueChange={(v) => setFilterTahunId(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -470,7 +472,7 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Label className="text-xs">Jenis Pembayaran</Label>
               <Select value={filterJenisId || "__all__"} onValueChange={(v) => setFilterJenisId(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -480,19 +482,20 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-40">
+            <div className="w-full sm:w-40">
               <Label className="text-xs">Status</Label>
               <Select value={filterStatus || "__all__"} onValueChange={(v) => setFilterStatus(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">Semua</SelectItem>
+                  <SelectItem value="terjadwal">Terjadwal</SelectItem>
                   <SelectItem value="belum_bayar">Belum Bayar</SelectItem>
                   <SelectItem value="lunas">Lunas</SelectItem>
                   <SelectItem value="dibatalkan">Dibatalkan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Label className="text-xs">Kelas</Label>
               <Select value={filterTagihanKelas || "__all__"} onValueChange={(v) => setFilterTagihanKelas(v === "__all__" ? "" : v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -502,7 +505,7 @@ export default function TabTarifTagihan() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-56">
+            <div className="w-full sm:w-56">
               <Label className="text-xs">Siswa</Label>
               <SiswaCombobox value={filterSiswa} onChange={setFilterSiswa} placeholder="Semua siswa" />
             </div>
@@ -686,7 +689,7 @@ export default function TabTarifTagihan() {
                             />
                             <label htmlFor="select-all-months" className="text-sm cursor-pointer">Pilih semua (12 bulan)</label>
                           </div>
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                             {allMonths.map((b) => (
                               <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
                                 <Checkbox

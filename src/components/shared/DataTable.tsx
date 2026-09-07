@@ -118,9 +118,9 @@ export function DataTable<T extends Record<string, unknown>>({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
         {searchable && (
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
@@ -130,7 +130,7 @@ export function DataTable<T extends Record<string, unknown>>({
             />
           </div>
         )}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:ml-auto sm:w-auto sm:flex-nowrap sm:justify-end">
           {exportable && (
             <ExportButton
               data={filtered as Record<string, unknown>[]}
@@ -210,20 +210,20 @@ export function DataTable<T extends Record<string, unknown>>({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
           {filtered.length > 0
             ? `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, filtered.length)} dari ${filtered.length}`
             : "0 data"}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 self-end sm:self-auto">
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(0)}>
             <ChevronsLeft className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page === 0} onClick={() => setPage(page - 1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="px-2">Hal {page + 1}/{totalPages}</span>
+          <span className="px-2 whitespace-nowrap">Hal {page + 1}/{totalPages}</span>
           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
