@@ -104,11 +104,14 @@ export default function JurnalUmumDesktopLayout() {
             text-overflow: ellipsis;
           }
 
-          /* Lembaga */
+          /* Lembaga: beri ruang cukup dan cegah nama panjang menabrak Debit. */
           .jurnal-umum-desktop > div > :nth-child(4) > :nth-child(2) th:nth-child(4),
           .jurnal-umum-desktop > div > :nth-child(4) > :nth-child(2) td:nth-child(4) {
-            width: 82px;
+            width: 128px;
+            max-width: 128px;
+            overflow: hidden;
             white-space: nowrap;
+            text-overflow: ellipsis;
           }
 
           /* Diinput Oleh */
