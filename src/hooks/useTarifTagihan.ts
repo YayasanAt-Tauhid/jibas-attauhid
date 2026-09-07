@@ -116,22 +116,37 @@ export function useCreateTarifTagihan() {
       siswa_id?: string | null;
       kelas_id?: string | null;
       tahun_ajaran_id?: string | null;
+      /**
+       * Satu tarif Tahun Ajaran dapat melintasi dua Tahun Buku (mis. TA
+       * 2026/2027 = Jul–Des 2026 + Jan–Jun 2027). Jika diisi, mutation akan
+       * membuat satu baris tarif per Tahun Buku dalam SATU insert atomik.
+       */
+      tahun_ajaran_ids?: string[];
       angkatan_id?: string | null;
       nominal: number;
       keterangan?: string;
     }) => {
-      const { error } = await supabase.from("tarif_tagihan").insert({
-        ...values,
+      const periodeIds = values.tahun_ajaran_ids?.length
+        ? [...new Set(values.tahun_ajaran_ids)]
+        : [values.tahun_ajaran_id || null];
+
+      const payload = periodeIds.map((tahunId) => ({
+        jenis_id: values.jenis_id,
         siswa_id: values.siswa_id || null,
         kelas_id: values.kelas_id || null,
-        tahun_ajaran_id: values.tahun_ajaran_id || null,
+        tahun_ajaran_id: tahunId,
         angkatan_id: values.angkatan_id || null,
-      });
+        nominal: values.nominal,
+        keterangan: values.keterangan || undefined,
+      }));
+
+      const { error } = await supabase.from("tarif_tagihan").insert(payload);
       if (error) throw error;
+      return payload.length;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       qc.invalidateQueries({ queryKey: ["tarif_tagihan"] });
-      toast.success("Tarif tagihan berhasil ditambahkan");
+      toast.success(count > 1 ? `Tarif tagihan berhasil ditambahkan ke ${count} Tahun Buku` : "Tarif tagihan berhasil ditambahkan");
     },
     onError: (e: any) => toast.error(e.message),
   });
