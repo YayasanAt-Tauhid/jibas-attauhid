@@ -4,7 +4,7 @@
  * Hitung nilai akhir berbobot per mapel. Boleh staff, atau siswa/ortu terkait.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware, requireContext } from "./auth";
+import { authMiddleware, ForbiddenError, requireContext } from "./auth";
 import { createAdminClient } from "./supabase";
 
 export interface HitungNilaiAkhirInput {
@@ -37,25 +37,47 @@ export const hitungNilaiAkhir = createServerFn({ method: "POST" })
       const { siswa_id, mapel_id, kelas_id, tahun_ajaran_id, semester_id } =
         data;
 
-      const { data: profile } = await admin
+      const { data: profile, error: profileError } = await admin
         .from("users_profile")
-        .select("role")
+        .select("role, pegawai_id")
         .eq("id", userId)
         .single();
+      if (profileError || !profile) throw new ForbiddenError();
 
-      const allowedRoles = ["admin", "kepala_sekolah", "guru", "keuangan"];
-      const isStaff = profile && allowedRoles.includes(profile.role);
+      // Admin/kepala sekolah/keuangan memang punya cakupan lintas kelas.
+      // Guru TIDAK boleh diperlakukan sebagai staff global karena query di bawah
+      // memakai service-role dan dengan demikian melewati RLS. Pastikan guru
+      // benar-benar ditugaskan pada kombinasi kelas + mapel + periode yang diminta.
+      const privilegedRoles = ["admin", "kepala_sekolah", "keuangan"];
+      const isPrivileged = privilegedRoles.includes(profile.role);
 
-      if (!isStaff) {
-        const { data: isOwn } = await admin.rpc("is_own_siswa", {
+      if (profile.role === "guru") {
+        if (!profile.pegawai_id) throw new ForbiddenError();
+
+        const { data: assignment, error: assignmentError } = await admin
+          .from("jadwal")
+          .select("id")
+          .eq("pegawai_id", profile.pegawai_id)
+          .eq("kelas_id", kelas_id)
+          .eq("mapel_id", mapel_id)
+          .eq("tahun_ajaran_id", tahun_ajaran_id)
+          .eq("semester_id", semester_id)
+          .limit(1)
+          .maybeSingle();
+
+        if (assignmentError || !assignment) throw new ForbiddenError();
+      } else if (!isPrivileged) {
+        const { data: isOwn, error: ownError } = await admin.rpc("is_own_siswa", {
           _user_id: userId,
           _siswa_id: siswa_id,
         });
-        const { data: isParent } = await admin.rpc("is_ortu_of", {
+        const { data: isParent, error: parentError } = await admin.rpc("is_ortu_of", {
           p_user_id: userId,
           p_siswa_id: siswa_id,
         });
-        if (!isOwn && !isParent) throw new Error("Forbidden: akses ditolak");
+        if (ownError || parentError || (!isOwn && !isParent)) {
+          throw new ForbiddenError();
+        }
       }
 
       const { data: grades } = await admin
