@@ -19,7 +19,8 @@ import TarifMassalDialog from "./TarifMassalDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
 import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useDeleteTarifTagihan } from "@/hooks/useTarifTagihan";
-import { useTagihanList, useGenerateTagihan } from "@/hooks/useTagihan";
+import { useSimpanTarifGenerateAtomik } from "@/hooks/useTarifGenerateAtomik";
+import { useTagihanList } from "@/hooks/useTagihan";
 import { useKelas, useAngkatan, useTahunAjaran } from "@/hooks/useAkademikData";
 import {
   BULAN_ORDER_AKADEMIK,
@@ -89,7 +90,7 @@ export default function TabTarifTagihan() {
   const createMut = useCreateTarifTagihan();
   const updateMut = useUpdateTarifTagihan();
   const deleteMut = useDeleteTarifTagihan();
-  const generateMut = useGenerateTagihan();
+  const atomicMut = useSimpanTarifGenerateAtomik();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -289,7 +290,7 @@ export default function TabTarifTagihan() {
   }, [form.formState.errors, editItem, tahunAjaranId, missingTahunBukuLabels, duplicateFull]);
 
   const canSave = form.formState.isValid && validationErrors.length === 0;
-  const isSaving = createMut.isPending || updateMut.isPending || generateMut.isPending;
+  const isSaving = createMut.isPending || updateMut.isPending || atomicMut.isPending;
 
   const performSave = async (data: TarifFormValues) => {
     const nominalNum = Number(data.nominal || 0);
@@ -304,54 +305,51 @@ export default function TabTarifTagihan() {
           if (tahunIds.length === 0) return;
         }
 
-        await createMut.mutateAsync({
-          jenis_id: data.jenisId,
-          siswa_id: data.siswa?.id || null,
-          kelas_id: data.kelasId || null,
-          angkatan_id: data.angkatanId || null,
-          tahun_ajaran_id: data.tahunAjaranId ? undefined : null,
-          tahun_ajaran_ids: tahunIds,
-          nominal: nominalNum,
-          keterangan: data.keterangan || undefined,
-        });
-
         if (data.autoGenerate && data.tahunAjaranId && data.jenisId) {
-          try {
-            const baseParams: any = {
-              tahun_akademik_id: data.tahunAjaranId,
-              jenis_id: data.jenisId,
-            };
-            if (data.siswa) baseParams.siswa_id = data.siswa.id;
-            if (data.kelasId) baseParams.kelas_id = data.kelasId;
-            const effectiveGenDeptId = data.genDeptId || data.deptId;
-            if (effectiveGenDeptId) baseParams.departemen_id = effectiveGenDeptId;
-            if (data.angkatanId) baseParams.angkatan_id = data.angkatanId;
+          const tarifRows = (tahunIds || []).map((tahunBukuId) => ({
+            jenis_id: data.jenisId,
+            siswa_id: data.siswa?.id || null,
+            kelas_id: data.kelasId || null,
+            angkatan_id: data.angkatanId || null,
+            tahun_ajaran_id: tahunBukuId,
+            nominal: nominalNum,
+            keterangan: data.keterangan || null,
+          }));
 
-            if (isSekaliData) {
-              const genResult = await generateMut.mutateAsync({
-                ...baseParams,
-                tahun_ajaran_id: tarifPeriods.ids[0],
-              } as any);
-              if (genResult.generated === 0 && genResult.errors?.length) return;
-            } else {
-              for (const group of generatePeriods.groups) {
-                const genResult = await generateMut.mutateAsync({
-                  ...baseParams,
-                  tahun_ajaran_id: group.tahunBukuId,
-                  bulan_list: group.bulanList,
-                } as any);
-                if (genResult.generated === 0 && genResult.errors?.length) return;
-              }
-            }
-          } catch (genErr: any) {
-            toast.error(`Tarif tersimpan, tapi generate tagihan gagal: ${genErr.message}`);
-            return;
-          }
+          const generateGroups = isSekaliData
+            ? [{ tahun_buku_id: tarifPeriods.ids[0], bulan_list: [null] as Array<number | null> }]
+            : generatePeriods.groups.map((group) => ({
+                tahun_buku_id: group.tahunBukuId,
+                bulan_list: group.bulanList as Array<number | null>,
+              }));
+
+          const effectiveGenDeptId = data.genDeptId || data.deptId;
+          await atomicMut.mutateAsync({
+            tarif_rows: tarifRows,
+            tahun_akademik_id: data.tahunAjaranId,
+            jenis_id: data.jenisId,
+            generate_groups: generateGroups,
+            departemen_id: effectiveGenDeptId || null,
+            siswa_id: data.siswa?.id || null,
+            kelas_id: data.kelasId || null,
+            angkatan_id: data.angkatanId || null,
+          });
+        } else {
+          await createMut.mutateAsync({
+            jenis_id: data.jenisId,
+            siswa_id: data.siswa?.id || null,
+            kelas_id: data.kelasId || null,
+            angkatan_id: data.angkatanId || null,
+            tahun_ajaran_id: data.tahunAjaranId ? undefined : null,
+            tahun_ajaran_ids: tahunIds,
+            nominal: nominalNum,
+            keterangan: data.keterangan || undefined,
+          });
         }
       }
       setDialogOpen(false);
     } catch {
-      // mutation error already handled by toast in hooks
+      // Toast mutation sudah menjelaskan error; form tetap terbuka agar input tidak hilang.
     }
   };
 
@@ -778,6 +776,7 @@ export default function TabTarifTagihan() {
                 ))}
               </div>
             )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
               <Button type="submit" disabled={!canSave || isSaving}>
