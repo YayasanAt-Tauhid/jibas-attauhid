@@ -275,7 +275,7 @@ export interface BatalkanPembayaranInput {
 
 export const batalkanPembayaran = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .inputValidator((d: ProsesPembayaranInput) => d)
+  .inputValidator((d: BatalkanPembayaranInput) => d)
   .handler(
     async ({
       data,
@@ -290,8 +290,8 @@ export const batalkanPembayaran = createServerFn({ method: "POST" })
         "keuangan",
       ]);
 
-      const { pembayaran_id, alasan } = data as unknown as BatalkanPembayaranInput;
-      const tanggal = (data as unknown as BatalkanPembayaranInput).tanggal || new Date().toISOString().split("T")[0];
+      const { pembayaran_id, alasan } = data;
+      const tanggal = data.tanggal || new Date().toISOString().split("T")[0];
 
       if (!pembayaran_id) throw new Error("pembayaran_id wajib diisi");
       if (!alasan || !alasan.trim()) throw new Error("Alasan wajib diisi");
