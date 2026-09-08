@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 const nilaiHuruf = (n: number) => n >= 90 ? "A" : n >= 80 ? "B" : n >= 70 ? "C" : n >= 60 ? "D" : "E";
 const nilaiPredikat = (n: number) => n >= 90 ? "Sangat Baik" : n >= 80 ? "Baik" : n >= 70 ? "Cukup" : n >= 60 ? "Kurang" : "Sangat Kurang";
+const escapeHtml = (value: unknown) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 export default function CetakRapor() {
   const [taId, setTaId] = useState("");
@@ -116,7 +117,12 @@ export default function CetakRapor() {
     if (!content) return;
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>Rapor - ${raporData?.siswa?.nama}</title><style>
+    win.opener = null;
+    const safeStudentName = escapeHtml(raporData?.siswa?.nama || "Siswa");
+    // content.innerHTML berasal dari React-rendered DOM sehingga nilai teksnya
+    // sudah di-escape. Judul tetap di-escape eksplisit karena sebelumnya
+    // diinterpolasi langsung ke <title>, yang dapat menjadi stored XSS.
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Rapor - ${safeStudentName}</title><style>
       body { font-family: 'Times New Roman', serif; margin: 20px 40px; font-size: 12pt; color: #000; }
       table { width: 100%; border-collapse: collapse; margin: 12px 0; }
       th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; }
