@@ -15,7 +15,7 @@ import { Trash2, Info, Download, Upload, AlertCircle, X, Users } from "lucide-re
 import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan } from "@/hooks/useKeuangan";
 import { useKelas, useTahunAjaran } from "@/hooks/useAkademikData";
 import { useAllTarifTagihan, useCreateTarifTagihanBulk } from "@/hooks/useTarifTagihan";
-import { useGenerateTagihan } from "@/hooks/useTagihan";
+import { useSimpanTarifGenerateAtomik } from "@/hooks/useTarifGenerateAtomik";
 import { supabase } from "@/integrations/supabase/client";
 import {
   BULAN_ORDER_AKADEMIK,
@@ -48,7 +48,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const { data: kelasList } = useKelas();
 
   const bulkMut = useCreateTarifTagihanBulk();
-  const generateMut = useGenerateTagihan();
+  const atomicMut = useSimpanTarifGenerateAtomik();
 
   const [deptId, setDeptId] = useState("");
   const [jenisId, setJenisId] = useState("");
@@ -140,14 +140,14 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   };
 
   const updateRow = (id: string, patch: Partial<Pick<RowSiswa, "nominal" | "keterangan">>) => {
-    setRows((prev) => prev.map((r) => (r.siswa.id === id ? { ...r, ...patch } : r)));
+    setRows((prev) => prev.map((r) => (r.siswa.id === id ? { ...r, ...patch } : r));
   };
 
   const removeRow = (id: string) => setRows((prev) => prev.filter((r) => r.siswa.id !== id));
 
   const applyNominalToAll = () => {
     if (!nominalUmum) return;
-    setRows((prev) => prev.map((r) => ({ ...r, nominal: nominalUmum })));
+    setRows((prev) => prev.map((r) => ({ ...r, nominal: nominalUmum }));
   };
 
   // ── Import Excel ──────────────────────────────────────────────────────────
@@ -348,12 +348,11 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   }, [jenisId, tahunAjaranId, targetTahunBukuIds.length, tarifPeriods.missing.length, missingTarifLabel, rows.length, errorRowCount, autoGenerate, isSekali, genBulanList.length]);
 
   const canSave = validationErrors.length === 0;
-  const isSaving = bulkMut.isPending || generateMut.isPending;
+  const isSaving = bulkMut.isPending || atomicMut.isPending;
 
   const handleSave = async () => {
     if (!canSave || !tahunAjaranId) return;
     try {
-      // Simpan tarif hanya untuk kombinasi siswa+Tahun Buku yang belum ada.
       const tarifRows = rows.flatMap((r) => {
         const existing = existingPeriodBySiswa.get(r.siswa.id) || new Set<string>();
         return targetTahunBukuIds
@@ -361,45 +360,44 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
           .map((tahunBukuId) => ({
             jenis_id: jenisId,
             siswa_id: r.siswa.id,
+            kelas_id: null,
+            angkatan_id: null,
             tahun_ajaran_id: tahunBukuId,
             nominal: Number(r.nominal),
-            keterangan: r.keterangan || undefined,
+            keterangan: r.keterangan || null,
           }));
       });
 
-      if (tarifRows.length > 0) await bulkMut.mutateAsync(tarifRows);
-
       if (autoGenerate) {
-        try {
-          if (isSekali) {
-            const tahunBukuId = targetTahunBukuIds[0];
-            const genResult = await generateMut.mutateAsync({
-              tahun_ajaran_id: tahunBukuId,
-              tahun_akademik_id: tahunAjaranId,
-              jenis_id: jenisId,
-              siswa_ids: rows.map((r) => r.siswa.id),
-            } as any);
-            if (genResult.generated === 0 && genResult.errors?.length) return;
-          } else {
-            for (const group of generatePeriods.groups) {
-              const genResult = await generateMut.mutateAsync({
-                tahun_ajaran_id: group.tahunBukuId,
-                tahun_akademik_id: tahunAjaranId,
-                jenis_id: jenisId,
-                siswa_ids: rows.map((r) => r.siswa.id),
-                bulan_list: group.bulanList,
-              } as any);
-              if (genResult.generated === 0 && genResult.errors?.length) return;
-            }
-          }
-        } catch (genErr: any) {
-          toast.error(`Tarif tersimpan, tapi generate tagihan gagal: ${genErr.message}`);
-          return;
-        }
+        const generateGroups = isSekali
+          ? [{ tahun_buku_id: targetTahunBukuIds[0], bulan_list: [null] as Array<number | null> }]
+          : generatePeriods.groups.map((g) => ({
+              tahun_buku_id: g.tahunBukuId,
+              bulan_list: g.bulanList as Array<number | null>,
+            }));
+
+        await atomicMut.mutateAsync({
+          tarif_rows: tarifRows,
+          tahun_akademik_id: tahunAjaranId,
+          jenis_id: jenisId,
+          generate_groups: generateGroups,
+          siswa_ids: rows.map((r) => r.siswa.id),
+        });
+      } else if (tarifRows.length > 0) {
+        await bulkMut.mutateAsync(
+          tarifRows.map((r) => ({
+            jenis_id: r.jenis_id,
+            siswa_id: r.siswa_id!,
+            tahun_ajaran_id: r.tahun_ajaran_id,
+            nominal: r.nominal,
+            keterangan: r.keterangan || undefined,
+          }))
+        );
       }
+
       handleClose(false);
     } catch {
-      // error insert sudah ditampilkan oleh toast di hook
+      // Toast mutation sudah menjelaskan error; dialog tetap terbuka agar data tidak hilang.
     }
   };
 
