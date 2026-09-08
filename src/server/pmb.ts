@@ -91,6 +91,22 @@ export const pmbDaftar = createServerFn({ method: "POST" })
       .single();
     if (!dept) throw new Error("Departemen tidak valid atau PMB belum dibuka untuk lembaga ini");
 
+    // Endpoint ini publik dan memakai service-role, jadi jangan percaya UUID
+    // angkatan dari browser. Pastikan angkatan aktif dan memang milik lembaga
+    // yang dipilih agar pemanggil tidak dapat membuat relasi lintas lembaga.
+    if (angkatan_id) {
+      const { data: angkatan, error: angkatanError } = await admin
+        .from("angkatan")
+        .select("id")
+        .eq("id", angkatan_id)
+        .eq("departemen_id", departemen_id)
+        .eq("aktif", true)
+        .maybeSingle();
+      if (angkatanError || !angkatan) {
+        throw new Error("Angkatan tidak valid untuk lembaga yang dipilih");
+      }
+    }
+
     const jk = data.jenis_kelamin === "P" ? "P" : "L";
 
     const { data: siswa, error: siswaError } = await admin
