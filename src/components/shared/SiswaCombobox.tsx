@@ -7,7 +7,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
+import { cariSiswaRingkas } from "@/server/siswaRingkas";
 
 export interface SiswaRingkas {
   id: string;
@@ -49,15 +49,8 @@ export function SiswaCombobox({
     queryKey: ["siswa_search", debounced],
     enabled: open && debounced.length >= 2,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("siswa")
-        .select("id, nama, nis, departemen_id")
-        .or(`nama.ilike.%${debounced}%,nis.ilike.%${debounced}%`)
-        .eq("status", "aktif")
-        .limit(20)
-        .order("nama");
-      if (error) throw error;
-      return (data || []) as SiswaRingkas[];
+      const hasil = await cariSiswaRingkas({ data: { search: debounced, limit: 20 } });
+      return hasil.items as SiswaRingkas[];
     },
   });
 
