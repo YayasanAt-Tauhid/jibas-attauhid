@@ -32,6 +32,14 @@ const formatRupiah = (n: number) =>
     minimumFractionDigits: 0,
   }).format(n);
 
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   paid: { label: "Lunas", variant: "default" },
   pending: { label: "Menunggu", variant: "secondary" },
@@ -156,13 +164,46 @@ export default function PortalRiwayat() {
     }
   }, [highlightOrder, transaksi]);
 
-  // Bug 5 fix: buka popup terpisah untuk cetak, bukan window.print() seluruh halaman
+  // Cetak di popup terpisah. Semua data DB di-escape sebelum masuk ke HTML
+  // karena about:blank mewarisi origin halaman pembuka; tanpa escape, data
+  // seperti keterangan pembayaran dapat menjadi stored XSS saat dicetak.
   const printBukti = (tx: RiwayatItem) => {
     const items = tx.items;
     const w = window.open("", "_blank", "width=620,height=650");
     if (!w) { toast.error("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    w.opener = null;
+
+    const safeOrder = escapeHtml(tx.order_id || tx.key);
+    const safeDate = escapeHtml(
+      tx.tanggal ? new Date(tx.tanggal).toLocaleString("id-ID") : "-"
+    );
+    const safePaymentType = escapeHtml(tx.payment_type || "-");
+    const rows = items
+      .map(
+        (i) =>
+          `<tr><td>${escapeHtml(i.nama_item)}</td><td style="text-align:right">${escapeHtml(
+            i.jumlah.toLocaleString("id-ID", {
+              style: "currency",
+              currency: "IDR",
+              minimumFractionDigits: 0,
+            })
+          )}</td></tr>`
+      )
+      .join("");
+    const safeTotal = escapeHtml(
+      tx.total_amount.toLocaleString("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+      })
+    );
+
     w.document.write(`
-      <html><head><title>Bukti Pembayaran ${tx.order_id || tx.key}</title>
+      <!doctype html>
+      <html><head>
+      <meta charset="utf-8">
+      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+      <title>Bukti Pembayaran ${safeOrder}</title>
       <style>
         body{font-family:sans-serif;padding:24px;color:#111}
         h2{margin-bottom:4px}
@@ -171,20 +212,18 @@ export default function PortalRiwayat() {
         th{background:#f0f0f0}
         .total{font-weight:bold}
         .footer{margin-top:24px;font-size:12px;color:#666}
-        @media print{button{display:none}}
       </style>
       </head><body>
       <h2>Bukti Pembayaran</h2>
-      ${tx.order_id ? `<p><b>Order ID:</b> ${tx.order_id}</p>` : ""}
-      <p><b>Tanggal:</b> ${tx.tanggal ? new Date(tx.tanggal).toLocaleString("id-ID") : "-"}</p>
-      <p><b>Metode:</b> ${tx.payment_type || "-"}</p>
+      ${tx.order_id ? `<p><b>Order ID:</b> ${safeOrder}</p>` : ""}
+      <p><b>Tanggal:</b> ${safeDate}</p>
+      <p><b>Metode:</b> ${safePaymentType}</p>
       <table>
         <thead><tr><th>Item</th><th style="text-align:right">Jumlah</th></tr></thead>
-        <tbody>${items.map((i) => `<tr><td>${i.nama_item}</td><td style="text-align:right">${i.jumlah.toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr>`).join("")}</tbody>
-        <tfoot><tr class="total"><td>TOTAL</td><td style="text-align:right">${tx.total_amount.toLocaleString("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 })}</td></tr></tfoot>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="total"><td>TOTAL</td><td style="text-align:right">${safeTotal}</td></tr></tfoot>
       </table>
       <p class="footer">Terima kasih telah melakukan pembayaran.</p>
-      <br/><button onclick="window.print()">Cetak</button>
       </body></html>`);
     w.document.close();
     w.focus();
@@ -312,7 +351,6 @@ export default function PortalRiwayat() {
                       </TableBody>
                     </Table>
                     <div className="mt-3 flex justify-end">
-                      {/* Bug 5 fix: pakai printBukti(tx) bukan window.print() */}
                       <Button
                         variant="outline"
                         size="sm"
