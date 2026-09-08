@@ -161,8 +161,8 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { nis: "1234567890", nominal: 150000, keterangan: "Beasiswa prestasi 50%" },
-      { nis: "0987654321", nominal: 200000, keterangan: "" },
+      { nis: "1234567890", nominal: 1250000, keterangan: "Penetapan tarif dasar khusus program" },
+      { nis: "0987654321", nominal: 1200000, keterangan: "" },
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Tarif");
@@ -443,9 +443,9 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Tambah Override Tarif Massal (Per Siswa)</DialogTitle>
+          <DialogTitle>Tambah Override Tarif Dasar Massal (Per Siswa)</DialogTitle>
           <DialogDescription>
-            Nominal yang berbeda dari tarif default akan disimpan sebagai override per siswa. Nominal yang sama dengan default tidak membuat override baru dan dapat langsung dipakai untuk generate tagihan.
+            Override hanya mengubah tarif dasar/bruto siswa. Nominal yang sama dengan tarif default tidak membuat override baru dan dapat langsung dipakai untuk generate tagihan.
           </DialogDescription>
         </DialogHeader>
 
@@ -453,7 +453,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs leading-relaxed sm:text-sm">
-              <strong>Tarif default</strong> adalah tarif normal. Gunakan override hanya untuk siswa yang memang mempunyai tarif khusus, misalnya beasiswa, potongan, atau koreksi tarif.
+              <strong>Gunakan override hanya untuk perbedaan tarif dasar resmi</strong>, misalnya tarif kontrak lama, program/kelas tertentu, atau penetapan tarif bruto yang memang berbeda. <strong>Jangan gunakan override untuk beasiswa, diskon, potongan, atau keringanan.</strong> Untuk itu gunakan menu <strong>Siswa Penerima Keringanan</strong> di <code>/keuangan/diskon-siswa</code> agar bruto, potongan, netto, approval, dan jurnal tetap tercatat benar.
             </AlertDescription>
           </Alert>
 
@@ -505,8 +505,8 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
             </div>
 
             <div>
-              <Label>Keterangan Override</Label>
-              <Input value={keteranganUmum} onChange={(e) => setKeteranganUmum(e.target.value)} placeholder="Misal: Beasiswa prestasi 50%" />
+              <Label>Keterangan Override Tarif Dasar</Label>
+              <Input value={keteranganUmum} onChange={(e) => setKeteranganUmum(e.target.value)} placeholder="Misal: Tarif kontrak lama / program khusus" />
             </div>
           </div>
 
@@ -591,11 +591,11 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
               <AlertDescription className="text-xs leading-relaxed">
                 {jenisDefaultNominal > 0 ? (
                   <>
-                    Tarif default <strong>{formatRupiah(jenisDefaultNominal)}</strong>. Dari {rows.length} siswa: <strong>{defaultRowCount}</strong> tidak memerlukan override per siswa dan <strong>{overrideRowCount}</strong> akan dibuatkan override khusus.
+                    Tarif default <strong>{formatRupiah(jenisDefaultNominal)}</strong>. Dari {rows.length} siswa: <strong>{defaultRowCount}</strong> tidak memerlukan override per siswa dan <strong>{overrideRowCount}</strong> akan dibuatkan override tarif dasar.
                     {defaultRowCount > 0 && <> Saat generate, baris tanpa override siswa memakai <strong>tarif efektif</strong> sesuai prioritas sistem (mis. override kelas/angkatan/periode bila ada, lalu default).</>}
                   </>
                 ) : (
-                  <>Jenis ini tidak memiliki nominal default. Semua nominal siswa akan diperlakukan sebagai override khusus.</>
+                  <>Jenis ini tidak memiliki nominal default. Semua nominal siswa akan diperlakukan sebagai override tarif dasar.</>
                 )}
               </AlertDescription>
             </Alert>
@@ -615,7 +615,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                         <div className="flex items-center gap-1.5 min-w-0">
                           <p className="text-sm truncate">{r.siswa.nama} <span className="text-muted-foreground text-xs">({r.siswa.nis || "-"})</span></p>
                           <Badge variant={tanpaOverride ? "outline" : "secondary"} className="shrink-0 text-[10px]">
-                            {tanpaOverride ? "Tarif normal" : "Override"}
+                            {tanpaOverride ? "Tarif normal" : "Override tarif dasar"}
                           </Badge>
                         </div>
                         {err && <p className="text-xs text-destructive">{err}</p>}
@@ -624,7 +624,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                       <div className="w-36 shrink-0">
                         <RupiahInput value={r.nominal} onChange={(v) => updateRow(r.siswa.id, { nominal: v })} />
                       </div>
-                      <Input className="w-44 shrink-0 text-sm" value={r.keterangan} onChange={(e) => updateRow(r.siswa.id, { keterangan: e.target.value })} placeholder={tanpaOverride ? "Tidak disimpan" : "Alasan override"} disabled={tanpaOverride} />
+                      <Input className="w-44 shrink-0 text-sm" value={r.keterangan} onChange={(e) => updateRow(r.siswa.id, { keterangan: e.target.value })} placeholder={tanpaOverride ? "Tidak disimpan" : "Alasan tarif dasar berbeda"} disabled={tanpaOverride} />
                       <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => removeRow(r.siswa.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -712,9 +712,9 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
               ? "Memproses..."
               : autoGenerate
                 ? overrideRowCount > 0
-                  ? `Simpan ${overrideRowCount} Override & Generate untuk ${rows.length} Siswa`
+                  ? `Simpan ${overrideRowCount} Override Tarif Dasar & Generate untuk ${rows.length} Siswa`
                   : `Generate untuk ${rows.length} Siswa (Tanpa Override)`
-                : `Simpan ${overrideRowCount} Override`}
+                : `Simpan ${overrideRowCount} Override Tarif Dasar`}
           </Button>
         </DialogFooter>
       </DialogContent>
