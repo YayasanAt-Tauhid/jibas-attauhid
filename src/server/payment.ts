@@ -304,12 +304,11 @@ export const createPayment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .inputValidator((d: CreatePaymentInput) => d)
   .handler(async ({ data, context }): Promise<CreatePaymentResult> => {
-    // Origin untuk callback URL (browser mengirim header ini)
-    const { getRequestHeader } = await import("@tanstack/react-start/server");
-    const origin =
-      getRequestHeader("origin") ||
-      getRequestHeader("referer")?.replace(/\/$/, "") ||
-      "http://localhost:8080";
+    // Gunakan origin dari URL request yang diterima server, bukan header
+    // Origin/Referer yang berasal dari klien dan dapat dipalsukan. Dengan ini
+    // callback Midtrans tidak dapat diarahkan ke domain arbitrer oleh pemanggil.
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const origin = new URL(getRequest().url).origin;
 
     const result = await buatTransaksiSnap({
       userId: requireContext(context).userId,
