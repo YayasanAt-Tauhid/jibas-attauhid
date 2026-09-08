@@ -140,14 +140,14 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   };
 
   const updateRow = (id: string, patch: Partial<Pick<RowSiswa, "nominal" | "keterangan">>) => {
-    setRows((prev) => prev.map((r) => (r.siswa.id === id ? { ...r, ...patch } : r));
+    setRows((prev) => prev.map((r) => (r.siswa.id === id ? { ...r, ...patch } : r)));
   };
 
   const removeRow = (id: string) => setRows((prev) => prev.filter((r) => r.siswa.id !== id));
 
   const applyNominalToAll = () => {
     if (!nominalUmum) return;
-    setRows((prev) => prev.map((r) => ({ ...r, nominal: nominalUmum }));
+    setRows((prev) => prev.map((r) => ({ ...r, nominal: nominalUmum })));
   };
 
   // ── Import Excel ──────────────────────────────────────────────────────────
