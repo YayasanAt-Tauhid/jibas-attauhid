@@ -14,11 +14,11 @@ import { RupiahInput } from "@/components/shared/RupiahInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Info, Zap, AlertCircle, Users } from "lucide-react";
+import { Plus, Pencil, PowerOff, Info, Zap, AlertCircle, Users } from "lucide-react";
 import TarifMassalDialog from "./TarifMassalDialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatRupiah, useAllJenisPembayaran, useTahunBuku, useLembaga, namaBulan, namaBulanTahun } from "@/hooks/useKeuangan";
-import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useDeleteTarifTagihan } from "@/hooks/useTarifTagihan";
+import { useAllTarifTagihan, useCreateTarifTagihan, useUpdateTarifTagihan, useNonaktifkanTarifTagihan } from "@/hooks/useTarifTagihan";
 import { useSimpanTarifGenerateAtomik } from "@/hooks/useTarifGenerateAtomik";
 import { useTagihanList } from "@/hooks/useTagihan";
 import { useKelas, useAngkatan, useTahunAjaran } from "@/hooks/useAkademikData";
@@ -89,12 +89,13 @@ export default function TabTarifTagihan() {
 
   const createMut = useCreateTarifTagihan();
   const updateMut = useUpdateTarifTagihan();
-  const deleteMut = useDeleteTarifTagihan();
+  const nonaktifMut = useNonaktifkanTarifTagihan();
   const atomicMut = useSimpanTarifGenerateAtomik();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [nonaktifItem, setNonaktifItem] = useState<any | null>(null);
+  const [nonaktifAlasan, setNonaktifAlasan] = useState("");
   const [broadConfirmOpen, setBroadConfirmOpen] = useState(false);
   const [pendingSaveData, setPendingSaveData] = useState<TarifFormValues | null>(null);
   const [massalOpen, setMassalOpen] = useState(false);
@@ -231,6 +232,28 @@ export default function TabTarifTagihan() {
     setEditItem(item);
     form.reset({ ...tarifFormDefaults, nominal: String(item.nominal ?? "").replace(/\D/g, ""), keterangan: item.keterangan || "" });
     setDialogOpen(true);
+  };
+
+  const openNonaktif = (item: any) => {
+    setNonaktifItem(item);
+    setNonaktifAlasan("");
+  };
+
+  const closeNonaktif = () => {
+    if (nonaktifMut.isPending) return;
+    setNonaktifItem(null);
+    setNonaktifAlasan("");
+  };
+
+  const confirmNonaktif = async () => {
+    if (!nonaktifItem || nonaktifAlasan.trim().length < 3) return;
+    try {
+      await nonaktifMut.mutateAsync({ id: nonaktifItem.id, alasan: nonaktifAlasan });
+      setNonaktifItem(null);
+      setNonaktifAlasan("");
+    } catch {
+      // Toast mutation sudah menampilkan alasan kegagalan. Dialog tetap terbuka.
+    }
   };
 
   useEffect(() => {
@@ -388,7 +411,16 @@ export default function TabTarifTagihan() {
       render: (_, r) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId((r as any).id)}><Trash2 className="h-4 w-4" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive"
+            title="Nonaktifkan override tarif"
+            aria-label="Nonaktifkan override tarif"
+            onClick={() => openNonaktif(r)}
+          >
+            <PowerOff className="h-4 w-4" />
+          </Button>
         </div>
       ),
     },
@@ -561,7 +593,7 @@ export default function TabTarifTagihan() {
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Angkatan</span><span className="text-right">{editItem.angkatan?.nama || "Semua angkatan"}</span></div>
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Tahun Buku</span><span className="text-right">{editItem.tahun_ajaran?.nama || "Semua tahun buku"}</span></div>
                 <p className="text-xs text-muted-foreground pt-1.5 border-t mt-2">
-                  Jenis & scope tidak bisa diubah agar tagihan yang sudah ada tetap valid. Hapus dan buat ulang jika perlu mengubahnya.
+                  Jenis & scope tidak bisa diubah agar tagihan yang sudah ada tetap valid. Nonaktifkan override ini lalu buat override baru jika perlu mengubah scope.
                 </p>
               </div>
             ) : (
@@ -797,13 +829,90 @@ export default function TabTarifTagihan() {
         onConfirm={() => { setBroadConfirmOpen(false); if (pendingSaveData) void performSave(pendingSaveData); }}
       />
 
-      <ConfirmDialog
-        open={!!deleteId}
-        onOpenChange={() => setDeleteId(null)}
-        title="Hapus Tarif Tagihan"
-        description="Yakin ingin menghapus tarif ini? Tagihan yang sudah ter-generate dari tarif ini TIDAK ikut terhapus — jika perlu, batalkan tagihannya lewat menu Tunggakan/Piutang."
-        onConfirm={() => { if (deleteId) deleteMut.mutate(deleteId); setDeleteId(null); }}
-      />
+      <Dialog open={!!nonaktifItem} onOpenChange={(open) => { if (!open) closeNonaktif(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nonaktifkan Override Tarif</DialogTitle>
+          </DialogHeader>
+
+          {nonaktifItem && (
+            <div className="space-y-4">
+              <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-1.5">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Jenis Pembayaran</span>
+                  <span className="font-medium text-right">{nonaktifItem.jenis?.nama || "-"}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Scope</span>
+                  <span className="text-right">
+                    {nonaktifItem.siswa
+                      ? `${nonaktifItem.siswa.nama} (${nonaktifItem.siswa.nis || "-"})`
+                      : nonaktifItem.kelas
+                        ? `Kelas ${nonaktifItem.kelas.nama}`
+                        : nonaktifItem.angkatan
+                          ? nonaktifItem.angkatan.nama
+                          : "Umum"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Tahun Buku</span>
+                  <span className="text-right">{nonaktifItem.tahun_ajaran?.nama || "Semua periode"}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Nominal Override</span>
+                  <span className="font-semibold text-right">{formatRupiah(Number(nonaktifItem.nominal || 0))}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Nominal Default Jenis</span>
+                  <span className="text-right">
+                    {Number(nonaktifItem.jenis?.nominal || 0) > 0
+                      ? formatRupiah(Number(nonaktifItem.jenis.nominal))
+                      : "Tidak ada"}
+                  </span>
+                </div>
+              </div>
+
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-xs leading-relaxed">
+                  Override ini hanya akan <strong>dinonaktifkan</strong>, bukan dihapus permanen.
+                  Tagihan, pembayaran, dan jurnal yang sudah terbentuk <strong>tidak berubah</strong>.
+                  Generate berikutnya akan mencari aturan tarif prioritas berikutnya, lalu nominal default jenis jika tidak ada override lain.
+                </AlertDescription>
+              </Alert>
+
+              <div>
+                <Label htmlFor="alasan-nonaktif-tarif">Alasan penonaktifan *</Label>
+                <Textarea
+                  id="alasan-nonaktif-tarif"
+                  value={nonaktifAlasan}
+                  onChange={(e) => setNonaktifAlasan(e.target.value)}
+                  placeholder="Contoh: salah input override; siswa kembali mengikuti tarif default"
+                  className="mt-1"
+                  disabled={nonaktifMut.isPending}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Alasan, waktu, dan pengguna akan dicatat di Audit Trail.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeNonaktif} disabled={nonaktifMut.isPending}>
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmNonaktif()}
+              disabled={nonaktifAlasan.trim().length < 3 || nonaktifMut.isPending}
+            >
+              {nonaktifMut.isPending ? "Memproses..." : "Nonaktifkan Override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
