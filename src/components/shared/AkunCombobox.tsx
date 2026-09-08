@@ -60,13 +60,17 @@ export function AkunCombobox({
             !selected && "text-muted-foreground"
           )}
         >
-          <span className="truncate min-w-0">
+          <span className="truncate min-w-0" title={selected ? `${selected.kode} - ${selected.nama}` : undefined}>
             {selected ? `${selected.kode} - ${selected.nama}` : placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[340px] p-0" align="start">
+      <PopoverContent
+        className="w-[min(560px,calc(100vw-2rem))] p-0"
+        align="start"
+        sideOffset={4}
+      >
         <div className="flex items-center border-b px-3 py-2 gap-2">
           <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <Input
@@ -77,7 +81,7 @@ export function AkunCombobox({
             className="h-7 border-0 p-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
-        <div className="max-h-60 overflow-y-auto">
+        <div className="max-h-72 overflow-y-auto">
           {filtered.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Akun tidak ditemukan.
@@ -92,17 +96,20 @@ export function AkunCombobox({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
+                  "flex w-full items-start gap-2 px-3 py-2.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
                   value === akun.id && "bg-accent text-accent-foreground"
                 )}
+                title={`${akun.kode} - ${akun.nama}`}
               >
                 <Check
-                  className={cn("h-3.5 w-3.5 shrink-0", value === akun.id ? "opacity-100" : "opacity-0")}
+                  className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", value === akun.id ? "opacity-100" : "opacity-0")}
                 />
-                <span className="font-mono text-xs text-muted-foreground w-16 shrink-0">
+                <span className="font-mono text-xs text-muted-foreground w-16 shrink-0 pt-0.5">
                   {akun.kode}
                 </span>
-                <span className="truncate">{akun.nama}</span>
+                <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug">
+                  {akun.nama}
+                </span>
               </button>
             ))
           )}
