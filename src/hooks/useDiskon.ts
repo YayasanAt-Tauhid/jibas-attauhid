@@ -2,8 +2,9 @@
  * Hooks: diskon/keringanan SPP
  *
  * Pembagian jalur akses:
- *   - `skema_diskon` & pembacaan `siswa_diskon` -> langsung lewat supabase
- *     client, dilindungi RLS (pola sama dengan tabel referensi keuangan lain)
+ *   - master `skema_diskon` -> langsung lewat supabase client + RLS
+ *   - daftar `siswa_diskon` -> lewat server function agar penyetuju hanya
+ *     menerima data siswa ringkas yang dibutuhkan tanpa membuka tabel siswa
  *   - mutasi yang menyentuh jurnal/keputusan (ajukan, setujui, terapkan,
  *     kelompok keluarga) -> lewat server function di `src/server/diskon.ts`,
  *     karena RPC-nya dikunci ke service_role di database
@@ -12,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  listSiswaDiskon,
   ajukanDiskonSiswa,
   putuskanDiskonSiswa,
   terapkanDiskonSiswa,
@@ -146,6 +148,8 @@ export interface SiswaDiskonRow {
   siswa: { nama: string; nis: string | null } | null;
   skema_diskon: Pick<SkemaDiskon, "nama" | "kategori" | "tipe" | "nilai_default"> | null;
   jenis_pembayaran: { nama: string } | null;
+  /** Jumlah pengajuan lama untuk siswa+jenis+periode yang sama. */
+  riwayat_count: number;
 }
 
 export function useSiswaDiskonList(filter?: {
@@ -155,23 +159,8 @@ export function useSiswaDiskonList(filter?: {
   return useQuery({
     queryKey: ["siswa_diskon", filter ?? {}],
     queryFn: async () => {
-      let q = supabase
-        .from("siswa_diskon")
-        .select(
-          "id, siswa_id, skema_diskon_id, jenis_id, periode_mulai, periode_selesai, nilai, " +
-            "status, catatan, dokumen_url, alasan_penolakan, diajukan_at, diputuskan_at, diterapkan_at, " +
-            "siswa:siswa_id(nama, nis), " +
-            "skema_diskon:skema_diskon_id(nama, kategori, tipe, nilai_default), " +
-            "jenis_pembayaran:jenis_id(nama)"
-        )
-        .order("diajukan_at", { ascending: false });
-
-      if (filter?.status) q = q.eq("status", filter.status);
-      if (filter?.siswa_id) q = q.eq("siswa_id", filter.siswa_id);
-
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []) as unknown as SiswaDiskonRow[];
+      const hasil = await listSiswaDiskon({ data: filter ?? {} });
+      return hasil.items as unknown as SiswaDiskonRow[];
     },
   });
 }
@@ -278,7 +267,7 @@ export function hitungPreviewDiskon(
   const nilai = nilaiOverride ?? skema.nilai_default ?? 0;
   const diskon =
     skema.tipe === "persen"
-      ? (tarifBruto * Math.min(Math.max(nilai, 0), 100)) / 100
+      ? (tarifBruto * Math.min(Math.max(nilai, 0), 100) / 100
       : Math.max(nilai, 0);
   return Math.min(Math.round(diskon), tarifBruto);
 }
