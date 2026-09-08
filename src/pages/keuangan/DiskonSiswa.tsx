@@ -81,7 +81,9 @@ function nilaiTampil(row: SiswaDiskonRow): string {
   const tipe = row.skema_diskon?.tipe;
   const nilai = row.nilai ?? row.skema_diskon?.nilai_default ?? 0;
   if (Number(nilai) === 0) return "belum ditentukan";
-  return tipe === "persen" ? `${nilai}%` : formatRupiah(Number(nilai));
+  return tipe === "persen"
+    ? `${nilai}% / tagihan`
+    : `${formatRupiah(Number(nilai))} / tagihan`;
 }
 
 export default function DiskonSiswa() {
@@ -161,7 +163,7 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
     },
     {
       key: "skema_diskon",
-      label: "Skema",
+      label: "Skema Keringanan",
       render: (_v, row) => {
         const r = row as unknown as SiswaDiskonRow;
         return (
@@ -196,7 +198,7 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
     },
     {
       key: "status",
-      label: "Status",
+      label: "Status Pengajuan",
       sortable: true,
       render: (v, row) => {
         const r = row as unknown as SiswaDiskonRow;
@@ -206,8 +208,13 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
               {LABEL_STATUS[v as StatusDiskon] ?? String(v)}
             </Badge>
             {r.status === "ditolak" && r.alasan_penolakan && (
-              <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
+              <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
                 {r.alasan_penolakan}
+              </p>
+            )}
+            {filterStatus === "semua" && r.riwayat_count > 0 && (
+              <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
+                {r.riwayat_count} pengajuan sebelumnya tersimpan sebagai riwayat
               </p>
             )}
           </div>
@@ -216,10 +223,12 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
     },
     {
       key: "id",
-      label: "Aksi",
+      label: "Tindakan",
       render: (_v, row) => {
         const r = row as unknown as SiswaDiskonRow;
-        if (r.status !== "disetujui") return null;
+        if (r.status !== "disetujui") {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
         return (
           <Button
             size="sm"
@@ -241,7 +250,7 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
       <CardContent className="pt-6 space-y-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div className="w-48">
-            <Label>Status</Label>
+            <Label>Status Pengajuan</Label>
             <Select
               value={filterStatus}
               onValueChange={(v) => setFilterStatus(v as StatusDiskon | "semua")}
@@ -261,7 +270,7 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
           </div>
 
           <div className="w-48">
-            <Label>Kategori</Label>
+            <Label>Kategori Keringanan</Label>
             <Select
               value={filterKategori}
               onValueChange={(v) => setFilterKategori(v as KategoriDiskon | "semua")}
@@ -280,6 +289,13 @@ function TabDaftar({ bolehAjukan }: { bolehAjukan: boolean }) {
             </Select>
           </div>
         </div>
+
+        {filterStatus === "semua" && (
+          <p className="text-xs text-muted-foreground">
+            Menampilkan pengajuan terkini untuk setiap siswa, jenis pembayaran, dan periode.
+            Pengajuan lama tetap tersimpan sebagai riwayat dan dapat dilihat lewat filter status.
+          </p>
+        )}
 
         <DataTable
           columns={columns}
