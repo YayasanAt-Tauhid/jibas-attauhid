@@ -17,6 +17,14 @@ import { createAdminClient } from "./supabase";
 
 const ROLE_PENGAJU = ["admin", "kepala_sekolah", "keuangan"];
 const ROLE_PENYETUJU = ["admin", "sekretaris_yayasan"];
+const ROLE_LIHAT_KERINGANAN = [
+  "admin",
+  "kepala_sekolah",
+  "keuangan",
+  "sekretaris_yayasan",
+];
+
+type StatusDiskon = "diajukan" | "disetujui" | "ditolak" | "dibatalkan";
 
 /** Hasil penerapan diskon ke baris tagihan yang sudah ada. */
 export interface PenerapanDiskon {
@@ -61,6 +69,115 @@ function terjemahkanErrorDiskon(pesan: string): string {
   }
   return pesan;
 }
+
+// ── Daftar keringanan ──────────────────────────────────────────────────────
+// Dibaca lewat server/admin client agar sekretaris yayasan dapat melihat nama
+// dan NIS siswa yang memang diperlukan untuk proses persetujuan, tanpa membuka
+// SELECT langsung ke seluruh tabel `siswa` melalui RLS browser.
+
+export interface ListSiswaDiskonInput {
+  status?: StatusDiskon;
+  siswa_id?: string;
+}
+
+export interface SiswaDiskonListItem {
+  id: string;
+  siswa_id: string;
+  skema_diskon_id: string;
+  jenis_id: string;
+  periode_mulai: string;
+  periode_selesai: string;
+  nilai: number | null;
+  status: StatusDiskon;
+  catatan: string | null;
+  dokumen_url: string | null;
+  alasan_penolakan: string | null;
+  diajukan_at: string;
+  diputuskan_at: string | null;
+  diterapkan_at: string | null;
+  siswa: { nama: string; nis: string | null } | null;
+  skema_diskon: {
+    nama: string;
+    kategori: string;
+    tipe: string;
+    nilai_default: number;
+  } | null;
+  jenis_pembayaran: { nama: string } | null;
+  /** Jumlah pengajuan lama untuk siswa+jenis+periode yang sama. */
+  riwayat_count: number;
+}
+
+function rapikanBarisDiskon(
+  row: Omit<SiswaDiskonListItem, "riwayat_count">,
+  riwayatCount = 0
+): SiswaDiskonListItem {
+  const alasan = row.alasan_penolakan?.trim();
+  return {
+    ...row,
+    siswa: row.siswa
+      ? {
+          nama: row.siswa.nama?.trim() || "—",
+          nis: row.siswa.nis?.trim() || null,
+        }
+      : null,
+    alasan_penolakan: alasan ? `Alasan: ${alasan}` : null,
+    riwayat_count: riwayatCount,
+  };
+}
+
+export const listSiswaDiskon = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .inputValidator((d: ListSiswaDiskonInput | undefined) => d ?? {})
+  .handler(async ({ data, context }): Promise<{ items: SiswaDiskonListItem[] }> => {
+    const admin = createAdminClient();
+    const { userId } = requireContext(context);
+    await requireRole(admin, userId, ROLE_LIHAT_KERINGANAN);
+
+    let q = admin
+      .from("siswa_diskon")
+      .select(
+        "id, siswa_id, skema_diskon_id, jenis_id, periode_mulai, periode_selesai, nilai, " +
+          "status, catatan, dokumen_url, alasan_penolakan, diajukan_at, diputuskan_at, diterapkan_at, " +
+          "siswa:siswa_id(nama, nis), " +
+          "skema_diskon:skema_diskon_id(nama, kategori, tipe, nilai_default), " +
+          "jenis_pembayaran:jenis_id(nama)"
+      )
+      .order("diajukan_at", { ascending: false });
+
+    if (data.status) q = q.eq("status", data.status);
+    if (data.siswa_id) q = q.eq("siswa_id", data.siswa_id);
+
+    const { data: hasil, error } = await q;
+    if (error) throw new Error("Gagal memuat daftar keringanan: " + error.message);
+
+    const rows = (hasil ?? []) as unknown as Array<
+      Omit<SiswaDiskonListItem, "riwayat_count">
+    >;
+
+    // Pada tampilan "Semua status", satu siklus pengajuan hanya ditampilkan
+    // sekali. Pengajuan lama (mis. ditolak lalu diajukan ulang) tetap tersimpan
+    // sebagai audit trail dan tetap dapat dilihat saat memfilter statusnya.
+    if (!data.status) {
+      const terkini = new Map<string, SiswaDiskonListItem>();
+      for (const row of rows) {
+        const key = [
+          row.siswa_id,
+          row.jenis_id,
+          row.periode_mulai,
+          row.periode_selesai,
+        ].join("|");
+        const existing = terkini.get(key);
+        if (existing) {
+          existing.riwayat_count += 1;
+        } else {
+          terkini.set(key, rapikanBarisDiskon(row));
+        }
+      }
+      return { items: Array.from(terkini.values()) };
+    }
+
+    return { items: rows.map((row) => rapikanBarisDiskon(row)) };
+  });
 
 // ── Pengajuan ──────────────────────────────────────────────────────────────
 
