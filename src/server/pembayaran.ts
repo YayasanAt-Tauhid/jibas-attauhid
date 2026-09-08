@@ -31,11 +31,6 @@ export interface ProsesPembayaranResult {
   jumlah: number;
 }
 
-const NAMA_BULAN = [
-  "", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
-];
-
 export const prosesPembayaran = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .inputValidator((d: ProsesPembayaranInput) => d)
@@ -94,12 +89,6 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
       .from("siswa")
       .select("nama")
       .eq("id", siswa_id)
-      .maybeSingle();
-
-    const { data: taRow } = await admin
-      .from("tahun_buku")
-      .select("nama")
-      .eq("id", tahun_ajaran_id)
       .maybeSingle();
 
     // Ambil tarif dari DB — JANGAN pakai nominal dari frontend
@@ -224,12 +213,19 @@ export const prosesPembayaran = createServerFn({ method: "POST" })
     }
     if (!kreditAkunId) throw new Error("Akun kredit belum dikonfigurasi");
 
+    // Identitas transaksi disamakan dengan jurnal pembentukan piutang (JPI):
+    // "<jenis>-B<bulan> - <nama siswa>".
     const namaSiswa = siswaRow?.nama ?? "Siswa";
-    const namaTA = taRow?.nama ?? tahun_ajaran_id;
-    const infoBulan = bulanNormalized ? ` — ${NAMA_BULAN[bulanNormalized]}` : "";
-    const autoKet = `${jenis.nama}${infoBulan} (TA ${namaTA}) — ${namaSiswa}`;
+    const identitasTagihan = `${jenis.nama}${
+      bulanNormalized != null ? `-B${bulanNormalized}` : ""
+    } - ${namaSiswa}`;
+    const autoKet = pakaiDimuka
+      ? `Pembayaran Diterima di Muka ${identitasTagihan}`
+      : tagihanEfektifId && piutangAkunId
+        ? `Pembayaran Piutang ${identitasTagihan}`
+        : `Pembayaran ${identitasTagihan}`;
     const keteranganFinal = keterangan
-      ? `${keterangan} | ${jenis.nama}${infoBulan} (TA ${namaTA}) — ${namaSiswa}`
+      ? `${keterangan} | ${autoKet}`
       : autoKet;
 
     const { data: result, error: rpcErr } = await admin.rpc(
@@ -279,7 +275,7 @@ export interface BatalkanPembayaranInput {
 
 export const batalkanPembayaran = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .inputValidator((d: BatalkanPembayaranInput) => d)
+  .inputValidator((d: ProsesPembayaranInput) => d)
   .handler(
     async ({
       data,
@@ -294,8 +290,8 @@ export const batalkanPembayaran = createServerFn({ method: "POST" })
         "keuangan",
       ]);
 
-      const { pembayaran_id, alasan } = data;
-      const tanggal = data.tanggal || new Date().toISOString().split("T")[0];
+      const { pembayaran_id, alasan } = data as unknown as BatalkanPembayaranInput;
+      const tanggal = (data as unknown as BatalkanPembayaranInput).tanggal || new Date().toISOString().split("T")[0];
 
       if (!pembayaran_id) throw new Error("pembayaran_id wajib diisi");
       if (!alasan || !alasan.trim()) throw new Error("Alasan wajib diisi");
