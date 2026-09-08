@@ -267,7 +267,7 @@ export function hitungPreviewDiskon(
   const nilai = nilaiOverride ?? skema.nilai_default ?? 0;
   const diskon =
     skema.tipe === "persen"
-      ? (tarifBruto * Math.min(Math.max(nilai, 0), 100) / 100
+      ? (tarifBruto * Math.min(Math.max(nilai, 0), 100)) / 100
       : Math.max(nilai, 0);
   return Math.min(Math.round(diskon), tarifBruto);
 }
