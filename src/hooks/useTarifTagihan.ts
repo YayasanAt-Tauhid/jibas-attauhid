@@ -207,16 +207,36 @@ export function useUpdateTarifTagihan() {
   });
 }
 
-export function useDeleteTarifTagihan() {
+export interface NonaktifkanTarifResult {
+  success: boolean;
+  already_inactive?: boolean;
+  tagihan_terkait?: number;
+}
+
+/**
+ * Soft delete override tarif. Data tarif tetap disimpan untuk histori/audit;
+ * tagihan dan jurnal yang sudah terbentuk tidak disentuh.
+ */
+export function useNonaktifkanTarifTagihan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tarif_tagihan").delete().eq("id", id);
+    mutationFn: async ({ id, alasan }: { id: string; alasan: string }) => {
+      const { data, error } = await (supabase as any).rpc("nonaktifkan_override_tarif", {
+        p_tarif_id: id,
+        p_alasan: alasan.trim(),
+      });
       if (error) throw error;
+      return data as NonaktifkanTarifResult;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["tarif_tagihan"] });
-      toast.success("Tarif tagihan berhasil dihapus");
+      qc.invalidateQueries({ queryKey: ["audit_keuangan"] });
+      const terkait = Number(data?.tagihan_terkait || 0);
+      toast.success(
+        terkait > 0
+          ? `Override tarif dinonaktifkan. ${terkait} tagihan yang sudah ada tetap tidak berubah.`
+          : "Override tarif berhasil dinonaktifkan"
+      );
     },
     onError: (e: any) => toast.error(e.message),
   });
