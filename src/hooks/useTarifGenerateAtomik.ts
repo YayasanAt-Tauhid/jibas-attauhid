@@ -67,12 +67,20 @@ export function useSimpanTarifGenerateAtomik() {
       const scheduledInfo = data.scheduled > 0
         ? `, ${data.scheduled} belum jatuh tempo`
         : "";
+
+      if (data.tarif_inserted === 0) {
+        toast.success(
+          `Tagihan berhasil diproses tanpa membuat override: ${data.generated} tagihan baru, ${data.skipped} sudah ada${scheduledInfo}`
+        );
+        return;
+      }
+
       toast.success(
-        `Tarif & tagihan berhasil disimpan atomik: ${data.tarif_inserted} tarif, ${data.generated} tagihan baru, ${data.skipped} sudah ada${scheduledInfo}`
+        `Override & tagihan berhasil disimpan atomik: ${data.tarif_inserted} override, ${data.generated} tagihan baru, ${data.skipped} sudah ada${scheduledInfo}`
       );
     },
     onError: (e: any) => {
-      toast.error(`Tarif dan tagihan dibatalkan/rollback: ${e.message}`);
+      toast.error(`Proses tarif/tagihan dibatalkan/rollback: ${e.message}`);
     },
   });
 }

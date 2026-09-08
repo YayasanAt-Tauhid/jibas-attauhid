@@ -52,7 +52,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
 
   const [deptId, setDeptId] = useState("");
   const [jenisId, setJenisId] = useState("");
-  // Benar-benar Tahun Ajaran akademik (Juli-Juni), bukan Tahun Buku.
   const [tahunAjaranId, setTahunAjaranId] = useState("");
   const [rows, setRows] = useState<RowSiswa[]>([]);
   const [nominalUmum, setNominalUmum] = useState("");
@@ -63,7 +62,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
 
   const [kelasPickId, setKelasPickId] = useState("");
   const [loadingKelas, setLoadingKelas] = useState(false);
-
   const [autoGenerate, setAutoGenerate] = useState(true);
   const [genBulanList, setGenBulanList] = useState<number[]>([]);
 
@@ -77,19 +75,15 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
   const selectedTahunAjaran = tahunAjaranList?.find((t: any) => t.id === tahunAjaranId) || null;
   const isSekali = selectedJenis?.tipe === "sekali";
   const effectiveDeptId = deptId || selectedJenis?.departemen_id || "";
+  const jenisDefaultNominal = Number(selectedJenis?.nominal || 0);
 
-  const filteredKelasList = kelasList || [];
   const kalenderAkademik = useMemo(
     () => bulanKalenderTahunAjaran(selectedTahunAjaran as any),
     [selectedTahunAjaran],
   );
-  const allMonths = kalenderAkademik.length
-    ? kalenderAkademik.map((x) => x.bulan)
-    : BULAN_ORDER_AKADEMIK;
+  const allMonths = kalenderAkademik.length ? kalenderAkademik.map((x) => x.bulan) : BULAN_ORDER_AKADEMIK;
   const allSelected = allMonths.length > 0 && allMonths.every((b) => genBulanList.includes(b));
 
-  // Satu tarif Tahun Ajaran bulanan disimpan sebagai baris tarif pada setiap
-  // Tahun Buku yang dilintasi (contoh TA 2026/2027 -> Tahun 2026 + Tahun 2027).
   const tarifPeriods = useMemo(
     () => targetTahunBukuTarif({
       tahunAjaran: selectedTahunAjaran as any,
@@ -108,14 +102,29 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     [selectedTahunAjaran, tahunBukuList, genBulanList],
   );
 
+  const targetTahunBukuIds = tarifPeriods.ids;
+
+  const isDefaultRow = (r: RowSiswa) =>
+    jenisDefaultNominal > 0 && Number(r.nominal || 0) === jenisDefaultNominal;
+
+  const defaultRowCount = rows.filter(isDefaultRow).length;
+  const overrideRowCount = rows.length - defaultRowCount;
+
   const toggleBulan = (b: number) => {
     setGenBulanList((prev) => prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]);
   };
 
   const resetState = () => {
-    setDeptId(""); setJenisId(""); setTahunAjaranId(""); setRows([]);
-    setNominalUmum(""); setKeteranganUmum(""); setImportErrors([]);
-    setAutoGenerate(true); setGenBulanList([]); setKelasPickId("");
+    setDeptId("");
+    setJenisId("");
+    setTahunAjaranId("");
+    setRows([]);
+    setNominalUmum("");
+    setKeteranganUmum("");
+    setImportErrors([]);
+    setAutoGenerate(true);
+    setGenBulanList([]);
+    setKelasPickId("");
   };
 
   const handleClose = (v: boolean) => {
@@ -150,7 +159,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     setRows((prev) => prev.map((r) => ({ ...r, nominal: nominalUmum })));
   };
 
-  // ── Import Excel ──────────────────────────────────────────────────────────
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
       { nis: "1234567890", nominal: 150000, keterangan: "Beasiswa prestasi 50%" },
@@ -158,13 +166,14 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Tarif");
-    XLSX.writeFile(wb, "template_tarif_massal.xlsx");
+    XLSX.writeFile(wb, "template_override_tarif_massal.xlsx");
   };
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+
     reader.onload = async (ev) => {
       setImporting(true);
       setImportErrors([]);
@@ -172,7 +181,6 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
         const wb = XLSX.read(ev.target?.result, { type: "binary" });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json<{ nis?: unknown; nominal?: unknown; keterangan?: unknown }>(ws, { defval: "" });
-
         const errors: string[] = [];
         const parsed = data
           .map((r, i) => ({
@@ -190,7 +198,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
           });
 
         if (parsed.length === 0) {
-          setImportErrors(errors.length ? errors : ["File tidak berisi baris data — pastikan kolom bernama: nis, nominal, keterangan"]);
+          setImportErrors(errors.length ? errors : ["File tidak berisi data — gunakan kolom: nis, nominal, keterangan"]);
           return;
         }
         if (parsed.length > MAX_ROWS) {
@@ -205,10 +213,11 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
           .in("nis", nisList)
           .eq("status", "aktif");
         if (error) throw error;
-        const byNis = new Map((siswaData || []).map((s: any) => [String(s.nis), s as SiswaRingkas]));
 
+        const byNis = new Map((siswaData || []).map((s: any) => [String(s.nis), s as SiswaRingkas]));
         const newRows: RowSiswa[] = [];
         const seen = new Set(rows.map((r) => r.siswa.id));
+
         for (const r of parsed) {
           const s = byNis.get(r.nis);
           if (!s) {
@@ -232,11 +241,11 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
         setImporting(false);
       }
     };
+
     reader.readAsBinaryString(file);
     e.target.value = "";
   };
 
-  // ── Tambah dari daftar kelas ──────────────────────────────────────────────
   const addFromKelas = async () => {
     if (!kelasPickId) return;
     setLoadingKelas(true);
@@ -246,8 +255,8 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
         .select("siswa:siswa_id(id, nama, nis, departemen_id)")
         .eq("kelas_id", kelasPickId)
         .eq("aktif", true);
-      // Bila Tahun Ajaran sudah dipilih, ambil penempatan kelas pada TA itu.
       if (tahunAjaranId) q = q.eq("tahun_ajaran_id", tahunAjaranId);
+
       const { data, error } = await q;
       if (error) throw error;
 
@@ -263,8 +272,12 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
       const seen = new Set(rows.map((r) => r.siswa.id));
       const newRows: RowSiswa[] = [];
       let skipped = 0;
+
       for (const s of siswaList) {
-        if (seen.has(s.id)) { skipped++; continue; }
+        if (seen.has(s.id)) {
+          skipped++;
+          continue;
+        }
         if (rows.length + newRows.length >= MAX_ROWS) break;
         seen.add(s.id);
         newRows.push({ siswa: s, nominal: defaultNominal(), keterangan: keteranganUmum });
@@ -280,15 +293,10 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     }
   };
 
-  // ── Validasi ──────────────────────────────────────────────────────────────
-  const targetTahunBukuIds = tarifPeriods.ids;
-
-  // Student dianggap duplikat penuh hanya bila tarif untuk SEMUA Tahun Buku
-  // yang membentuk TA tersebut sudah ada. Bila baru salah satu, sisanya tetap
-  // boleh dibuat dan baris existing akan di-skip saat insert.
   const existingPeriodBySiswa = useMemo(() => {
     const map = new Map<string, Set<string>>();
     if (!tarifList || !jenisId) return map;
+
     for (const t of tarifList as any[]) {
       if (t.jenis_id !== jenisId || !t.siswa_id || t.kelas_id || t.angkatan_id || !t.tahun_ajaran_id) continue;
       const set = map.get(t.siswa_id) || new Set<string>();
@@ -300,12 +308,16 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
 
   const rowError = (r: RowSiswa): string | null => {
     if (!r.nominal || Number(r.nominal) <= 0) return "Nominal harus > 0";
-    if (targetTahunBukuIds.length > 0) {
-      const existing = existingPeriodBySiswa.get(r.siswa.id);
-      if (existing && targetTahunBukuIds.every((id) => existing.has(id))) {
-        return "Tarif untuk Tahun Ajaran ini sudah lengkap";
-      }
+
+    const existing = existingPeriodBySiswa.get(r.siswa.id);
+    if (isDefaultRow(r) && existing && targetTahunBukuIds.some((id) => existing.has(id))) {
+      return "Masih ada override siswa aktif pada periode ini — nonaktifkan/edit override lama dulu jika ingin kembali ke tarif default";
     }
+
+    if (!isDefaultRow(r) && existing && targetTahunBukuIds.length > 0 && targetTahunBukuIds.every((id) => existing.has(id))) {
+      return "Override tarif untuk Tahun Ajaran ini sudah lengkap";
+    }
+
     return null;
   };
 
@@ -313,10 +325,14 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     if (effectiveDeptId && r.siswa.departemen_id && r.siswa.departemen_id !== effectiveDeptId) {
       return "Tercatat di lembaga lain — pastikan ini disengaja (mis. tarif jenjang berikutnya)";
     }
-    const existing = existingPeriodBySiswa.get(r.siswa.id);
-    if (existing && targetTahunBukuIds.some((id) => existing.has(id))) {
-      return "Sebagian Tahun Buku sudah memiliki tarif; hanya periode yang belum ada yang akan ditambahkan";
+
+    if (!isDefaultRow(r)) {
+      const existing = existingPeriodBySiswa.get(r.siswa.id);
+      if (existing && targetTahunBukuIds.some((id) => existing.has(id))) {
+        return "Sebagian Tahun Buku sudah memiliki override; hanya periode yang belum ada yang akan ditambahkan";
+      }
     }
+
     return null;
   };
 
@@ -339,34 +355,53 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     if (missingTarifLabel.length > 0) {
       errs.push(`Tahun Buku untuk ${missingTarifLabel.join(", ")} belum tersedia — buat dulu di tab Tahun Buku`);
     }
-    if (rows.length === 0) errs.push("Belum ada siswa di daftar — tambah lewat pencarian atau import Excel");
+    if (rows.length === 0) errs.push("Belum ada siswa di daftar — tambah lewat pencarian, kelas, atau import Excel");
     if (errorRowCount > 0) errs.push(`${errorRowCount} baris bermasalah (ditandai merah) — perbaiki atau hapus dulu`);
     if (autoGenerate && jenisId && !isSekali && genBulanList.length === 0) {
       errs.push("Pilih minimal satu bulan untuk generate tagihan");
     }
+    if (!autoGenerate && rows.length > 0 && overrideRowCount === 0 && jenisDefaultNominal > 0) {
+      errs.push("Semua nominal sama dengan tarif default, jadi tidak ada override yang perlu disimpan. Aktifkan Generate Tagihan atau tutup dialog.");
+    }
     return errs;
-  }, [jenisId, tahunAjaranId, targetTahunBukuIds.length, tarifPeriods.missing.length, missingTarifLabel, rows.length, errorRowCount, autoGenerate, isSekali, genBulanList.length]);
+  }, [
+    jenisId,
+    tahunAjaranId,
+    targetTahunBukuIds.length,
+    tarifPeriods.missing.length,
+    missingTarifLabel,
+    rows.length,
+    errorRowCount,
+    autoGenerate,
+    isSekali,
+    genBulanList.length,
+    overrideRowCount,
+    jenisDefaultNominal,
+  ]);
 
   const canSave = validationErrors.length === 0;
   const isSaving = bulkMut.isPending || atomicMut.isPending;
 
   const handleSave = async () => {
     if (!canSave || !tahunAjaranId) return;
+
     try {
-      const tarifRows = rows.flatMap((r) => {
-        const existing = existingPeriodBySiswa.get(r.siswa.id) || new Set<string>();
-        return targetTahunBukuIds
-          .filter((tahunBukuId) => !existing.has(tahunBukuId))
-          .map((tahunBukuId) => ({
-            jenis_id: jenisId,
-            siswa_id: r.siswa.id,
-            kelas_id: null,
-            angkatan_id: null,
-            tahun_ajaran_id: tahunBukuId,
-            nominal: Number(r.nominal),
-            keterangan: r.keterangan || null,
-          }));
-      });
+      const tarifRows = rows
+        .filter((r) => !isDefaultRow(r))
+        .flatMap((r) => {
+          const existing = existingPeriodBySiswa.get(r.siswa.id) || new Set<string>();
+          return targetTahunBukuIds
+            .filter((tahunBukuId) => !existing.has(tahunBukuId))
+            .map((tahunBukuId) => ({
+              jenis_id: jenisId,
+              siswa_id: r.siswa.id,
+              kelas_id: null,
+              angkatan_id: null,
+              tahun_ajaran_id: tahunBukuId,
+              nominal: Number(r.nominal),
+              keterangan: r.keterangan || null,
+            }));
+        });
 
       if (autoGenerate) {
         const generateGroups = isSekali
@@ -393,6 +428,9 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
             keterangan: r.keterangan || undefined,
           }))
         );
+        if (defaultRowCount > 0) {
+          toast.info(`${defaultRowCount} siswa sama dengan tarif default — tidak dibuat override per siswa.`);
+        }
       }
 
       handleClose(false);
@@ -405,13 +443,20 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Tambah Tarif Massal (Per Siswa)</DialogTitle>
+          <DialogTitle>Tambah Override Tarif Massal (Per Siswa)</DialogTitle>
           <DialogDescription>
-            Input tarif untuk satu Tahun Ajaran (Juli–Juni). Sistem otomatis memisahkan penyimpanan dan jurnal ke Tahun Buku Januari–Desember sesuai bulan tagihan.
+            Nominal yang berbeda dari tarif default akan disimpan sebagai override per siswa. Nominal yang sama dengan default tidak membuat override baru dan dapat langsung dipakai untuk generate tagihan.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs leading-relaxed sm:text-sm">
+              <strong>Tarif default</strong> adalah tarif normal. Gunakan override hanya untuk siswa yang memang mempunyai tarif khusus, misalnya beasiswa, potongan, atau koreksi tarif.
+            </AlertDescription>
+          </Alert>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Lembaga (opsional)</Label>
@@ -432,13 +477,21 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
               </Select>
               <p className="text-xs text-muted-foreground mt-1">Memfilter pilihan jenis pembayaran</p>
             </div>
+
             <div>
               <Label>Jenis Pembayaran *</Label>
               <Select value={jenisId} onValueChange={(v) => { setJenisId(v); setGenBulanList([]); }}>
                 <SelectTrigger><SelectValue placeholder="Pilih jenis pembayaran..." /></SelectTrigger>
-                <SelectContent>{jenisListForForm?.map((j: any) => <SelectItem key={j.id} value={j.id}>{j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {jenisListForForm?.map((j: any) => (
+                    <SelectItem key={j.id} value={j.id}>
+                      {j.nama} {j.nominal ? `(Default: ${formatRupiah(Number(j.nominal))})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
+
             <div>
               <Label>Tahun Ajaran *</Label>
               <Select value={tahunAjaranId || "__none__"} onValueChange={(v) => { setTahunAjaranId(v === "__none__" ? "" : v); setGenBulanList([]); }}>
@@ -448,10 +501,11 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                   {tahunAjaranList?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Periode siswa Juli–Juni. Tahun Buku untuk ISAK 35 tetap Januari–Desember.</p>
+              <p className="text-xs text-muted-foreground mt-1">Tahun Ajaran Juli–Juni; Tahun Buku keuangan tetap Januari–Desember.</p>
             </div>
+
             <div>
-              <Label>Keterangan (untuk baris baru)</Label>
+              <Label>Keterangan Override</Label>
               <Input value={keteranganUmum} onChange={(e) => setKeteranganUmum(e.target.value)} placeholder="Misal: Beasiswa prestasi 50%" />
             </div>
           </div>
@@ -460,7 +514,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
             <Alert className="py-2">
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                <strong>{selectedTahunAjaran?.nama}</strong> akan dipetakan ke {targetTahunBukuIds.length} Tahun Buku: {targetTahunBukuIds.map((id) => (tahunBukuList as any[])?.find((tb: any) => tb.id === id)?.nama).filter(Boolean).join(" + ")}.
+                <strong>{selectedTahunAjaran?.nama}</strong> dipetakan ke {targetTahunBukuIds.map((id) => (tahunBukuList as any[])?.find((tb: any) => tb.id === id)?.nama).filter(Boolean).join(" + ")}.
               </AlertDescription>
             </Alert>
           )}
@@ -488,7 +542,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                 <SelectTrigger><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Pilih Kelas —</SelectItem>
-                  {filteredKelasList?.map((k: any) => (
+                  {(kelasList || []).map((k: any) => (
                     <SelectItem key={k.id} value={k.id}>{k.nama} {k.tingkat?.nama ? `(${k.tingkat.nama})` : ""}</SelectItem>
                   ))}
                 </SelectContent>
@@ -517,39 +571,60 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
           {rows.length > 0 && (
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-44">
-                <Label className="text-xs">Nominal seragam</Label>
+                <Label className="text-xs">Nominal target</Label>
                 <RupiahInput value={nominalUmum} onChange={setNominalUmum} />
               </div>
               <Button variant="secondary" size="sm" onClick={applyNominalToAll} disabled={!nominalUmum}>
                 Terapkan ke semua ({rows.length})
               </Button>
               {errorRowCount > 0 && (
-                <Button variant="outline" size="sm" className="text-destructive"
-                  onClick={() => setRows((prev) => prev.filter((r) => !rowError(r)))}>
+                <Button variant="outline" size="sm" className="text-destructive" onClick={() => setRows((prev) => prev.filter((r) => !rowError(r)))}>
                   Hapus {errorRowCount} baris bermasalah
                 </Button>
               )}
             </div>
           )}
 
+          {rows.length > 0 && jenisId && (
+            <Alert className="py-2">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs leading-relaxed">
+                {jenisDefaultNominal > 0 ? (
+                  <>
+                    Tarif default <strong>{formatRupiah(jenisDefaultNominal)}</strong>. Dari {rows.length} siswa: <strong>{defaultRowCount}</strong> tidak memerlukan override per siswa dan <strong>{overrideRowCount}</strong> akan dibuatkan override khusus.
+                    {defaultRowCount > 0 && <> Saat generate, baris tanpa override siswa memakai <strong>tarif efektif</strong> sesuai prioritas sistem (mis. override kelas/angkatan/periode bila ada, lalu default).</>}
+                  </>
+                ) : (
+                  <>Jenis ini tidak memiliki nominal default. Semua nominal siswa akan diperlakukan sebagai override khusus.</>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {rows.length > 0 && (
             <div className="rounded-md border overflow-x-auto">
-              <div className="max-h-72 min-w-[620px] overflow-y-auto divide-y">
+              <div className="max-h-72 min-w-[650px] overflow-y-auto divide-y">
                 {rows.map((r, i) => {
                   const err = rowError(r);
                   const warn = !err ? rowWarning(r) : null;
+                  const tanpaOverride = isDefaultRow(r);
                   return (
                     <div key={r.siswa.id} className={`flex items-center gap-2 px-3 py-2 ${err ? "bg-destructive/5" : warn ? "bg-amber-500/5" : ""}`}>
                       <span className="text-xs text-muted-foreground w-6 shrink-0 text-right">{i + 1}.</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{r.siswa.nama} <span className="text-muted-foreground text-xs">({r.siswa.nis || "-"})</span></p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="text-sm truncate">{r.siswa.nama} <span className="text-muted-foreground text-xs">({r.siswa.nis || "-"})</span></p>
+                          <Badge variant={tanpaOverride ? "outline" : "secondary"} className="shrink-0 text-[10px]">
+                            {tanpaOverride ? "Tarif normal" : "Override"}
+                          </Badge>
+                        </div>
                         {err && <p className="text-xs text-destructive">{err}</p>}
                         {warn && <p className="text-xs text-amber-700 dark:text-amber-500">{warn}</p>}
                       </div>
                       <div className="w-36 shrink-0">
                         <RupiahInput value={r.nominal} onChange={(v) => updateRow(r.siswa.id, { nominal: v })} />
                       </div>
-                      <Input className="w-44 shrink-0 text-sm" value={r.keterangan} onChange={(e) => updateRow(r.siswa.id, { keterangan: e.target.value })} placeholder="Keterangan" />
+                      <Input className="w-44 shrink-0 text-sm" value={r.keterangan} onChange={(e) => updateRow(r.siswa.id, { keterangan: e.target.value })} placeholder={tanpaOverride ? "Tidak disimpan" : "Alasan override"} disabled={tanpaOverride} />
                       <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => removeRow(r.siswa.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -557,14 +632,15 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                   );
                 })}
               </div>
-              <div className="border-t px-3 py-2 text-xs text-muted-foreground flex justify-between">
+              <div className="border-t px-3 py-2 text-xs text-muted-foreground flex justify-between gap-4">
                 <span>{rows.length} siswa</span>
-                <span>Total nominal: <strong className="text-foreground">{formatRupiah(totalNominal)}</strong>{!isSekali && jenisId ? " /bulan" : ""}</span>
+                <span>Total nominal input: <strong className="text-foreground">{formatRupiah(totalNominal)}</strong>{!isSekali && jenisId ? " /bulan" : ""}</span>
               </div>
             </div>
           )}
 
           <Separator />
+
           <div className="space-y-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox checked={autoGenerate} onCheckedChange={(v) => setAutoGenerate(!!v)} />
@@ -576,7 +652,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                 <Alert className="py-2">
                   <Info className="h-3 w-3" />
                   <AlertDescription className="text-xs">
-                    Tagihan dibuat hanya untuk <strong>{rows.length} siswa di daftar</strong>. Periode mendatang berstatus terjadwal; jurnal piutang dibuat saat jatuh tempo. Tahun Buku jurnal mengikuti tanggal kalender masing-masing bulan.
+                    Tagihan dibuat hanya untuk <strong>{rows.length} siswa di daftar</strong>. Tagihan yang sudah ada akan di-skip oleh pengaman duplikasi database. Periode mendatang berstatus terjadwal dan baru dijurnal saat jatuh tempo.
                   </AlertDescription>
                 </Alert>
 
@@ -590,11 +666,7 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
                   <div>
                     <Label className="text-xs">Bulan Tahun Ajaran *</Label>
                     <div className="flex items-center gap-2 mb-2 mt-1">
-                      <Checkbox
-                        id="massal-select-all-months"
-                        checked={allSelected}
-                        onCheckedChange={(checked) => setGenBulanList(checked ? [...allMonths] : [])}
-                      />
+                      <Checkbox id="massal-select-all-months" checked={allSelected} onCheckedChange={(checked) => setGenBulanList(checked ? [...allMonths] : [])} />
                       <label htmlFor="massal-select-all-months" className="text-sm cursor-pointer">Pilih semua (Juli–Juni)</label>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -639,8 +711,10 @@ export default function TarifMassalDialog({ open, onOpenChange }: TarifMassalDia
             {isSaving
               ? "Memproses..."
               : autoGenerate
-                ? `Simpan ${rows.length} Tarif & Generate`
-                : `Simpan ${rows.length} Tarif`}
+                ? overrideRowCount > 0
+                  ? `Simpan ${overrideRowCount} Override & Generate untuk ${rows.length} Siswa`
+                  : `Generate untuk ${rows.length} Siswa (Tanpa Override)`
+                : `Simpan ${overrideRowCount} Override`}
           </Button>
         </DialogFooter>
       </DialogContent>
